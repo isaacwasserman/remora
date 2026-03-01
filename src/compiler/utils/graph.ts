@@ -1,8 +1,9 @@
 import type { WorkflowStep } from "../../types";
 
-export function buildStepIndex(
-	steps: WorkflowStep[],
-): { index: Map<string, WorkflowStep>; duplicates: string[] } {
+export function buildStepIndex(steps: WorkflowStep[]): {
+	index: Map<string, WorkflowStep>;
+	duplicates: string[];
+} {
 	const index = new Map<string, WorkflowStep>();
 	const duplicates: string[] = [];
 

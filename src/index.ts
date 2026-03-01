@@ -1,11 +1,10 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import { Output, type ToolSet, asSchema, generateText, jsonSchema, tool } from "ai";
-import { type Type, type } from "arktype";
-import { workflowDefinitionSchema, type WorkflowDefinition } from "./types";
-import { workflowToMermaid } from "./diagram";
 import fs from "node:fs/promises";
-import { EXAMPLE_TASKS } from "./example-tasks";
+import { createOpenAI } from "@ai-sdk/openai";
+import { asSchema, generateText, type ToolSet, tool } from "ai";
 import { compileWorkflow } from "./compiler";
+import { workflowToMermaid } from "./diagram";
+import { EXAMPLE_TASKS } from "./example-tasks";
+import { type WorkflowDefinition, workflowDefinitionSchema } from "./types";
 
 const openrouter = createOpenAI({
 	baseURL: "https://openrouter.ai/api/v1",
@@ -21,9 +20,11 @@ async function serializeToolsForPrompt(tools: ToolSet) {
 				name: toolName,
 				description: toolDef.description,
 				inputSchema: await asSchema(toolDef.inputSchema).jsonSchema,
-				outputSchema: toolDef.outputSchema ? await asSchema(toolDef.outputSchema).jsonSchema : "output schema not provided",
-			}))
-		)
+				outputSchema: toolDef.outputSchema
+					? await asSchema(toolDef.outputSchema).jsonSchema
+					: "output schema not provided",
+			})),
+		),
 	);
 }
 

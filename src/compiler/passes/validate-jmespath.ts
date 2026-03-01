@@ -1,9 +1,9 @@
 import type { WorkflowDefinition } from "../../types";
 import type { Diagnostic, ExecutionGraph } from "../types";
 import {
-	validateJmespathSyntax,
 	extractRootIdentifiers,
 	extractTemplateExpressions,
+	validateJmespathSyntax,
 } from "../utils/jmespath-helpers";
 
 interface ExpressionInfo {

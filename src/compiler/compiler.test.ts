@@ -1,25 +1,36 @@
-import { test, expect, describe } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { tool } from "ai";
 import { type } from "arktype";
-import { compileWorkflow } from "./compiler";
-import type { Diagnostic, DiagnosticCode } from "./compiler";
-import type { WorkflowDefinition } from "./types";
-import ticketReviewWorkflow from "./ticket-review-workflow.json";
-import headlinesWorkflow from "./workflow.json";
+import { EXAMPLE_TASKS } from "../example-tasks";
+import type { WorkflowDefinition } from "../types";
+import type { Diagnostic, DiagnosticCode } from ".";
+import { compileWorkflow } from ".";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
-function hasDiagnostic(diagnostics: Diagnostic[], code: DiagnosticCode): boolean {
+function hasDiagnostic(
+	diagnostics: Diagnostic[],
+	code: DiagnosticCode,
+): boolean {
 	return diagnostics.some((d) => d.code === code);
 }
 
-function getDiagnostics(diagnostics: Diagnostic[], code: DiagnosticCode): Diagnostic[] {
+function getDiagnostics(
+	diagnostics: Diagnostic[],
+	code: DiagnosticCode,
+): Diagnostic[] {
 	return diagnostics.filter((d) => d.code === code);
 }
 
-function getFirstDiagnostic(diagnostics: Diagnostic[], code: DiagnosticCode): Diagnostic {
+function getFirstDiagnostic(
+	diagnostics: Diagnostic[],
+	code: DiagnosticCode,
+): Diagnostic {
 	const diag = diagnostics.find((d) => d.code === code);
-	if (!diag) throw new Error(`Expected diagnostic with code '${code}' but none was found`);
+	if (!diag)
+		throw new Error(
+			`Expected diagnostic with code '${code}' but none was found`,
+		);
 	return diag;
 }
 
@@ -27,7 +38,7 @@ function errors(diagnostics: Diagnostic[]): Diagnostic[] {
 	return diagnostics.filter((d) => d.severity === "error");
 }
 
-function warnings(diagnostics: Diagnostic[]): Diagnostic[] {
+function _warnings(diagnostics: Diagnostic[]): Diagnostic[] {
 	return diagnostics.filter((d) => d.severity === "warning");
 }
 
@@ -88,6 +99,203 @@ const testTools = {
 	}),
 };
 
+// ─── Workflow fixtures ──────────────────────────────────────────
+
+const ticketReviewWorkflow = {
+	initialStepId: "get_tickets",
+	steps: [
+		{
+			id: "get_tickets",
+			name: "Get Open Tickets",
+			description: "Fetch all open support tickets",
+			type: "tool-call",
+			params: {
+				toolName: "get-open-tickets",
+				toolInput: {},
+			},
+			nextStepId: "review_tickets",
+		},
+		{
+			id: "review_tickets",
+			name: "Review Each Ticket",
+			description: "Iterate over each ticket for classification",
+			type: "for-each",
+			params: {
+				target: { type: "jmespath", expression: "get_tickets.tickets" },
+				itemName: "ticket",
+				loopBodyStepId: "classify_ticket",
+			},
+			nextStepId: "send_summary",
+		},
+		{
+			id: "classify_ticket",
+			name: "Classify Ticket",
+			description: "Use LLM to classify ticket as critical or routine",
+			type: "llm-prompt",
+			params: {
+				prompt:
+					"Classify this support ticket as critical or routine.\n\nSubject: ${ticket.subject}\nBody: ${ticket.body}",
+				outputFormat: {
+					type: "object",
+					properties: {
+						classification: {
+							type: "string",
+							enum: ["critical", "routine"],
+						},
+						reason: { type: "string" },
+					},
+					required: ["classification", "reason"],
+				},
+			},
+			nextStepId: "check_classification",
+		},
+		{
+			id: "check_classification",
+			name: "Check Classification",
+			description: "Branch based on ticket classification",
+			type: "switch-case",
+			params: {
+				switchOn: {
+					type: "jmespath",
+					expression: "classify_ticket.classification",
+				},
+				cases: [
+					{
+						value: { type: "literal", value: "critical" },
+						branchBodyStepId: "page_engineer",
+					},
+					{
+						value: { type: "default" },
+						branchBodyStepId: "routine_noop",
+					},
+				],
+			},
+		},
+		{
+			id: "page_engineer",
+			name: "Page On-Call Engineer",
+			description: "Page the on-call engineer for critical tickets",
+			type: "tool-call",
+			params: {
+				toolName: "page-on-call-engineer",
+				toolInput: {
+					ticketId: { type: "jmespath", expression: "ticket.id" },
+					reason: {
+						type: "jmespath",
+						expression: "classify_ticket.reason",
+					},
+				},
+			},
+		},
+		{
+			id: "routine_noop",
+			name: "Routine No-Op",
+			description: "No action needed for routine tickets",
+			type: "end",
+		},
+		{
+			id: "send_summary",
+			name: "Send Summary",
+			description: "Send a Slack summary after processing all tickets",
+			type: "tool-call",
+			params: {
+				toolName: "send-slack-message",
+				toolInput: {
+					channel: {
+						type: "literal",
+						value: "support-standup",
+					},
+					message: {
+						type: "literal",
+						value: "Daily ticket review complete",
+					},
+				},
+			},
+			nextStepId: "done",
+		},
+		{
+			id: "done",
+			name: "Done",
+			description: "End of workflow",
+			type: "end",
+		},
+	],
+};
+
+const headlinesWorkflow = {
+	initialStepId: "get-headlines",
+	steps: [
+		{
+			id: "get-headlines",
+			name: "Get Headlines",
+			description: "Fetch today's headlines",
+			type: "tool-call",
+			params: {
+				toolName: "get-headlines",
+				toolInput: {},
+			},
+			nextStepId: "check-headline-count",
+		},
+		{
+			id: "check-headline-count",
+			name: "Check Headline Count",
+			description: "Branch based on number of headlines",
+			type: "switch-case",
+			params: {
+				switchOn: { type: "literal", value: true },
+				cases: [
+					{
+						value: { type: "literal", value: true },
+						branchBodyStepId: "send-individual-emails",
+					},
+					{
+						value: { type: "default" },
+						branchBodyStepId: "send-busy-news-email",
+					},
+				],
+			},
+			nextStepId: "end-workflow",
+		},
+		{
+			id: "send-individual-emails",
+			name: "Send Individual Emails",
+			description: "Send an email for each headline",
+			type: "for-each",
+			params: {
+				target: { type: "literal", value: [] },
+				itemName: "headline",
+				loopBodyStepId: "send-headline-email",
+			},
+		},
+		{
+			id: "send-headline-email",
+			name: "Send Headline Email",
+			description: "Send email for one headline",
+			type: "tool-call",
+			params: {
+				toolName: "send-email",
+				toolInput: {},
+			},
+		},
+		{
+			id: "send-busy-news-email",
+			name: "Send Busy News Email",
+			description: "Send a summary email when there are many headlines",
+			type: "tool-call",
+			params: {
+				toolName: "send-email",
+				toolInput: {},
+			},
+		},
+		{
+			id: "end-workflow",
+			name: "End",
+			description: "End of workflow",
+			type: "end",
+		},
+	],
+};
+
 // ─── Integration: Real workflows ─────────────────────────────────
 
 describe("integration: real workflow files", () => {
@@ -105,7 +313,9 @@ describe("integration: real workflow files", () => {
 	});
 
 	test("headlines workflow produces INVALID_STEP_ID for hyphenated IDs", async () => {
-		const result = await compileWorkflow(headlinesWorkflow as WorkflowDefinition);
+		const result = await compileWorkflow(
+			headlinesWorkflow as WorkflowDefinition,
+		);
 		// This workflow uses kebab-case step IDs (get-headlines, send-individual-emails, etc.)
 		// which are now invalid — step IDs must be valid JMESPath bare identifiers
 		expect(hasDiagnostic(result.diagnostics, "INVALID_STEP_ID")).toBe(true);
@@ -130,7 +340,6 @@ describe("integration: real workflow files", () => {
 	});
 
 	test("ticket-review workflow validates with real AI SDK tool definitions from example-tasks", async () => {
-		const { EXAMPLE_TASKS } = await import("./example-tasks");
 		const result = await compileWorkflow(
 			ticketReviewWorkflow as WorkflowDefinition,
 			{ tools: EXAMPLE_TASKS["ticket-review"].availableTools },
@@ -229,7 +438,9 @@ describe("step reference validation", () => {
 	test("missing initialStepId", async () => {
 		const workflow = makeWorkflow({ initialStepId: "nonexistent" });
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "MISSING_INITIAL_STEP")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "MISSING_INITIAL_STEP")).toBe(
+			true,
+		);
 	});
 
 	test("missing nextStepId reference", async () => {
@@ -284,7 +495,9 @@ describe("step reference validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "MISSING_BRANCH_BODY_STEP")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "MISSING_BRANCH_BODY_STEP")).toBe(
+			true,
+		);
 	});
 
 	test("missing loopBodyStepId reference", async () => {
@@ -313,7 +526,9 @@ describe("step reference validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "MISSING_LOOP_BODY_STEP")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "MISSING_LOOP_BODY_STEP")).toBe(
+			true,
+		);
 	});
 
 	test("duplicate step IDs", async () => {
@@ -556,7 +771,9 @@ describe("control flow validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "MULTIPLE_DEFAULT_CASES")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "MULTIPLE_DEFAULT_CASES")).toBe(
+			true,
+		);
 	});
 
 	test("loop body that escapes to main flow", async () => {
@@ -679,8 +896,13 @@ describe("jmespath syntax validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR");
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_SYNTAX_ERROR",
+		);
 		expect(diag.location.stepId).toBe("a");
 		expect(diag.location.field).toContain("data");
 	});
@@ -718,7 +940,9 @@ describe("jmespath syntax validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
 	});
 
 	test("valid jmespath expressions produce no syntax errors", async () => {
@@ -743,7 +967,10 @@ describe("jmespath syntax validation", () => {
 						toolInput: {
 							a: { type: "jmespath", expression: "get.items" },
 							b: { type: "jmespath", expression: "length(get.items)" },
-							c: { type: "jmespath", expression: "get.items[?status == 'active']" },
+							c: {
+								type: "jmespath",
+								expression: "get.items[?status == 'active']",
+							},
 						},
 					},
 					nextStepId: "done",
@@ -758,7 +985,9 @@ describe("jmespath syntax validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			false,
+		);
 	});
 
 	test("invalid jmespath in for-each target", async () => {
@@ -793,7 +1022,9 @@ describe("jmespath syntax validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
 	});
 
 	test("invalid jmespath in switch-case switchOn", async () => {
@@ -832,7 +1063,9 @@ describe("jmespath syntax validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
 	});
 });
 
@@ -874,8 +1107,12 @@ describe("jmespath scope validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(false);
 	});
 
 	test("referencing a non-existent step ID produces error", async () => {
@@ -905,8 +1142,13 @@ describe("jmespath scope validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_INVALID_ROOT_REFERENCE",
+		);
 		expect(diag.message).toContain("phantom");
 	});
 
@@ -945,7 +1187,9 @@ describe("jmespath scope validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(true);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(true);
 	});
 
 	test("loop variable is valid inside loop body", async () => {
@@ -994,7 +1238,9 @@ describe("jmespath scope validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
 	});
 
 	test("loop variable is NOT valid outside loop body", async () => {
@@ -1050,8 +1296,13 @@ describe("jmespath scope validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_INVALID_ROOT_REFERENCE",
+		);
 		expect(diag.message).toContain("item");
 	});
 
@@ -1153,7 +1404,9 @@ describe("jmespath scope validation", () => {
 
 		const result = await compileWorkflow(workflow);
 		// "item" is not a step ID and is not in scope at the for-each step itself
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(true);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
 	});
 
 	test("hyphenated step IDs produce INVALID_STEP_ID errors", async () => {
@@ -1226,7 +1479,9 @@ describe("tool validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow, { tools: testTools });
-		expect(hasDiagnostic(result.diagnostics, "EXTRA_TOOL_INPUT_KEY")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "EXTRA_TOOL_INPUT_KEY")).toBe(
+			true,
+		);
 		const diag = getFirstDiagnostic(result.diagnostics, "EXTRA_TOOL_INPUT_KEY");
 		expect(diag.message).toContain("extraField");
 	});
@@ -1259,8 +1514,13 @@ describe("tool validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow, { tools: testTools });
-		expect(hasDiagnostic(result.diagnostics, "MISSING_TOOL_INPUT_KEY")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "MISSING_TOOL_INPUT_KEY");
+		expect(hasDiagnostic(result.diagnostics, "MISSING_TOOL_INPUT_KEY")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"MISSING_TOOL_INPUT_KEY",
+		);
 		expect(diag.message).toContain("reason");
 	});
 
@@ -1268,7 +1528,9 @@ describe("tool validation", () => {
 		const workflow = makeWorkflow();
 		const result = await compileWorkflow(workflow, { tools: testTools });
 		expect(hasDiagnostic(result.diagnostics, "UNKNOWN_TOOL")).toBe(false);
-		expect(hasDiagnostic(result.diagnostics, "MISSING_TOOL_INPUT_KEY")).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "MISSING_TOOL_INPUT_KEY")).toBe(
+			false,
+		);
 	});
 
 	test("no tool definitions provided skips tool validation", async () => {
@@ -1311,7 +1573,9 @@ describe("edge cases", () => {
 		} as unknown as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "MISSING_INITIAL_STEP")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "MISSING_INITIAL_STEP")).toBe(
+			true,
+		);
 		expect(result.graph).toBeNull();
 	});
 
@@ -1344,7 +1608,9 @@ describe("edge cases", () => {
 
 		const result = await compileWorkflow(workflow);
 		// Should not produce any reference errors since there are no field references
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
 	});
 
 	test("literal expressions are not validated as jmespath", async () => {
@@ -1374,7 +1640,9 @@ describe("edge cases", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			false,
+		);
 	});
 
 	test("multiple errors are reported in a single compilation", async () => {
@@ -1531,8 +1799,13 @@ describe("self-reference and predecessor correctness", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_FORWARD_REFERENCE",
+		);
 		expect(diag.location.stepId).toBe("a");
 	});
 
@@ -1581,8 +1854,12 @@ describe("self-reference and predecessor correctness", () => {
 
 		const result = await compileWorkflow(workflow);
 		// Both a and b should be valid predecessors of c
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(false);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
 	});
 
 	test("step after switch-case cannot reference branch-only step", async () => {
@@ -1635,8 +1912,13 @@ describe("self-reference and predecessor correctness", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_FORWARD_REFERENCE",
+		);
 		expect(diag.message).toContain("branch_only");
 	});
 
@@ -1679,9 +1961,16 @@ describe("self-reference and predecessor correctness", () => {
 
 		const result = await compileWorkflow(workflow);
 		// a.name is valid, nonexistent.name is not
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(true);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(false);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(false);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_INVALID_ROOT_REFERENCE",
+		);
 		expect(diag.message).toContain("nonexistent");
 	});
 });
@@ -1805,8 +2094,13 @@ describe("itemName validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "ITEM_NAME_SHADOWS_STEP_ID")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "ITEM_NAME_SHADOWS_STEP_ID");
+		expect(hasDiagnostic(result.diagnostics, "ITEM_NAME_SHADOWS_STEP_ID")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"ITEM_NAME_SHADOWS_STEP_ID",
+		);
 		expect(diag.message).toContain("shadows");
 		expect(diag.message).toContain("data");
 	});
@@ -1858,7 +2152,9 @@ describe("itemName validation", () => {
 
 		const result = await compileWorkflow(workflow);
 		expect(hasDiagnostic(result.diagnostics, "INVALID_ITEM_NAME")).toBe(false);
-		expect(hasDiagnostic(result.diagnostics, "ITEM_NAME_SHADOWS_STEP_ID")).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "ITEM_NAME_SHADOWS_STEP_ID")).toBe(
+			false,
+		);
 		expect(errors(result.diagnostics)).toHaveLength(0);
 	});
 });
@@ -1889,7 +2185,9 @@ describe("template expression edge cases", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "UNCLOSED_TEMPLATE_EXPRESSION")).toBe(true);
+		expect(
+			hasDiagnostic(result.diagnostics, "UNCLOSED_TEMPLATE_EXPRESSION"),
+		).toBe(true);
 	});
 
 	test("empty template expression ${} is a JMESPath syntax error", async () => {
@@ -1925,7 +2223,9 @@ describe("template expression edge cases", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
 	});
 
 	test("$ without { is not treated as template expression", async () => {
@@ -1953,8 +2253,12 @@ describe("template expression edge cases", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(false);
-		expect(hasDiagnostic(result.diagnostics, "UNCLOSED_TEMPLATE_EXPRESSION")).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			false,
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "UNCLOSED_TEMPLATE_EXPRESSION"),
+		).toBe(false);
 	});
 
 	test("multiple template expressions with one invalid", async () => {
@@ -1991,9 +2295,13 @@ describe("template expression edge cases", () => {
 
 		const result = await compileWorkflow(workflow);
 		// First expression is valid, second has bad JMESPath syntax
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
 		// The valid one should not trigger reference errors
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
 	});
 });
 
@@ -2072,8 +2380,12 @@ describe("nested control flow scoping", () => {
 
 		const result = await compileWorkflow(workflow);
 		// process_item should be able to access both "item" (loop var) and "get" (predecessor)
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+		).toBe(false);
 		expect(errors(result.diagnostics)).toHaveLength(0);
 	});
 
@@ -2138,8 +2450,13 @@ describe("nested control flow scoping", () => {
 
 		const result = await compileWorkflow(workflow);
 		// "x" is a loop variable only inside the branch's loop body, not after the switch
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_INVALID_ROOT_REFERENCE",
+		);
 		expect(diag.message).toContain("x");
 	});
 });
@@ -2166,7 +2483,10 @@ describe("extract-data step validation", () => {
 					type: "extract-data",
 					params: {
 						sourceData: { type: "jmespath", expression: "fetch.rawOutput" },
-						outputFormat: { type: "object", properties: { name: { type: "string" } } },
+						outputFormat: {
+							type: "object",
+							properties: { name: { type: "string" } },
+						},
 					},
 					nextStepId: "done",
 				},
@@ -2208,8 +2528,13 @@ describe("extract-data step validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR");
+		expect(hasDiagnostic(result.diagnostics, "JMESPATH_SYNTAX_ERROR")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_SYNTAX_ERROR",
+		);
 		expect(diag.location.stepId).toBe("extract");
 		expect(diag.location.field).toBe("params.sourceData.expression");
 	});
@@ -2239,8 +2564,13 @@ describe("extract-data step validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(true);
-		const diag = getFirstDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE");
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_INVALID_ROOT_REFERENCE",
+		);
 		expect(diag.message).toContain("ghost");
 	});
 
@@ -2303,7 +2633,10 @@ describe("extract-data step validation", () => {
 					type: "extract-data",
 					params: {
 						sourceData: { type: "jmespath", expression: "item.rawContent" },
-						outputFormat: { type: "object", properties: { title: { type: "string" } } },
+						outputFormat: {
+							type: "object",
+							properties: { title: { type: "string" } },
+						},
 					},
 				},
 				{
@@ -2316,7 +2649,9 @@ describe("extract-data step validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE")).toBe(false);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
 		expect(errors(result.diagnostics)).toHaveLength(0);
 	});
 });

@@ -1,9 +1,7 @@
 import type { WorkflowDefinition } from "../../types";
 import type { Diagnostic } from "../types";
 
-export function validateReferences(
-	workflow: WorkflowDefinition,
-): Diagnostic[] {
+export function validateReferences(workflow: WorkflowDefinition): Diagnostic[] {
 	const diagnostics: Diagnostic[] = [];
 	const stepIds = new Set(workflow.steps.map((s) => s.id));
 

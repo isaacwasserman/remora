@@ -1,12 +1,12 @@
 import type { ToolSet } from "ai";
 import { asSchema } from "ai";
 import type { WorkflowDefinition } from "../types";
-import type { CompilerResult, Diagnostic, ToolDefinitionMap } from "./types";
 import { buildGraph } from "./passes/build-graph";
-import { validateReferences } from "./passes/validate-references";
 import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateJmespath } from "./passes/validate-jmespath";
+import { validateReferences } from "./passes/validate-references";
 import { validateTools } from "./passes/validate-tools";
+import type { CompilerResult, Diagnostic, ToolDefinitionMap } from "./types";
 
 export async function compileWorkflow(
 	workflow: WorkflowDefinition,
@@ -35,13 +35,9 @@ export async function compileWorkflow(
 
 	// Pass 3+: Only proceed with graph-dependent passes if we have a valid graph
 	if (graphResult.graph) {
-		diagnostics.push(
-			...validateControlFlow(workflow, graphResult.graph),
-		);
+		diagnostics.push(...validateControlFlow(workflow, graphResult.graph));
 
-		diagnostics.push(
-			...validateJmespath(workflow, graphResult.graph),
-		);
+		diagnostics.push(...validateJmespath(workflow, graphResult.graph));
 	}
 
 	// Pass 5: Tool validation (doesn't require graph)
@@ -68,10 +64,10 @@ async function extractToolSchemas(tools: ToolSet): Promise<ToolDefinitionMap> {
 }
 
 export type {
+	CompilerResult,
 	Diagnostic,
 	DiagnosticCode,
-	DiagnosticSeverity,
 	DiagnosticLocation,
-	CompilerResult,
+	DiagnosticSeverity,
 	ExecutionGraph,
 } from "./types";

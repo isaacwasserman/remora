@@ -2,12 +2,12 @@ import type { WorkflowDefinition } from "../../types";
 import type { Diagnostic, ExecutionGraph } from "../types";
 import {
 	buildStepIndex,
-	computeSuccessors,
+	computeLoopScopesAndOwnership,
+	computePredecessors,
 	computeReachability,
+	computeSuccessors,
 	detectCycles,
 	topologicalSort,
-	computePredecessors,
-	computeLoopScopesAndOwnership,
 } from "../utils/graph";
 
 export function buildGraph(workflow: WorkflowDefinition): {
@@ -131,8 +131,10 @@ export function buildGraph(workflow: WorkflowDefinition): {
 	const predecessors = computePredecessors(topologicalOrder, successors);
 
 	// Compute loop variable scopes and body ownership
-	const { loopVariablesInScope, bodyOwnership } =
-		computeLoopScopesAndOwnership(workflow.initialStepId, stepIndex);
+	const { loopVariablesInScope, bodyOwnership } = computeLoopScopesAndOwnership(
+		workflow.initialStepId,
+		stepIndex,
+	);
 
 	return {
 		graph: {

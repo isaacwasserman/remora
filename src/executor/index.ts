@@ -1,9 +1,9 @@
+import { safeValidateTypes } from "@ai-sdk/provider-utils";
 import { search } from "@jmespath-community/jmespath";
 import type { LanguageModel, ToolSet } from "ai";
 import { generateObject, jsonSchema } from "ai";
-import { safeValidateTypes } from "@ai-sdk/provider-utils";
-import { extractTemplateExpressions } from "./compiler/utils/jmespath-helpers";
-import type { WorkflowDefinition, WorkflowStep } from "./types";
+import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
+import type { WorkflowDefinition, WorkflowStep } from "../types";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -215,10 +215,7 @@ async function executeForEach(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 ): Promise<unknown[]> {
-	const target = evaluateExpression(
-		step.params.target as Expression,
-		scope,
-	);
+	const target = evaluateExpression(step.params.target as Expression, scope);
 
 	if (!Array.isArray(target)) {
 		throw new StepExecutionError(
@@ -288,11 +285,7 @@ async function executeChain(
 						"extract-data step requires a model but none was provided",
 					);
 				}
-				stepOutput = await executeExtractData(
-					step,
-					scope,
-					options.model,
-				);
+				stepOutput = await executeExtractData(step, scope, options.model);
 				break;
 			case "switch-case":
 				stepOutput = await executeSwitchCase(

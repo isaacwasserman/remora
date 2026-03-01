@@ -34,11 +34,7 @@ export function validateControlFlow(
 
 			// Validate branch bodies don't escape
 			for (const [i, c] of step.params.cases.entries()) {
-				const escapes = checkBodyEscapes(
-					c.branchBodyStepId,
-					step.id,
-					graph,
-				);
+				const escapes = checkBodyEscapes(c.branchBodyStepId, step.id, graph);
 				if (escapes) {
 					diagnostics.push({
 						severity: "warning",

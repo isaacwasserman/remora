@@ -86,12 +86,18 @@ const llmPromptSchema = type({
 );
 
 const extractDataParamsSchema = type({
-    type: "'extract-data'",
-    params: {
-        sourceData: [expressionSchema, "@", "the data to extract information from"],
-        outputFormat: ["object", "@", "JSON schema specifying the output format expected from the data extraction"],
-    }
-}).describe("a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format");
+	type: "'extract-data'",
+	params: {
+		sourceData: [expressionSchema, "@", "the data to extract information from"],
+		outputFormat: [
+			"object",
+			"@",
+			"JSON schema specifying the output format expected from the data extraction",
+		],
+	},
+}).describe(
+	"a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format",
+);
 
 const endSchema = type({
 	type: "'end'",
@@ -105,10 +111,10 @@ const workflowStepSchema = type({
 }).and(
 	toolCallParamsSchema
 		.or(llmPromptSchema)
-        .or(extractDataParamsSchema)
+		.or(extractDataParamsSchema)
 		.or(switchCaseParamsSchema)
 		.or(forEachParamsSchema)
-		.or(endSchema)
+		.or(endSchema),
 );
 
 export const workflowDefinitionSchema = type({

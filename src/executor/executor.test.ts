@@ -1,10 +1,10 @@
-import { test, expect, describe } from "bun:test";
-import { tool } from "ai";
-import { type } from "arktype";
+import { describe, expect, test } from "bun:test";
 import type { LanguageModelV3GenerateResult } from "@ai-sdk/provider";
+import { tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
-import { executeWorkflow } from "./executor";
-import type { WorkflowDefinition } from "./types";
+import { type } from "arktype";
+import type { WorkflowDefinition } from "../types";
+import { executeWorkflow } from ".";
 
 // ─── Test Tools ──────────────────────────────────────────────────
 
@@ -64,7 +64,12 @@ function createMockModel(responses: unknown[]) {
 				],
 				finishReason: { unified: "stop", raw: undefined },
 				usage: {
-					inputTokens: { total: 10, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+					inputTokens: {
+						total: 10,
+						noCache: undefined,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
 					outputTokens: { total: 10, text: undefined, reasoning: undefined },
 				},
 				warnings: [],
@@ -905,9 +910,7 @@ describe("callbacks", () => {
 
 describe("llm steps", () => {
 	test("llm-prompt step with template interpolation", async () => {
-		const mockModel = createMockModel([
-			{ summary: "Three items found" },
-		]);
+		const mockModel = createMockModel([{ summary: "Three items found" }]);
 
 		const workflow: WorkflowDefinition = {
 			initialStepId: "fetch",
@@ -944,9 +947,7 @@ describe("llm steps", () => {
 	});
 
 	test("extract-data step extracts structured data", async () => {
-		const mockModel = createMockModel([
-			{ name: "Alice", age: 30 },
-		]);
+		const mockModel = createMockModel([{ name: "Alice", age: 30 }]);
 
 		const workflow: WorkflowDefinition = {
 			initialStepId: "extract",
