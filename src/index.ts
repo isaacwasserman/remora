@@ -66,14 +66,17 @@ async function main() {
 			task,
 		});
 
+		const directory = `generated-workflows/${taskName}`;
+		await fs.mkdir(directory, { recursive: true });
+
 		await fs.writeFile(
-			`${taskName}-workflow.json`,
+			`${directory}/workflow.json`,
 			JSON.stringify(workflowDefinition, null, 2),
 		);
 
 		const mermaidDiagram = workflowToMermaid(workflowDefinition);
 		await fs.writeFile(
-			`${taskName}-workflow-diagram.md`,
+			`${directory}/diagram.md`,
 			`\`\`\`mermaid\n${mermaidDiagram}\n\`\`\``,
 		);
 	}

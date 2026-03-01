@@ -351,6 +351,54 @@ describe("integration: real workflow files", () => {
 		expect(errs).toHaveLength(0);
 		expect(result.graph).not.toBeNull();
 	});
+
+	test("order-fulfillment workflow compiles with zero errors", async () => {
+		const task = EXAMPLE_TASKS["order-fulfillment"];
+		const result = await compileWorkflow(task.workflow as WorkflowDefinition, {
+			tools: task.availableTools,
+		});
+		const errs = errors(result.diagnostics);
+		if (errs.length > 0) {
+			console.log("Unexpected errors:", errs);
+		}
+		expect(errs).toHaveLength(0);
+		expect(
+			result.diagnostics.filter((d) => d.severity === "warning"),
+		).toHaveLength(0);
+		expect(result.graph).not.toBeNull();
+	});
+
+	test("content-moderation workflow compiles with zero errors", async () => {
+		const task = EXAMPLE_TASKS["content-moderation"];
+		const result = await compileWorkflow(task.workflow as WorkflowDefinition, {
+			tools: task.availableTools,
+		});
+		const errs = errors(result.diagnostics);
+		if (errs.length > 0) {
+			console.log("Unexpected errors:", errs);
+		}
+		expect(errs).toHaveLength(0);
+		expect(
+			result.diagnostics.filter((d) => d.severity === "warning"),
+		).toHaveLength(0);
+		expect(result.graph).not.toBeNull();
+	});
+
+	test("course-assignment workflow compiles with zero errors", async () => {
+		const task = EXAMPLE_TASKS["course-assignment"];
+		const result = await compileWorkflow(task.workflow as WorkflowDefinition, {
+			tools: task.availableTools,
+		});
+		const errs = errors(result.diagnostics);
+		if (errs.length > 0) {
+			console.log("Unexpected errors:", errs);
+		}
+		expect(errs).toHaveLength(0);
+		expect(
+			result.diagnostics.filter((d) => d.severity === "warning"),
+		).toHaveLength(0);
+		expect(result.graph).not.toBeNull();
+	});
 });
 
 // ─── Valid workflows ─────────────────────────────────────────────

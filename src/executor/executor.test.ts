@@ -3,6 +3,7 @@ import type { LanguageModelV3GenerateResult } from "@ai-sdk/provider";
 import { tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { type } from "arktype";
+import { EXAMPLE_TASKS } from "../example-tasks";
 import type { WorkflowDefinition } from "../types";
 import { executeWorkflow } from ".";
 
@@ -1079,5 +1080,142 @@ describe("integration", () => {
 		expect(loopResults[1]).toEqual({ processed: "BETA" });
 		// gamma → long → greet
 		expect(loopResults[2]).toEqual({ greeting: "Hello, gamma!" });
+	});
+});
+
+// ─── Integration: Example Tasks ─────────────────────────────────
+
+describe("integration: example tasks", () => {
+	test("order-fulfillment: for-each with multi-step switch branches", async () => {
+		const task = EXAMPLE_TASKS["order-fulfillment"];
+		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
+			tools: task.availableTools,
+		});
+
+		expect(result.success).toBe(true);
+
+		// Two orders processed
+		const loopResults = result.stepOutputs.process_orders as unknown[];
+		expect(loopResults).toHaveLength(2);
+
+		// ORD-001 (WIDGET-A): in stock → reserve → ship → notify
+		expect(result.stepOutputs.reserve_stock).toEqual({
+			reservationId: "RSV-WIDGET-A-2",
+		});
+		expect(result.stepOutputs.ship_order).toEqual({
+			trackingNumber: "TRK-ORD-001",
+		});
+		expect(result.stepOutputs.notify_shipped).toEqual({ sent: true });
+
+		// ORD-002 (GADGET-B): out of stock → flag → notify backorder
+		expect(result.stepOutputs.flag_order).toEqual({ flagged: true });
+		expect(result.stepOutputs.notify_backorder).toEqual({ sent: true });
+
+		// Final summary step ran
+		expect(result.stepOutputs.send_summary).toEqual({ sent: true });
+
+		// Last check_stock result is from the second iteration (GADGET-B)
+		expect(result.stepOutputs.check_stock).toEqual({
+			available: false,
+			stock: 0,
+		});
+	});
+
+	test("content-moderation: extract-data in loop with 3-branch switch and LLM summary", async () => {
+		const task = EXAMPLE_TASKS["content-moderation"];
+		const mockModel = createMockModel([
+			// extract-data for SUB-001 (clean content)
+			{ action: "approve", reason: "Positive review, no issues" },
+			// extract-data for SUB-002 (offensive content)
+			{ action: "reject", reason: "Contains policy violations" },
+			// extract-data for SUB-003 (borderline content)
+			{ action: "review", reason: "Borderline claims need verification" },
+			// llm-prompt for summary report
+			{
+				totalProcessed: 3,
+				summary: "1 approved, 1 rejected, 1 flagged for review",
+			},
+		]);
+
+		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
+			tools: task.availableTools,
+			model: mockModel,
+		});
+
+		expect(result.success).toBe(true);
+
+		// Three submissions processed
+		const loopResults = result.stepOutputs.moderate_all as unknown[];
+		expect(loopResults).toHaveLength(3);
+
+		// SUB-001 took "approve" branch: publish → notify
+		expect(result.stepOutputs.publish).toEqual({
+			publishedUrl: "https://example.com/posts/SUB-001",
+		});
+		expect(result.stepOutputs.notify_approved).toEqual({ sent: true });
+
+		// SUB-002 took "reject" branch: quarantine → notify
+		expect(result.stepOutputs.quarantine_rejected).toEqual({
+			quarantineId: "QUA-SUB-002",
+		});
+		expect(result.stepOutputs.notify_rejected).toEqual({ sent: true });
+
+		// SUB-003 took "default" branch: quarantine for review
+		expect(result.stepOutputs.quarantine_review).toEqual({
+			quarantineId: "QUA-SUB-003",
+		});
+
+		// Summary report generated after loop
+		expect(result.stepOutputs.generate_report).toEqual({
+			totalProcessed: 3,
+			summary: "1 approved, 1 rejected, 1 flagged for review",
+		});
+	});
+
+	test("course-assignment: nested for-each with LLM-driven inner loop", async () => {
+		const task = EXAMPLE_TASKS["course-assignment"];
+		const mockModel = createMockModel([
+			// LLM picks courses for Alice (grade A): 2 courses
+			{ selectedCourseIds: ["CS101", "MATH201"] },
+			// LLM picks courses for Bob (grade B): 1 course
+			{ selectedCourseIds: ["CS101"] },
+		]);
+
+		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
+			tools: task.availableTools,
+			model: mockModel,
+		});
+
+		expect(result.success).toBe(true);
+
+		// Two students processed
+		const outerResults = result.stepOutputs.assign_students as unknown[];
+		expect(outerResults).toHaveLength(2);
+
+		// Inner for-each results: Alice enrolled in 2 courses, Bob in 1
+		// enroll_each is overwritten per outer iteration; last value is Bob's
+		const lastEnrollEach = result.stepOutputs.enroll_each as unknown[];
+		expect(lastEnrollEach).toHaveLength(1);
+
+		// Last enroll call was for Bob in CS101 (proves nested scope works)
+		expect(result.stepOutputs.enroll).toEqual({
+			enrolled: true,
+			enrollmentId: "ENR-STU-002-CS101",
+		});
+
+		// Send schedule ran for both students (last value is Bob's)
+		expect(result.stepOutputs.send_student_schedule).toEqual({
+			sent: true,
+		});
+
+		// Verify the initial data fetches succeeded
+		const students = result.stepOutputs.get_students as {
+			students: unknown[];
+		};
+		expect(students.students).toHaveLength(2);
+		const courses = result.stepOutputs.get_courses as {
+			courses: unknown[];
+		};
+		expect(courses.courses).toHaveLength(3);
 	});
 });
