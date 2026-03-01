@@ -2739,7 +2739,7 @@ describe("best practices", () => {
 				(s) => s.type === "end",
 			);
 			expect(endSteps).toHaveLength(1);
-			expect(endSteps[0].id).toBe("done");
+			expect(endSteps[0]!.id).toBe("done");
 		});
 
 		test("adds end step to a terminal non-end step on the main chain", async () => {
@@ -2906,7 +2906,7 @@ describe("best practices", () => {
 			const result = await compileWorkflow(workflow);
 			// Original should be untouched
 			expect(workflow.steps).toHaveLength(originalStepCount);
-			expect(workflow.steps[0].nextStepId).toBeUndefined();
+			expect(workflow.steps[0]!.nextStepId).toBeUndefined();
 			// Compiled version should have the end step
 			expect(result.workflow!.steps).toHaveLength(2);
 		});
