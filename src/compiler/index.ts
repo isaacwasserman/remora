@@ -6,6 +6,7 @@ import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateReferences } from "./passes/validate-references";
 import { validateTools } from "./passes/validate-tools";
+import { applyBestPractices } from "./passes/apply-best-practices";
 import type { CompilerResult, Diagnostic, ToolDefinitionMap } from "./types";
 
 export async function compileWorkflow(
@@ -46,9 +47,17 @@ export async function compileWorkflow(
 		diagnostics.push(...validateTools(workflow, toolSchemas));
 	}
 
+	// Final pass: apply best-practice transformations (non-destructive)
+	const hasErrors = diagnostics.some((d) => d.severity === "error");
+	const optimizedWorkflow =
+		graphResult.graph && !hasErrors
+			? applyBestPractices(workflow, graphResult.graph)
+			: null;
+
 	return {
 		diagnostics,
 		graph: graphResult.graph,
+		workflow: optimizedWorkflow,
 	};
 }
 

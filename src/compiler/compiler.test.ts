@@ -2703,3 +2703,241 @@ describe("extract-data step validation", () => {
 		expect(errors(result.diagnostics)).toHaveLength(0);
 	});
 });
+
+// ─── Best Practices ──────────────────────────────────────────────
+
+describe("best practices", () => {
+	test("returns optimized workflow for a valid workflow", async () => {
+		const workflow = makeWorkflow();
+		const result = await compileWorkflow(workflow);
+		expect(result.workflow).not.toBeNull();
+	});
+
+	test("optimized workflow is a deep copy (not the same reference)", async () => {
+		const workflow = makeWorkflow();
+		const result = await compileWorkflow(workflow);
+		expect(result.workflow).not.toBe(workflow);
+		expect(result.workflow!.steps).not.toBe(workflow.steps);
+	});
+
+	test("returns null workflow when there are errors", async () => {
+		const workflow = makeWorkflow({
+			initialStepId: "nonexistent",
+		});
+		const result = await compileWorkflow(workflow);
+		expect(errors(result.diagnostics).length).toBeGreaterThan(0);
+		expect(result.workflow).toBeNull();
+	});
+
+	describe("addMissingEndSteps", () => {
+		test("does not modify a workflow where all chains end with end steps", async () => {
+			const workflow = makeWorkflow();
+			const result = await compileWorkflow(workflow);
+			// makeWorkflow already has a "done" end step
+			expect(result.workflow!.steps).toHaveLength(workflow.steps.length);
+			const endSteps = result.workflow!.steps.filter(
+				(s) => s.type === "end",
+			);
+			expect(endSteps).toHaveLength(1);
+			expect(endSteps[0].id).toBe("done");
+		});
+
+		test("adds end step to a terminal non-end step on the main chain", async () => {
+			const workflow = {
+				initialStepId: "start",
+				steps: [
+					{
+						id: "start",
+						name: "Start",
+						description: "First step",
+						type: "tool-call",
+						params: { toolName: "t", toolInput: {} },
+						// no nextStepId, no end step
+					},
+				],
+			} as WorkflowDefinition;
+
+			const result = await compileWorkflow(workflow);
+			expect(result.workflow!.steps).toHaveLength(2);
+			const startStep = result.workflow!.steps.find(
+				(s) => s.id === "start",
+			)!;
+			expect(startStep.nextStepId).toBe("start_end");
+			const endStep = result.workflow!.steps.find(
+				(s) => s.id === "start_end",
+			)!;
+			expect(endStep.type).toBe("end");
+		});
+
+		test("adds end steps to terminal branch body steps", async () => {
+			const workflow = {
+				initialStepId: "check",
+				steps: [
+					{
+						id: "check",
+						name: "Check",
+						description: "Branch on value",
+						type: "switch-case",
+						params: {
+							switchOn: {
+								type: "literal",
+								value: "a",
+							},
+							cases: [
+								{
+									value: { type: "literal", value: "a" },
+									branchBodyStepId: "handle_a",
+								},
+								{
+									value: { type: "default" },
+									branchBodyStepId: "handle_default",
+								},
+							],
+						},
+						nextStepId: "finish",
+					},
+					{
+						id: "handle_a",
+						name: "Handle A",
+						description: "Handle case A",
+						type: "tool-call",
+						params: { toolName: "t", toolInput: {} },
+						// terminal - no nextStepId
+					},
+					{
+						id: "handle_default",
+						name: "Handle Default",
+						description: "Handle default case",
+						type: "tool-call",
+						params: { toolName: "t", toolInput: {} },
+						// terminal - no nextStepId
+					},
+					{
+						id: "finish",
+						name: "Finish",
+						description: "Done",
+						type: "end",
+					},
+				],
+			} as WorkflowDefinition;
+
+			const result = await compileWorkflow(workflow);
+			// Should have 2 new end steps added
+			expect(result.workflow!.steps).toHaveLength(6);
+			expect(
+				result.workflow!.steps.find((s) => s.id === "handle_a")!
+					.nextStepId,
+			).toBe("handle_a_end");
+			expect(
+				result.workflow!.steps.find((s) => s.id === "handle_default")!
+					.nextStepId,
+			).toBe("handle_default_end");
+			expect(
+				result.workflow!.steps.find((s) => s.id === "handle_a_end")!
+					.type,
+			).toBe("end");
+			expect(
+				result.workflow!.steps.find(
+					(s) => s.id === "handle_default_end",
+				)!.type,
+			).toBe("end");
+		});
+
+		test("adds end step to terminal loop body step", async () => {
+			const workflow = {
+				initialStepId: "loop",
+				steps: [
+					{
+						id: "loop",
+						name: "Loop",
+						description: "Loop over items",
+						type: "for-each",
+						params: {
+							target: { type: "literal", value: [1, 2] },
+							itemName: "item",
+							loopBodyStepId: "process",
+						},
+						nextStepId: "finish",
+					},
+					{
+						id: "process",
+						name: "Process",
+						description: "Process item",
+						type: "tool-call",
+						params: { toolName: "t", toolInput: {} },
+						// terminal - no nextStepId
+					},
+					{
+						id: "finish",
+						name: "Finish",
+						description: "Done",
+						type: "end",
+					},
+				],
+			} as WorkflowDefinition;
+
+			const result = await compileWorkflow(workflow);
+			expect(result.workflow!.steps).toHaveLength(4);
+			expect(
+				result.workflow!.steps.find((s) => s.id === "process")!
+					.nextStepId,
+			).toBe("process_end");
+			expect(
+				result.workflow!.steps.find((s) => s.id === "process_end")!
+					.type,
+			).toBe("end");
+		});
+
+		test("does not modify the original workflow", async () => {
+			const workflow = {
+				initialStepId: "start",
+				steps: [
+					{
+						id: "start",
+						name: "Start",
+						description: "First step",
+						type: "tool-call",
+						params: { toolName: "t", toolInput: {} },
+					},
+				],
+			} as WorkflowDefinition;
+
+			const originalStepCount = workflow.steps.length;
+			const result = await compileWorkflow(workflow);
+			// Original should be untouched
+			expect(workflow.steps).toHaveLength(originalStepCount);
+			expect(workflow.steps[0].nextStepId).toBeUndefined();
+			// Compiled version should have the end step
+			expect(result.workflow!.steps).toHaveLength(2);
+		});
+	});
+
+	test("returns null workflow when graph is null", async () => {
+		// A workflow with a cycle will produce a null graph
+		const workflow = {
+			initialStepId: "aa",
+			steps: [
+				{
+					id: "aa",
+					name: "A",
+					description: "A",
+					type: "tool-call",
+					params: { toolName: "t", toolInput: {} },
+					nextStepId: "bb",
+				},
+				{
+					id: "bb",
+					name: "B",
+					description: "B",
+					type: "tool-call",
+					params: { toolName: "t", toolInput: {} },
+					nextStepId: "aa",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(result.graph).toBeNull();
+		expect(result.workflow).toBeNull();
+	});
+});
