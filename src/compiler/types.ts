@@ -57,8 +57,23 @@ export interface ExecutionGraph {
 	bodyOwnership: Map<string, string>;
 }
 
+export interface ConstrainedToolSchema {
+	inputSchema: {
+		required: string[];
+		properties: Record<string, unknown>;
+	};
+	outputSchema?: Record<string, unknown>;
+	/** True when ALL inputs across ALL call sites are literals — safe for unsupervised execution. */
+	fullyStatic: boolean;
+	/** Step IDs that call this tool. */
+	callSites: string[];
+}
+
+export type ConstrainedToolSchemaMap = Record<string, ConstrainedToolSchema>;
+
 export interface CompilerResult {
 	diagnostics: Diagnostic[];
 	graph: ExecutionGraph | null;
 	workflow: WorkflowDefinition | null;
+	constrainedToolSchemas: ConstrainedToolSchemaMap | null;
 }

@@ -5,9 +5,15 @@ import { buildGraph } from "./passes/build-graph";
 import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateReferences } from "./passes/validate-references";
+import { generateConstrainedToolSchemas } from "./passes/generate-constrained-tool-schemas";
 import { validateTools } from "./passes/validate-tools";
 import { applyBestPractices } from "./passes/apply-best-practices";
-import type { CompilerResult, Diagnostic, ToolDefinitionMap } from "./types";
+import type {
+	CompilerResult,
+	ConstrainedToolSchemaMap,
+	Diagnostic,
+	ToolDefinitionMap,
+} from "./types";
 
 export async function compileWorkflow(
 	workflow: WorkflowDefinition,
@@ -41,10 +47,15 @@ export async function compileWorkflow(
 		diagnostics.push(...validateJmespath(workflow, graphResult.graph));
 	}
 
-	// Pass 5: Tool validation (doesn't require graph)
+	// Pass 5: Tool validation + constrained schema generation (doesn't require graph)
+	let constrainedToolSchemas: ConstrainedToolSchemaMap | null = null;
 	if (options?.tools) {
 		const toolSchemas = await extractToolSchemas(options.tools);
 		diagnostics.push(...validateTools(workflow, toolSchemas));
+		constrainedToolSchemas = generateConstrainedToolSchemas(
+			workflow,
+			toolSchemas,
+		);
 	}
 
 	// Final pass: apply best-practice transformations (non-destructive)
@@ -58,6 +69,7 @@ export async function compileWorkflow(
 		diagnostics,
 		graph: graphResult.graph,
 		workflow: optimizedWorkflow,
+		constrainedToolSchemas,
 	};
 }
 
@@ -74,6 +86,8 @@ async function extractToolSchemas(tools: ToolSet): Promise<ToolDefinitionMap> {
 
 export type {
 	CompilerResult,
+	ConstrainedToolSchema,
+	ConstrainedToolSchemaMap,
 	Diagnostic,
 	DiagnosticCode,
 	DiagnosticLocation,
