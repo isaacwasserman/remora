@@ -1,4 +1,4 @@
-import type { WorkflowStep } from "../types";
+import type { WorkflowDefinition, WorkflowStep } from "../types";
 
 export type DiagnosticSeverity = "error" | "warning";
 
@@ -60,4 +60,5 @@ export interface ExecutionGraph {
 export interface CompilerResult {
 	diagnostics: Diagnostic[];
 	graph: ExecutionGraph | null;
+	workflow: WorkflowDefinition | null;
 }
