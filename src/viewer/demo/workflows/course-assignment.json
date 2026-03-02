@@ -1,0 +1,118 @@
+{
+	"initialStepId": "get_students",
+	"steps": [
+		{
+			"id": "get_students",
+			"name": "Get Students",
+			"description": "Fetch all students needing course assignment",
+			"type": "tool-call",
+			"params": { "toolName": "get-students", "toolInput": {} },
+			"nextStepId": "get_courses"
+		},
+		{
+			"id": "get_courses",
+			"name": "Get Courses",
+			"description": "Fetch all available courses",
+			"type": "tool-call",
+			"params": {
+				"toolName": "get-available-courses",
+				"toolInput": {}
+			},
+			"nextStepId": "assign_students"
+		},
+		{
+			"id": "assign_students",
+			"name": "Assign Each Student",
+			"description": "Iterate over students to assign courses",
+			"type": "for-each",
+			"params": {
+				"target": {
+					"type": "jmespath",
+					"expression": "get_students.students"
+				},
+				"itemName": "student",
+				"loopBodyStepId": "pick_courses"
+			},
+			"nextStepId": "assignment_done"
+		},
+		{
+			"id": "pick_courses",
+			"name": "Pick Courses",
+			"description": "Use LLM to select courses for a student",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Select appropriate courses for student ${student.name} (grade: ${student.grade}). Available courses: ${get_courses.courses}. Return the IDs of selected courses.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"selectedCourseIds": {
+							"type": "array",
+							"items": { "type": "string" }
+						}
+					},
+					"required": ["selectedCourseIds"]
+				}
+			},
+			"nextStepId": "enroll_each"
+		},
+		{
+			"id": "enroll_each",
+			"name": "Enroll in Each Course",
+			"description": "Iterate over selected courses to enroll student",
+			"type": "for-each",
+			"params": {
+				"target": {
+					"type": "jmespath",
+					"expression": "pick_courses.selectedCourseIds"
+				},
+				"itemName": "selected_course",
+				"loopBodyStepId": "enroll"
+			},
+			"nextStepId": "send_student_schedule"
+		},
+		{
+			"id": "enroll",
+			"name": "Enroll Student",
+			"description": "Enroll the student in one course",
+			"type": "tool-call",
+			"params": {
+				"toolName": "enroll-student",
+				"toolInput": {
+					"studentId": {
+						"type": "jmespath",
+						"expression": "student.id"
+					},
+					"courseId": {
+						"type": "jmespath",
+						"expression": "selected_course"
+					}
+				}
+			}
+		},
+		{
+			"id": "send_student_schedule",
+			"name": "Send Schedule",
+			"description": "Send the student their course schedule",
+			"type": "tool-call",
+			"params": {
+				"toolName": "send-schedule",
+				"toolInput": {
+					"studentId": {
+						"type": "jmespath",
+						"expression": "student.id"
+					},
+					"courseSummary": {
+						"type": "literal",
+						"value": "Your course enrollment is confirmed."
+					}
+				}
+			}
+		},
+		{
+			"id": "assignment_done",
+			"name": "Done",
+			"description": "End of workflow",
+			"type": "end"
+		}
+	]
+}
