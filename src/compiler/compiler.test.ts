@@ -134,6 +134,7 @@ const ticketReviewWorkflow = {
 			type: "llm-prompt",
 			params: {
 				prompt:
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 					"Classify this support ticket as critical or routine.\n\nSubject: ${ticket.subject}\nBody: ${ticket.body}",
 				outputFormat: {
 					type: "object",
@@ -973,6 +974,7 @@ describe("jmespath syntax validation", () => {
 					description: "LLM step with bad template expression",
 					type: "llm-prompt",
 					params: {
+						// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 						prompt: "Hello ${foo..bar} world",
 						outputFormat: { type: "object" },
 					},
@@ -1492,7 +1494,8 @@ describe("tool validation", () => {
 	test("unknown tool produces error", async () => {
 		const workflow = makeWorkflow();
 		// Override the tool name to something not in testTools
-		(workflow.steps[0] as any).params.toolName = "nonexistent-tool";
+		(workflow.steps[0] as { params: { toolName: string } }).params.toolName =
+			"nonexistent-tool";
 
 		const result = await compileWorkflow(workflow, { tools: testTools });
 		expect(hasDiagnostic(result.diagnostics, "UNKNOWN_TOOL")).toBe(true);
@@ -2238,6 +2241,7 @@ describe("template expression edge cases", () => {
 		).toBe(true);
 	});
 
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 	test("empty template expression ${} is a JMESPath syntax error", async () => {
 		const workflow: WorkflowDefinition = {
 			initialStepId: "prev",
@@ -2256,6 +2260,7 @@ describe("template expression edge cases", () => {
 					description: "Empty template expression",
 					type: "llm-prompt",
 					params: {
+						// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 						prompt: "Hello ${} world",
 						outputFormat: { type: "object" },
 					},
@@ -2327,6 +2332,7 @@ describe("template expression edge cases", () => {
 					description: "Mixed valid and invalid template expressions",
 					type: "llm-prompt",
 					params: {
+						// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 						prompt: "Hello ${a.name}, your balance is ${..invalid}",
 						outputFormat: { type: "object" },
 					},
