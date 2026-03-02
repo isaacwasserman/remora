@@ -102,8 +102,8 @@ function StepParams({ step }: { step: WorkflowStep }) {
 					<div>
 						<Label>Cases</Label>
 						<div className="space-y-1">
-							{step.params.cases.map((c, i) => (
-								<div key={i} className="text-xs flex gap-2">
+							{step.params.cases.map((c) => (
+								<div key={c.branchBodyStepId} className="text-xs flex gap-2">
 									<span className="font-mono text-gray-500">
 										{c.value.type === "default"
 											? "default"
@@ -213,9 +213,9 @@ export function StepDetailPanel({
 					<div className="border-t border-gray-100 pt-3">
 						<Label>Diagnostics</Label>
 						<div className="space-y-2 mt-1">
-							{diagnostics.map((d, i) => (
+							{diagnostics.map((d) => (
 								<div
-									key={i}
+									key={`${d.code}-${d.message}`}
 									className={`text-xs p-2 rounded ${
 										d.severity === "error"
 											? "bg-red-50 text-red-700 border border-red-200"

@@ -80,8 +80,11 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 				</span>
 			</div>
 			<div className="mt-1.5 space-y-0.5">
-				{step.params.cases.map((c, i) => (
-					<div key={i} className="flex items-center gap-1.5 text-[11px]">
+				{step.params.cases.map((c) => (
+					<div
+						key={c.branchBodyStepId}
+						className="flex items-center gap-1.5 text-[11px]"
+					>
 						<span className="font-mono text-gray-500">
 							{c.value.type === "default" ? "default" : renderExpr(c.value)}
 						</span>
