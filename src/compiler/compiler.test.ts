@@ -134,7 +134,6 @@ const ticketReviewWorkflow = {
 			type: "llm-prompt",
 			params: {
 				prompt:
-					// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 					"Classify this support ticket as critical or routine.\n\nSubject: ${ticket.subject}\nBody: ${ticket.body}",
 				outputFormat: {
 					type: "object",
@@ -974,7 +973,6 @@ describe("jmespath syntax validation", () => {
 					description: "LLM step with bad template expression",
 					type: "llm-prompt",
 					params: {
-						// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 						prompt: "Hello ${foo..bar} world",
 						outputFormat: { type: "object" },
 					},
@@ -2241,7 +2239,6 @@ describe("template expression edge cases", () => {
 		).toBe(true);
 	});
 
-	// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 	test("empty template expression ${} is a JMESPath syntax error", async () => {
 		const workflow: WorkflowDefinition = {
 			initialStepId: "prev",
@@ -2260,7 +2257,6 @@ describe("template expression edge cases", () => {
 					description: "Empty template expression",
 					type: "llm-prompt",
 					params: {
-						// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 						prompt: "Hello ${} world",
 						outputFormat: { type: "object" },
 					},
@@ -2332,7 +2328,6 @@ describe("template expression edge cases", () => {
 					description: "Mixed valid and invalid template expressions",
 					type: "llm-prompt",
 					params: {
-						// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 						prompt: "Hello ${a.name}, your balance is ${..invalid}",
 						outputFormat: { type: "object" },
 					},
@@ -2723,7 +2718,7 @@ describe("best practices", () => {
 		const workflow = makeWorkflow();
 		const result = await compileWorkflow(workflow);
 		expect(result.workflow).not.toBe(workflow);
-		expect(result.workflow!.steps).not.toBe(workflow.steps);
+		expect(result.workflow?.steps).not.toBe(workflow.steps);
 	});
 
 	test("returns null workflow when there are errors", async () => {
@@ -2740,12 +2735,10 @@ describe("best practices", () => {
 			const workflow = makeWorkflow();
 			const result = await compileWorkflow(workflow);
 			// makeWorkflow already has a "done" end step
-			expect(result.workflow!.steps).toHaveLength(workflow.steps.length);
-			const endSteps = result.workflow!.steps.filter(
-				(s) => s.type === "end",
-			);
+			expect(result.workflow?.steps).toHaveLength(workflow.steps.length);
+			const endSteps = result.workflow?.steps.filter((s) => s.type === "end");
 			expect(endSteps).toHaveLength(1);
-			expect(endSteps[0]!.id).toBe("done");
+			expect(endSteps?.[0]?.id).toBe("done");
 		});
 
 		test("adds end step to a terminal non-end step on the main chain", async () => {
@@ -2764,15 +2757,13 @@ describe("best practices", () => {
 			} as WorkflowDefinition;
 
 			const result = await compileWorkflow(workflow);
-			expect(result.workflow!.steps).toHaveLength(2);
-			const startStep = result.workflow!.steps.find(
-				(s) => s.id === "start",
-			)!;
-			expect(startStep.nextStepId).toBe("start_end");
-			const endStep = result.workflow!.steps.find(
-				(s) => s.id === "start_end",
-			)!;
-			expect(endStep.type).toBe("end");
+			expect(result.workflow?.steps).toHaveLength(2);
+			const startStep = result.workflow?.steps.find((s) => s.id === "start");
+			expect(startStep).toBeDefined();
+			expect(startStep?.nextStepId).toBe("start_end");
+			const endStep = result.workflow?.steps.find((s) => s.id === "start_end");
+			expect(endStep).toBeDefined();
+			expect(endStep?.type).toBe("end");
 		});
 
 		test("adds end steps to terminal branch body steps", async () => {
@@ -2829,23 +2820,19 @@ describe("best practices", () => {
 
 			const result = await compileWorkflow(workflow);
 			// Should have 2 new end steps added
-			expect(result.workflow!.steps).toHaveLength(6);
+			expect(result.workflow?.steps).toHaveLength(6);
 			expect(
-				result.workflow!.steps.find((s) => s.id === "handle_a")!
-					.nextStepId,
+				result.workflow?.steps.find((s) => s.id === "handle_a")?.nextStepId,
 			).toBe("handle_a_end");
 			expect(
-				result.workflow!.steps.find((s) => s.id === "handle_default")!
-					.nextStepId,
+				result.workflow?.steps.find((s) => s.id === "handle_default")
+					?.nextStepId,
 			).toBe("handle_default_end");
 			expect(
-				result.workflow!.steps.find((s) => s.id === "handle_a_end")!
-					.type,
+				result.workflow?.steps.find((s) => s.id === "handle_a_end")?.type,
 			).toBe("end");
 			expect(
-				result.workflow!.steps.find(
-					(s) => s.id === "handle_default_end",
-				)!.type,
+				result.workflow?.steps.find((s) => s.id === "handle_default_end")?.type,
 			).toBe("end");
 		});
 
@@ -2883,14 +2870,12 @@ describe("best practices", () => {
 			} as WorkflowDefinition;
 
 			const result = await compileWorkflow(workflow);
-			expect(result.workflow!.steps).toHaveLength(4);
+			expect(result.workflow?.steps).toHaveLength(4);
 			expect(
-				result.workflow!.steps.find((s) => s.id === "process")!
-					.nextStepId,
+				result.workflow?.steps.find((s) => s.id === "process")?.nextStepId,
 			).toBe("process_end");
 			expect(
-				result.workflow!.steps.find((s) => s.id === "process_end")!
-					.type,
+				result.workflow?.steps.find((s) => s.id === "process_end")?.type,
 			).toBe("end");
 		});
 
@@ -2912,9 +2897,9 @@ describe("best practices", () => {
 			const result = await compileWorkflow(workflow);
 			// Original should be untouched
 			expect(workflow.steps).toHaveLength(originalStepCount);
-			expect(workflow.steps[0]!.nextStepId).toBeUndefined();
+			expect(workflow.steps[0]?.nextStepId).toBeUndefined();
 			// Compiled version should have the end step
-			expect(result.workflow!.steps).toHaveLength(2);
+			expect(result.workflow?.steps).toHaveLength(2);
 		});
 	});
 

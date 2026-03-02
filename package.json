@@ -10,7 +10,7 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.4",
+		"@biomejs/biome": "2.4.4",
 		"@types/bun": "latest",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",

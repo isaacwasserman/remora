@@ -612,7 +612,6 @@ export const EXAMPLE_TASKS = {
 					type: "llm-prompt",
 					params: {
 						prompt:
-							// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 							"Generate a moderation summary for ${length(moderate_all)} processed submissions.",
 						outputFormat: {
 							type: "object",
@@ -734,7 +733,6 @@ export const EXAMPLE_TASKS = {
 					type: "llm-prompt",
 					params: {
 						prompt:
-							// biome-ignore lint/suspicious/noTemplateCurlyInString: This will be rendered as a template string with embedded expressions
 							"Select appropriate courses for student ${student.name} (grade: ${student.grade}). Available courses: ${get_courses.courses}. Return the IDs of selected courses.",
 						outputFormat: {
 							type: "object",

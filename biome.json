@@ -18,6 +18,9 @@
 			"recommended": true,
 			"style": {
 				"noNonNullAssertion": "error"
+			},
+			"suspicious": {
+				"noTemplateCurlyInString": "off"
 			}
 		}
 	},
