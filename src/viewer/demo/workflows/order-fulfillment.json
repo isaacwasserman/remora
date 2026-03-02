@@ -1,0 +1,202 @@
+{
+	"initialStepId": "get_orders",
+	"steps": [
+		{
+			"id": "get_orders",
+			"name": "Get Pending Orders",
+			"description": "Fetch all pending orders",
+			"type": "tool-call",
+			"params": { "toolName": "get-pending-orders", "toolInput": {} },
+			"nextStepId": "process_orders"
+		},
+		{
+			"id": "process_orders",
+			"name": "Process Each Order",
+			"description": "Iterate over each pending order",
+			"type": "for-each",
+			"params": {
+				"target": {
+					"type": "jmespath",
+					"expression": "get_orders.orders"
+				},
+				"itemName": "order",
+				"loopBodyStepId": "check_stock"
+			},
+			"nextStepId": "send_summary"
+		},
+		{
+			"id": "check_stock",
+			"name": "Check Inventory",
+			"description": "Check stock for the first item in the order",
+			"type": "tool-call",
+			"params": {
+				"toolName": "check-inventory",
+				"toolInput": {
+					"itemId": {
+						"type": "jmespath",
+						"expression": "order.items[0].itemId"
+					}
+				}
+			},
+			"nextStepId": "stock_decision"
+		},
+		{
+			"id": "stock_decision",
+			"name": "Stock Decision",
+			"description": "Branch based on item availability",
+			"type": "switch-case",
+			"params": {
+				"switchOn": {
+					"type": "jmespath",
+					"expression": "check_stock.available"
+				},
+				"cases": [
+					{
+						"value": { "type": "literal", "value": true },
+						"branchBodyStepId": "reserve_stock"
+					},
+					{
+						"value": { "type": "default" },
+						"branchBodyStepId": "flag_order"
+					}
+				]
+			}
+		},
+		{
+			"id": "reserve_stock",
+			"name": "Reserve Inventory",
+			"description": "Reserve the item in inventory",
+			"type": "tool-call",
+			"params": {
+				"toolName": "reserve-inventory",
+				"toolInput": {
+					"itemId": {
+						"type": "jmespath",
+						"expression": "order.items[0].itemId"
+					},
+					"quantity": {
+						"type": "jmespath",
+						"expression": "order.items[0].quantity"
+					}
+				}
+			},
+			"nextStepId": "ship_order"
+		},
+		{
+			"id": "ship_order",
+			"name": "Create Shipment",
+			"description": "Create shipment with reservation",
+			"type": "tool-call",
+			"params": {
+				"toolName": "create-shipment",
+				"toolInput": {
+					"orderId": {
+						"type": "jmespath",
+						"expression": "order.id"
+					},
+					"reservationId": {
+						"type": "jmespath",
+						"expression": "reserve_stock.reservationId"
+					}
+				}
+			},
+			"nextStepId": "notify_shipped"
+		},
+		{
+			"id": "notify_shipped",
+			"name": "Notify Shipped",
+			"description": "Notify customer that their order shipped",
+			"type": "tool-call",
+			"params": {
+				"toolName": "notify-customer",
+				"toolInput": {
+					"email": {
+						"type": "jmespath",
+						"expression": "order.customerEmail"
+					},
+					"subject": {
+						"type": "literal",
+						"value": "Order Shipped"
+					},
+					"body": {
+						"type": "jmespath",
+						"expression": "ship_order.trackingNumber"
+					}
+				}
+			}
+		},
+		{
+			"id": "flag_order",
+			"name": "Flag for Review",
+			"description": "Flag order as out of stock",
+			"type": "tool-call",
+			"params": {
+				"toolName": "flag-for-review",
+				"toolInput": {
+					"orderId": {
+						"type": "jmespath",
+						"expression": "order.id"
+					},
+					"reason": {
+						"type": "literal",
+						"value": "Out of stock"
+					}
+				}
+			},
+			"nextStepId": "notify_backorder"
+		},
+		{
+			"id": "notify_backorder",
+			"name": "Notify Backorder",
+			"description": "Notify customer about backorder",
+			"type": "tool-call",
+			"params": {
+				"toolName": "notify-customer",
+				"toolInput": {
+					"email": {
+						"type": "jmespath",
+						"expression": "order.customerEmail"
+					},
+					"subject": {
+						"type": "literal",
+						"value": "Backorder Notice"
+					},
+					"body": {
+						"type": "literal",
+						"value": "An item in your order is currently out of stock."
+					}
+				}
+			}
+		},
+		{
+			"id": "send_summary",
+			"name": "Send Summary",
+			"description": "Send fulfillment summary notification",
+			"type": "tool-call",
+			"params": {
+				"toolName": "notify-customer",
+				"toolInput": {
+					"email": {
+						"type": "literal",
+						"value": "warehouse@example.com"
+					},
+					"subject": {
+						"type": "literal",
+						"value": "Fulfillment Complete"
+					},
+					"body": {
+						"type": "literal",
+						"value": "All pending orders have been processed."
+					}
+				}
+			},
+			"nextStepId": "done"
+		},
+		{
+			"id": "done",
+			"name": "Done",
+			"description": "End of workflow",
+			"type": "end"
+		}
+	]
+}
