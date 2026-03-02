@@ -20,6 +20,12 @@ const GROUP_HEADER = 40;
 
 const START_NODE_ID = "__start__";
 
+function getOrThrow<K, V>(map: Map<K, V>, key: K): V {
+	const val = map.get(key);
+	if (val === undefined) throw new Error(`Missing map key: ${String(key)}`);
+	return val;
+}
+
 function stepNodeType(step: WorkflowStep): string {
 	switch (step.type) {
 		case "tool-call":
@@ -72,7 +78,8 @@ function collectChildSteps(
 
 	const queue = [...seeds];
 	while (queue.length > 0) {
-		const id = queue.shift()!;
+		const id = queue.shift();
+		if (id === undefined) continue;
 		if (children.has(id) || id === continuation) continue;
 		const s = stepMap.get(id);
 		if (!s) continue;
@@ -157,6 +164,18 @@ function groupHeaderId(groupId: string): string {
 	return `__header__${groupId}`;
 }
 
+function getNodeDimensions(
+	nodeId: string,
+	groupIds: Set<string>,
+	computedSizes: Map<string, { w: number; h: number }>,
+	stepMap: Map<string, WorkflowStep>,
+): { w: number; h: number } {
+	if (groupIds.has(nodeId)) {
+		return getOrThrow(computedSizes, nodeId);
+	}
+	return nodeSize(getOrThrow(stepMap, nodeId));
+}
+
 export function buildLayout(
 	workflow: WorkflowDefinition,
 	diagnostics: Diagnostic[] = [],
@@ -198,7 +217,7 @@ export function buildLayout(
 	>();
 
 	for (const groupId of processOrder) {
-		const groupStep = stepMap.get(groupId)!;
+		const groupStep = getOrThrow(stepMap, groupId);
 		const directChildren = getDirectChildren(groupId, parentMap);
 		if (directChildren.size === 0) {
 			groupIds.delete(groupId);
@@ -218,17 +237,12 @@ export function buildLayout(
 
 		// Add child nodes
 		for (const childId of directChildren) {
-			let w: number;
-			let h: number;
-			if (groupIds.has(childId)) {
-				const s = computedSizes.get(childId)!;
-				w = s.w;
-				h = s.h;
-			} else {
-				const s = nodeSize(stepMap.get(childId)!);
-				w = s.w;
-				h = s.h;
-			}
+			const { w, h } = getNodeDimensions(
+				childId,
+				groupIds,
+				computedSizes,
+				stepMap,
+			);
 			subG.setNode(childId, { width: w, height: h });
 		}
 
@@ -247,7 +261,7 @@ export function buildLayout(
 
 		// Edges between direct children
 		for (const childId of directChildren) {
-			const step = stepMap.get(childId)!;
+			const step = getOrThrow(stepMap, childId);
 			if (step.nextStepId && directChildren.has(step.nextStepId)) {
 				subG.setEdge(childId, step.nextStepId);
 			}
@@ -283,14 +297,15 @@ export function buildLayout(
 			if (nodeId === headerId) {
 				w = GROUP_HEADER_WIDTH;
 				h = GROUP_HEADER_HEIGHT;
-			} else if (groupIds.has(nodeId)) {
-				const s = computedSizes.get(nodeId)!;
-				w = s.w;
-				h = s.h;
 			} else {
-				const s = nodeSize(stepMap.get(nodeId)!);
-				w = s.w;
-				h = s.h;
+				const dims = getNodeDimensions(
+					nodeId,
+					groupIds,
+					computedSizes,
+					stepMap,
+				);
+				w = dims.w;
+				h = dims.h;
 			}
 			const x = pos.x - w / 2;
 			const y = pos.y - h / 2;
@@ -333,17 +348,12 @@ export function buildLayout(
 	for (const step of workflow.steps) {
 		if (!parentMap.has(step.id)) {
 			topLevelStepIds.push(step.id);
-			let w: number;
-			let h: number;
-			if (groupIds.has(step.id)) {
-				const s = computedSizes.get(step.id)!;
-				w = s.w;
-				h = s.h;
-			} else {
-				const s = nodeSize(step);
-				w = s.w;
-				h = s.h;
-			}
+			const { w, h } = getNodeDimensions(
+				step.id,
+				groupIds,
+				computedSizes,
+				stepMap,
+			);
 			topG.setNode(step.id, { width: w, height: h });
 		}
 	}
@@ -353,7 +363,7 @@ export function buildLayout(
 
 	const topLevelSet = new Set(topLevelStepIds);
 	for (const stepId of topLevelStepIds) {
-		const step = stepMap.get(stepId)!;
+		const step = getOrThrow(stepMap, stepId);
 		if (step.nextStepId && topLevelSet.has(step.nextStepId)) {
 			topG.setEdge(stepId, step.nextStepId);
 		}
@@ -383,17 +393,12 @@ export function buildLayout(
 
 	for (const stepId of topLevelStepIds) {
 		const pos = topG.node(stepId);
-		let w: number;
-		let h: number;
-		if (groupIds.has(stepId)) {
-			const s = computedSizes.get(stepId)!;
-			w = s.w;
-			h = s.h;
-		} else {
-			const s = nodeSize(stepMap.get(stepId)!);
-			w = s.w;
-			h = s.h;
-		}
+		const { w, h } = getNodeDimensions(
+			stepId,
+			groupIds,
+			computedSizes,
+			stepMap,
+		);
 		topLevelPositions.set(stepId, {
 			x: pos.x - w / 2,
 			y: pos.y - h / 2,
@@ -404,10 +409,11 @@ export function buildLayout(
 	const nodes: Node[] = [];
 
 	// Start node
+	const startNodePos = getOrThrow(topLevelPositions, START_NODE_ID);
 	nodes.push({
 		id: START_NODE_ID,
 		type: "start",
-		position: topLevelPositions.get(START_NODE_ID)!,
+		position: startNodePos,
 		data: {},
 		selectable: false,
 	});
@@ -427,9 +433,9 @@ export function buildLayout(
 		}
 
 		for (const id of groups) {
-			const step = stepMap.get(id)!;
+			const step = getOrThrow(stepMap, id);
 			const pos = getPosition(id);
-			const size = computedSizes.get(id)!;
+			const size = getOrThrow(computedSizes, id);
 
 			nodes.push({
 				id,
@@ -447,10 +453,10 @@ export function buildLayout(
 				...(parentId ? { parentId, extent: "parent" as const } : {}),
 			});
 
-			const childPositions = groupChildPositions.get(id)!;
+			const childPositions = getOrThrow(groupChildPositions, id);
 			addNodesForContext(
 				childPositions.keys(),
-				(childId) => childPositions.get(childId)!,
+				(childId) => getOrThrow(childPositions, childId),
 				id,
 			);
 		}
@@ -458,7 +464,7 @@ export function buildLayout(
 		for (const id of headers) {
 			const pos = getPosition(id);
 			const gid = id.replace("__header__", "");
-			const step = stepMap.get(gid)!;
+			const step = getOrThrow(stepMap, gid);
 
 			if (step.type === "switch-case") {
 				nodes.push({
@@ -489,7 +495,7 @@ export function buildLayout(
 		}
 
 		for (const id of nonGroups) {
-			const step = stepMap.get(id)!;
+			const step = getOrThrow(stepMap, id);
 			const pos = getPosition(id);
 
 			nodes.push({
@@ -506,7 +512,9 @@ export function buildLayout(
 		}
 	}
 
-	addNodesForContext(topLevelStepIds, (id) => topLevelPositions.get(id)!);
+	addNodesForContext(topLevelStepIds, (id) =>
+		getOrThrow(topLevelPositions, id),
+	);
 
 	// --- Step 6: Build edges ---
 	const edges: Edge[] = [];
