@@ -1,13 +1,13 @@
 import type { ToolSet } from "ai";
 import { asSchema } from "ai";
 import type { WorkflowDefinition } from "../types";
+import { applyBestPractices } from "./passes/apply-best-practices";
 import { buildGraph } from "./passes/build-graph";
+import { generateConstrainedToolSchemas } from "./passes/generate-constrained-tool-schemas";
 import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateReferences } from "./passes/validate-references";
-import { generateConstrainedToolSchemas } from "./passes/generate-constrained-tool-schemas";
 import { validateTools } from "./passes/validate-tools";
-import { applyBestPractices } from "./passes/apply-best-practices";
 import type {
 	CompilerResult,
 	ConstrainedToolSchemaMap,

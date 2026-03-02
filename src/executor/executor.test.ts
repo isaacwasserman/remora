@@ -924,7 +924,6 @@ describe("llm steps", () => {
 				step("summarize", {
 					type: "llm-prompt",
 					params: {
-						// biome-ignore lint/suspicious/noTemplateCurlyInString: testing template expressions
 						prompt: "Summarize these items: ${fetch.items}",
 						outputFormat: {
 							type: "object",

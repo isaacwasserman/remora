@@ -281,10 +281,10 @@ export function buildLayout(
 
 		dagre.layout(subG);
 
-		let minX = Infinity;
-		let minY = Infinity;
-		let maxX = -Infinity;
-		let maxY = -Infinity;
+		let minX = Number.POSITIVE_INFINITY;
+		let minY = Number.POSITIVE_INFINITY;
+		let maxX = Number.NEGATIVE_INFINITY;
+		let maxY = Number.NEGATIVE_INFINITY;
 
 		const allSubNodes = new Set(directChildren);
 		allSubNodes.add(headerId);
