@@ -2738,7 +2738,7 @@ describe("best practices", () => {
 			expect(result.workflow?.steps).toHaveLength(workflow.steps.length);
 			const endSteps = result.workflow?.steps.filter((s) => s.type === "end");
 			expect(endSteps).toHaveLength(1);
-			expect(endSteps[0]?.id).toBe("done");
+			expect(endSteps?.[0]?.id).toBe("done");
 		});
 
 		test("adds end step to a terminal non-end step on the main chain", async () => {
@@ -2763,7 +2763,7 @@ describe("best practices", () => {
 			expect(startStep?.nextStepId).toBe("start_end");
 			const endStep = result.workflow?.steps.find((s) => s.id === "start_end");
 			expect(endStep).toBeDefined();
-			expect(endStep.type).toBe("end");
+			expect(endStep?.type).toBe("end");
 		});
 
 		test("adds end steps to terminal branch body steps", async () => {

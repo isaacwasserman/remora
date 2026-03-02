@@ -277,11 +277,9 @@ describe("generateConstrainedToolSchemas", () => {
 		expect(
 			result["send-email"]?.inputSchema.properties.extraField,
 		).toBeUndefined();
-		expect(Object.keys(result["send-email"]?.inputSchema.properties)).toEqual([
-			"to",
-			"subject",
-			"body",
-		]);
+		expect(
+			Object.keys(result["send-email"]?.inputSchema.properties ?? {}),
+		).toEqual(["to", "subject", "body"]);
 	});
 
 	test("non-tool-call steps are ignored", () => {
