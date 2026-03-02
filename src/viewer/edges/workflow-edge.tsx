@@ -4,7 +4,6 @@ import {
 	type EdgeProps,
 	getBezierPath,
 } from "@xyflow/react";
-import React from "react";
 
 export function WorkflowEdge({
 	id,

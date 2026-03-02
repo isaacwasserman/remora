@@ -1,23 +1,24 @@
 import {
-	ReactFlow,
 	Background,
 	Controls,
-	MiniMap,
-	useNodesState,
-	useEdgesState,
-	type NodeTypes,
 	type EdgeTypes,
+	MiniMap,
+	type NodeTypes,
+	ReactFlow,
+	useEdgesState,
+	useNodesState,
 } from "@xyflow/react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Diagnostic } from "../compiler/types";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { WorkflowEdge } from "./edges/workflow-edge";
-import { type StepNodeData, buildLayout } from "./graph-layout";
+import { buildLayout, type StepNodeData } from "./graph-layout";
 import { EndNode } from "./nodes/end-node";
 import { ExtractDataNode } from "./nodes/extract-data-node";
 import { ForEachNode } from "./nodes/for-each-node";
-import { LlmPromptNode } from "./nodes/llm-prompt-node";
 import { GroupHeaderNode } from "./nodes/group-header-node";
+import { LlmPromptNode } from "./nodes/llm-prompt-node";
 import { StartNode } from "./nodes/start-node";
 import { SwitchCaseNode } from "./nodes/switch-case-node";
 import { ToolCallNode } from "./nodes/tool-call-node";
@@ -59,9 +60,8 @@ export function WorkflowViewer({
 	const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
 	const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
 	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
-	const [selectedDiagnostics, setSelectedDiagnostics] = useState<Diagnostic[]>(
-		EMPTY_DIAGNOSTICS,
-	);
+	const [selectedDiagnostics, setSelectedDiagnostics] =
+		useState<Diagnostic[]>(EMPTY_DIAGNOSTICS);
 
 	useEffect(() => {
 		setNodes(layout.nodes);
@@ -113,6 +113,7 @@ export function WorkflowViewer({
 						pannable
 						zoomable
 						style={{ border: "1px solid #e5e7eb" }}
+						nodeColor={"rgba(0, 0, 0, 0.1)"}
 					/>
 				</ReactFlow>
 			</div>

@@ -1,7 +1,7 @@
 import dagre from "@dagrejs/dagre";
 import type { Edge, Node } from "@xyflow/react";
-import type { WorkflowDefinition, WorkflowStep } from "../types";
 import type { Diagnostic } from "../compiler/types";
+import type { WorkflowDefinition, WorkflowStep } from "../types";
 
 export interface StepNodeData {
 	step: WorkflowStep;
@@ -444,9 +444,7 @@ export function buildLayout(
 					hasSourceEdge: !!step.nextStepId,
 				},
 				style: { width: size.w, height: size.h },
-				...(parentId
-					? { parentId, extent: "parent" as const }
-					: {}),
+				...(parentId ? { parentId, extent: "parent" as const } : {}),
 			});
 
 			const childPositions = groupChildPositions.get(id)!;
@@ -472,9 +470,7 @@ export function buildLayout(
 						description: step.description,
 						expression: renderExpression(step.params.switchOn),
 					},
-					...(parentId
-						? { parentId, extent: "parent" as const }
-						: {}),
+					...(parentId ? { parentId, extent: "parent" as const } : {}),
 				});
 			} else if (step.type === "for-each") {
 				nodes.push({
@@ -487,9 +483,7 @@ export function buildLayout(
 						target: renderExpression(step.params.target),
 						itemName: step.params.itemName,
 					},
-					...(parentId
-						? { parentId, extent: "parent" as const }
-						: {}),
+					...(parentId ? { parentId, extent: "parent" as const } : {}),
 				});
 			}
 		}
@@ -507,17 +501,12 @@ export function buildLayout(
 					diagnostics: diagnosticsByStep.get(id) ?? [],
 					hasSourceEdge: !!step.nextStepId,
 				},
-				...(parentId
-					? { parentId, extent: "parent" as const }
-					: {}),
+				...(parentId ? { parentId, extent: "parent" as const } : {}),
 			});
 		}
 	}
 
-	addNodesForContext(
-		topLevelStepIds,
-		(id) => topLevelPositions.get(id)!,
-	);
+	addNodesForContext(topLevelStepIds, (id) => topLevelPositions.get(id)!);
 
 	// --- Step 6: Build edges ---
 	const edges: Edge[] = [];
@@ -537,9 +526,7 @@ export function buildLayout(
 				const headerId = groupHeaderId(step.id);
 				for (const c of step.params.cases) {
 					const label =
-						c.value.type === "default"
-							? "default"
-							: renderExpression(c.value);
+						c.value.type === "default" ? "default" : renderExpression(c.value);
 					edges.push({
 						id: `${headerId}->${c.branchBodyStepId}`,
 						source: headerId,

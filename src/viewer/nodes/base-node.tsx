@@ -1,6 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
-import React from "react";
 import type { Diagnostic } from "../../compiler/types";
 
 interface BaseNodeProps {
@@ -42,7 +41,11 @@ export function BaseNode({
 			className={`bg-white rounded-lg shadow-md border-l-4 w-[300px] ${ringClass}`}
 			style={{ borderLeftColor: accent }}
 		>
-			<Handle type="target" position={Position.Top} className="!bg-gray-400 !w-2 !h-2" />
+			<Handle
+				type="target"
+				position={Position.Top}
+				className="!bg-gray-400 !w-2 !h-2"
+			/>
 			<div className="px-3 py-2.5">
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2 min-w-0">
@@ -74,7 +77,11 @@ export function BaseNode({
 				)}
 			</div>
 			{hasSourceEdge && (
-				<Handle type="source" position={Position.Bottom} className="!bg-gray-400 !w-2 !h-2" />
+				<Handle
+					type="source"
+					position={Position.Bottom}
+					className="!bg-gray-400 !w-2 !h-2"
+				/>
 			)}
 		</div>
 	);

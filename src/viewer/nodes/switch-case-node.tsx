@@ -1,6 +1,5 @@
-import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import React from "react";
+import { Handle, Position } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -15,7 +14,7 @@ function renderExpr(
 
 export function SwitchCaseNode({ data, selected }: NodeProps) {
 	const { step, diagnostics, isGroup, groupWidth, groupHeight, hasSourceEdge } =
-		data as StepNodeData & {
+		data as unknown as StepNodeData & {
 			isGroup?: boolean;
 			groupWidth?: number;
 			groupHeight?: number;
@@ -84,9 +83,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 				{step.params.cases.map((c, i) => (
 					<div key={i} className="flex items-center gap-1.5 text-[11px]">
 						<span className="font-mono text-gray-500">
-							{c.value.type === "default"
-								? "default"
-								: renderExpr(c.value)}
+							{c.value.type === "default" ? "default" : renderExpr(c.value)}
 						</span>
 						<span className="text-gray-300">&rarr;</span>
 						<span className="font-mono text-gray-600">

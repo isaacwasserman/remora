@@ -1,14 +1,16 @@
 import type { NodeProps } from "@xyflow/react";
-import React from "react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
 export function LlmPromptNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as StepNodeData;
+	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
 	if (step.type !== "llm-prompt") return null;
 
-	const outputKeys = step.params.outputFormat?.properties
-		? Object.keys(step.params.outputFormat.properties)
+	const outputFormat = step.params.outputFormat as
+		| { properties?: Record<string, unknown> }
+		| undefined;
+	const outputKeys = outputFormat?.properties
+		? Object.keys(outputFormat.properties)
 		: [];
 
 	return (

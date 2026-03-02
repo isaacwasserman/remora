@@ -1,6 +1,5 @@
-import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import React from "react";
+import { Handle, Position } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -15,7 +14,7 @@ function renderExpr(
 
 export function ForEachNode({ data, selected }: NodeProps) {
 	const { step, diagnostics, isGroup, groupWidth, groupHeight, hasSourceEdge } =
-		data as StepNodeData & {
+		data as unknown as StepNodeData & {
 			isGroup?: boolean;
 			groupWidth?: number;
 			groupHeight?: number;
@@ -44,7 +43,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
 				/>
 				<div className="px-3 py-2 flex items-center gap-2">
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
-						ForEach
+						Loop
 					</span>
 					<span className="text-sm font-medium text-gray-800 truncate">
 						{step.name}

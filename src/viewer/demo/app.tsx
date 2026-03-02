@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { EXAMPLE_TASKS } from "../../example-tasks";
 import { WorkflowViewer } from "../workflow-viewer";
@@ -15,13 +15,12 @@ const workflows = Object.entries(EXAMPLE_TASKS)
 function App() {
 	const [selected, setSelected] = useState(0);
 	const current = workflows[selected];
+	if (!current) return null;
 
 	return (
 		<div className="h-full flex flex-col">
 			<header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 shrink-0">
-				<h1 className="text-sm font-semibold text-gray-900">
-					Workflow Viewer
-				</h1>
+				<h1 className="text-sm font-semibold text-gray-900">Workflow Viewer</h1>
 				<div className="flex gap-1">
 					{workflows.map((w, i) => (
 						<button

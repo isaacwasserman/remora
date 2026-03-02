@@ -1,6 +1,5 @@
-import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import React from "react";
+import { Handle, Position } from "@xyflow/react";
 
 interface GroupHeaderData {
 	variant: "switch" | "loop";
@@ -35,7 +34,7 @@ const styles = {
 
 export function GroupHeaderNode({ data, selected }: NodeProps) {
 	const { variant, description, expression, target, itemName } =
-		data as GroupHeaderData;
+		data as unknown as GroupHeaderData;
 	const s = styles[variant];
 
 	return (
@@ -67,9 +66,7 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 						>
 							foreach
 						</span>
-						<span
-							className={`text-xs font-mono font-medium ${s.mono}`}
-						>
+						<span className={`text-xs font-mono font-medium ${s.mono}`}>
 							{itemName}
 						</span>
 						<span className={`text-[11px] ${s.label}`}>in</span>

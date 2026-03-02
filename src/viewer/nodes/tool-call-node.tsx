@@ -1,5 +1,4 @@
 import type { NodeProps } from "@xyflow/react";
-import React from "react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -13,7 +12,7 @@ function renderExpr(
 }
 
 export function ToolCallNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as StepNodeData;
+	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
 	if (step.type !== "tool-call") return null;
 
 	const entries = Object.entries(step.params.toolInput);

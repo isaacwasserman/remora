@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import type { Diagnostic } from "../../compiler/types";
 import type { WorkflowStep } from "../../types";
 
@@ -48,18 +48,14 @@ function StepParams({ step }: { step: WorkflowStep }) {
 						<div>
 							<Label>Inputs</Label>
 							<div className="space-y-1">
-								{Object.entries(step.params.toolInput).map(
-									([key, val]) => (
-										<div key={key} className="flex gap-2 text-xs">
-											<span className="font-mono text-gray-500">
-												{key}:
-											</span>
-											<span className="font-mono text-gray-700">
-												{renderExpression(val)}
-											</span>
-										</div>
-									),
-								)}
+								{Object.entries(step.params.toolInput).map(([key, val]) => (
+									<div key={key} className="flex gap-2 text-xs">
+										<span className="font-mono text-gray-500">{key}:</span>
+										<span className="font-mono text-gray-700">
+											{renderExpression(val)}
+										</span>
+									</div>
+								))}
 							</div>
 						</div>
 					)}
@@ -226,9 +222,7 @@ export function StepDetailPanel({
 											: "bg-amber-50 text-amber-700 border border-amber-200"
 									}`}
 								>
-									<div className="font-medium font-mono">
-										{d.code}
-									</div>
+									<div className="font-medium font-mono">{d.code}</div>
 									<div className="mt-0.5">{d.message}</div>
 								</div>
 							))}
