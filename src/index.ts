@@ -52,8 +52,9 @@ async function generateWorkflow({
 			toolName: "createWorkflow",
 		},
 	});
-	// biome-ignore lint/style/noNonNullAssertion: <explanation>
-	const workflowDefinition = result.toolCalls[0]!.input as WorkflowDefinition;
+	const workflowDefinition = (
+		result.toolCalls[0] as { input: WorkflowDefinition }
+	).input;
 	return workflowDefinition;
 }
 

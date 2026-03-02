@@ -73,6 +73,7 @@ const llmPromptSchema = type({
 		prompt: [
 			"string",
 			"@",
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: This is a demonstration for how to use template strings
 			"a template string where JMESPath expressions can be embedded using ${...} syntax (e.g. 'Hello ${user.name}, you have ${length(user.messages)} messages'). All data from previous steps is available via their step ids (e.g. ${stepId.someKey}), and loop variables are available within for-each loop bodies (e.g. ${itemName.someKey})",
 		],
 		outputFormat: [
