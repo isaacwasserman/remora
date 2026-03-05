@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import { createOpenAI } from "@ai-sdk/openai";
 import { asSchema, generateText, type ToolSet, tool } from "ai";
 import { compileWorkflow } from "./compiler";
-import { workflowToMermaid } from "./diagram";
 import { EXAMPLE_TASKS } from "./example-tasks";
 import { type WorkflowDefinition, workflowDefinitionSchema } from "./types";
 
@@ -73,12 +72,6 @@ async function main() {
 		await fs.writeFile(
 			`${directory}/workflow.json`,
 			JSON.stringify(workflowDefinition, null, 2),
-		);
-
-		const mermaidDiagram = workflowToMermaid(workflowDefinition);
-		await fs.writeFile(
-			`${directory}/diagram.md`,
-			`\`\`\`mermaid\n${mermaidDiagram}\n\`\`\``,
 		);
 	}
 }

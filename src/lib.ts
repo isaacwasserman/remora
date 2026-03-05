@@ -9,7 +9,6 @@ export type {
 	ExecutionGraph,
 } from "./compiler";
 export { compileWorkflow } from "./compiler";
-export { workflowToMermaid } from "./diagram";
 export type { ExecuteWorkflowOptions, ExecutionResult } from "./executor";
 export { executeWorkflow } from "./executor";
 export {
