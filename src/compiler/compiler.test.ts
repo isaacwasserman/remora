@@ -364,8 +364,7 @@ describe("integration: real workflow files", () => {
 		expect(errs).toHaveLength(0);
 		expect(
 			result.diagnostics.filter(
-				(d) =>
-					d.severity === "warning" && d.code !== "MISSING_START_STEP",
+				(d) => d.severity === "warning" && d.code !== "MISSING_START_STEP",
 			),
 		).toHaveLength(0);
 		expect(result.graph).not.toBeNull();
@@ -383,8 +382,7 @@ describe("integration: real workflow files", () => {
 		expect(errs).toHaveLength(0);
 		expect(
 			result.diagnostics.filter(
-				(d) =>
-					d.severity === "warning" && d.code !== "MISSING_START_STEP",
+				(d) => d.severity === "warning" && d.code !== "MISSING_START_STEP",
 			),
 		).toHaveLength(0);
 		expect(result.graph).not.toBeNull();
@@ -402,8 +400,7 @@ describe("integration: real workflow files", () => {
 		expect(errs).toHaveLength(0);
 		expect(
 			result.diagnostics.filter(
-				(d) =>
-					d.severity === "warning" && d.code !== "MISSING_START_STEP",
+				(d) => d.severity === "warning" && d.code !== "MISSING_START_STEP",
 			),
 		).toHaveLength(0);
 		expect(result.graph).not.toBeNull();
@@ -2744,9 +2741,7 @@ describe("best practices", () => {
 			const workflow = makeWorkflow();
 			const result = await compileWorkflow(workflow);
 			// makeWorkflow already has a "done" end step; +1 for auto-inserted __start
-			expect(result.workflow?.steps).toHaveLength(
-				workflow.steps.length + 1,
-			);
+			expect(result.workflow?.steps).toHaveLength(workflow.steps.length + 1);
 			const endSteps = result.workflow?.steps.filter((s) => s.type === "end");
 			expect(endSteps).toHaveLength(1);
 			expect(endSteps?.[0]?.id).toBe("done");
@@ -2952,10 +2947,7 @@ describe("best practices", () => {
 			expect(hasDiagnostic(result.diagnostics, "MISSING_START_STEP")).toBe(
 				true,
 			);
-			const diag = getFirstDiagnostic(
-				result.diagnostics,
-				"MISSING_START_STEP",
-			);
+			const diag = getFirstDiagnostic(result.diagnostics, "MISSING_START_STEP");
 			expect(diag.severity).toBe("warning");
 		});
 
@@ -2963,9 +2955,7 @@ describe("best practices", () => {
 			const workflow = makeWorkflow();
 			const result = await compileWorkflow(workflow);
 			expect(result.workflow?.initialStepId).toBe("__start");
-			const startStep = result.workflow?.steps.find(
-				(s) => s.id === "__start",
-			);
+			const startStep = result.workflow?.steps.find((s) => s.id === "__start");
 			expect(startStep).toBeDefined();
 			expect(startStep?.type).toBe("start");
 		});
@@ -2973,18 +2963,14 @@ describe("best practices", () => {
 		test("auto-inserted start step chains to the old initialStepId", async () => {
 			const workflow = makeWorkflow();
 			const result = await compileWorkflow(workflow);
-			const startStep = result.workflow?.steps.find(
-				(s) => s.id === "__start",
-			);
+			const startStep = result.workflow?.steps.find((s) => s.id === "__start");
 			expect(startStep?.nextStepId).toBe("start");
 		});
 
 		test("auto-inserted start step has empty input schema", async () => {
 			const workflow = makeWorkflow();
 			const result = await compileWorkflow(workflow);
-			const startStep = result.workflow?.steps.find(
-				(s) => s.id === "__start",
-			);
+			const startStep = result.workflow?.steps.find((s) => s.id === "__start");
 			expect(startStep?.type).toBe("start");
 			if (startStep?.type === "start") {
 				expect(startStep.params.inputSchema).toEqual({});
@@ -3026,9 +3012,9 @@ describe("best practices", () => {
 			} as WorkflowDefinition;
 
 			const result = await compileWorkflow(workflow);
-			expect(
-				hasDiagnostic(result.diagnostics, "MISSING_START_STEP"),
-			).toBe(false);
+			expect(hasDiagnostic(result.diagnostics, "MISSING_START_STEP")).toBe(
+				false,
+			);
 			expect(errors(result.diagnostics)).toHaveLength(0);
 		});
 	});
