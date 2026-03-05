@@ -16,6 +16,7 @@ export interface ExecutionResult {
 export interface ExecuteWorkflowOptions {
 	tools: ToolSet;
 	model?: LanguageModel;
+	inputs?: Record<string, unknown>;
 	onStepStart?: (stepId: string, step: WorkflowStep) => void;
 	onStepComplete?: (stepId: string, output: unknown) => void;
 }
@@ -73,6 +74,64 @@ function interpolateTemplate(
 	}
 	result += template.slice(lastEnd);
 	return result;
+}
+
+// ─── Input Validation ────────────────────────────────────────────
+
+function validateWorkflowInputs(
+	step: WorkflowStep & { type: "start" },
+	inputs: Record<string, unknown>,
+): void {
+	const schema = step.params.inputSchema as Record<string, unknown>;
+	if (!schema || typeof schema !== "object") return;
+
+	const required = schema.required;
+	if (Array.isArray(required)) {
+		const missing = required.filter(
+			(key: unknown) => typeof key === "string" && !(key in inputs),
+		);
+		if (missing.length > 0) {
+			throw new StepExecutionError(
+				step.id,
+				`Workflow input validation failed: missing required input(s): ${missing.join(", ")}`,
+			);
+		}
+	}
+
+	const properties = schema.properties;
+	if (properties && typeof properties === "object") {
+		for (const [key, value] of Object.entries(inputs)) {
+			const propSchema = (properties as Record<string, unknown>)[key];
+			if (
+				propSchema &&
+				typeof propSchema === "object" &&
+				"type" in propSchema
+			) {
+				const expectedType = (propSchema as { type: string }).type;
+				const actualType = typeof value;
+				if (expectedType === "integer" || expectedType === "number") {
+					if (actualType !== "number") {
+						throw new StepExecutionError(
+							step.id,
+							`Workflow input validation failed: input '${key}' expected type '${expectedType}' but got '${actualType}'`,
+						);
+					}
+				} else if (expectedType === "array") {
+					if (!Array.isArray(value)) {
+						throw new StepExecutionError(
+							step.id,
+							`Workflow input validation failed: input '${key}' expected type 'array' but got '${actualType}'`,
+						);
+					}
+				} else if (actualType !== expectedType) {
+					throw new StepExecutionError(
+						step.id,
+						`Workflow input validation failed: input '${key}' expected type '${expectedType}' but got '${actualType}'`,
+					);
+				}
+			}
+		}
+	}
 }
 
 // ─── Step Handlers ───────────────────────────────────────────────
@@ -307,6 +366,13 @@ async function executeChain(
 					options,
 				);
 				break;
+			case "start": {
+				const inputs = options.inputs ?? {};
+				const startStep = step as WorkflowStep & { type: "start" };
+				validateWorkflowInputs(startStep, inputs);
+				stepOutput = inputs;
+				break;
+			}
 			case "end":
 				stepOutput = undefined;
 				break;

@@ -28,7 +28,8 @@ export type DiagnosticCode =
 	| "MULTIPLE_DEFAULT_CASES"
 	| "UNKNOWN_TOOL"
 	| "MISSING_TOOL_INPUT_KEY"
-	| "EXTRA_TOOL_INPUT_KEY";
+	| "EXTRA_TOOL_INPUT_KEY"
+	| "MISSING_START_STEP";
 
 export interface Diagnostic {
 	severity: DiagnosticSeverity;

@@ -38,6 +38,8 @@ function stepNodeType(step: WorkflowStep): string {
 			return "switchCase";
 		case "for-each":
 			return "forEach";
+		case "start":
+			return "startStep";
 		case "end":
 			return "end";
 	}

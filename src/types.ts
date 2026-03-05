@@ -99,6 +99,19 @@ const extractDataParamsSchema = type({
 	"a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format",
 );
 
+const startParamsSchema = type({
+	type: "'start'",
+	params: {
+		inputSchema: [
+			"object",
+			"@",
+			"a JSON Schema object defining the inputs required to run the workflow; the workflow executor will validate provided inputs against this schema, and the validated inputs become available in JMESPath scope via this step's id",
+		],
+	},
+}).describe(
+	"a step that marks the entry point of a workflow and declares the input schema; its output is the validated input data, accessible by subsequent steps via its step id",
+);
+
 const endSchema = type({
 	type: "'end'",
 }).describe("a step that indicates the end of a branch");
@@ -114,6 +127,7 @@ const workflowStepSchema = type({
 		.or(extractDataParamsSchema)
 		.or(switchCaseParamsSchema)
 		.or(forEachParamsSchema)
+		.or(startParamsSchema)
 		.or(endSchema),
 );
 
