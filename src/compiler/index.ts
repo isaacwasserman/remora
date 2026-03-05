@@ -60,10 +60,12 @@ export async function compileWorkflow(
 
 	// Final pass: apply best-practice transformations (non-destructive)
 	const hasErrors = diagnostics.some((d) => d.severity === "error");
-	const optimizedWorkflow =
-		graphResult.graph && !hasErrors
-			? applyBestPractices(workflow, graphResult.graph)
-			: null;
+	let optimizedWorkflow: WorkflowDefinition | null = null;
+	if (graphResult.graph && !hasErrors) {
+		const bpResult = applyBestPractices(workflow, graphResult.graph);
+		optimizedWorkflow = bpResult.workflow;
+		diagnostics.push(...bpResult.diagnostics);
+	}
 
 	return {
 		diagnostics,
