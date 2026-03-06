@@ -935,7 +935,12 @@ describe("error recovery", () => {
 					content: [{ type: "text", text: JSON.stringify({ result: "ok" }) }],
 					finishReason: { unified: "stop", raw: undefined },
 					usage: {
-						inputTokens: { total: 10, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+						inputTokens: {
+							total: 10,
+							noCache: undefined,
+							cacheRead: undefined,
+							cacheWrite: undefined,
+						},
 						outputTokens: { total: 10, text: undefined, reasoning: undefined },
 					},
 					warnings: [],
@@ -1084,7 +1089,12 @@ describe("error recovery", () => {
 					content: [{ type: "text", text: JSON.stringify({ name: "Alice" }) }],
 					finishReason: { unified: "stop", raw: undefined },
 					usage: {
-						inputTokens: { total: 10, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+						inputTokens: {
+							total: 10,
+							noCache: undefined,
+							cacheRead: undefined,
+							cacheWrite: undefined,
+						},
 						outputTokens: { total: 10, text: undefined, reasoning: undefined },
 					},
 					warnings: [],

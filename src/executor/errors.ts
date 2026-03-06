@@ -78,13 +78,7 @@ export class ExternalServiceError extends StepExecutionError {
 		public readonly statusCode?: number,
 		public readonly isRetryable: boolean = true,
 	) {
-		super(
-			stepId,
-			code,
-			"external-service",
-			message,
-			cause,
-		);
+		super(stepId, code, "external-service", message, cause);
 	}
 }
 
@@ -108,12 +102,6 @@ export class OutputQualityError extends StepExecutionError {
 		public readonly rawOutput: unknown,
 		cause?: unknown,
 	) {
-		super(
-			stepId,
-			code,
-			"output-quality",
-			message,
-			cause,
-		);
+		super(stepId, code, "output-quality", message, cause);
 	}
 }

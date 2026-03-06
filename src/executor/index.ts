@@ -13,6 +13,7 @@ import {
 } from "ai";
 import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
+import type { ErrorCode } from "./errors";
 import {
 	ConfigurationError,
 	ExpressionError,
@@ -21,7 +22,6 @@ import {
 	StepExecutionError,
 	ValidationError,
 } from "./errors";
-import type { ErrorCode } from "./errors";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -244,15 +244,18 @@ async function executeToolCall(
 	tools: ToolSet,
 ): Promise<unknown> {
 	// Tool existence and executability are validated in pre-flight checks
-	const toolDef = tools[step.params.toolName]!;
+	const toolDef = tools[step.params.toolName];
+	if (!toolDef?.execute) {
+		throw new ConfigurationError(
+			step.id,
+			"TOOL_NOT_FOUND",
+			`Tool '${step.params.toolName}' not found or has no execute function`,
+		);
+	}
 
 	const resolvedInput: Record<string, unknown> = {};
 	for (const [key, expr] of Object.entries(step.params.toolInput)) {
-		resolvedInput[key] = evaluateExpression(
-			expr as Expression,
-			scope,
-			step.id,
-		);
+		resolvedInput[key] = evaluateExpression(expr as Expression, scope, step.id);
 	}
 
 	if (toolDef.inputSchema) {
@@ -272,7 +275,7 @@ async function executeToolCall(
 	}
 
 	try {
-		return await toolDef.execute!(resolvedInput, {
+		return await toolDef.execute(resolvedInput, {
 			toolCallId: step.id,
 			messages: [],
 		});
@@ -439,10 +442,24 @@ async function executeStep(
 	switch (step.type) {
 		case "tool-call":
 			return executeToolCall(step, scope, options.tools);
-		case "llm-prompt":
-			return executeLlmPrompt(step, scope, options.model!);
-		case "extract-data":
-			return executeExtractData(step, scope, options.model!);
+		case "llm-prompt": {
+			if (!options.model)
+				throw new ConfigurationError(
+					step.id,
+					"MODEL_NOT_PROVIDED",
+					"No model provided",
+				);
+			return executeLlmPrompt(step, scope, options.model);
+		}
+		case "extract-data": {
+			if (!options.model)
+				throw new ConfigurationError(
+					step.id,
+					"MODEL_NOT_PROVIDED",
+					"No model provided",
+				);
+			return executeExtractData(step, scope, options.model);
+		}
 		case "switch-case":
 			return executeSwitchCase(
 				step,
@@ -521,14 +538,7 @@ async function recoverFromError(
 		case "LLM_NETWORK_ERROR":
 		case "LLM_NO_CONTENT":
 		case "LLM_OUTPUT_PARSE_ERROR":
-			return retryStep(
-				step,
-				stepIndex,
-				stepOutputs,
-				loopVars,
-				options,
-				error,
-			);
+			return retryStep(step, stepIndex, stepOutputs, loopVars, options, error);
 
 		case "LLM_API_ERROR":
 			if (error instanceof ExternalServiceError && error.isRetryable) {
@@ -613,10 +623,11 @@ function validateWorkflowConfig(
 		(s) => s.type === "llm-prompt" || s.type === "extract-data",
 	);
 	if (needsModel && !options.model) {
+		const llmStep = workflow.steps.find(
+			(s) => s.type === "llm-prompt" || s.type === "extract-data",
+		);
 		throw new ConfigurationError(
-			workflow.steps.find(
-				(s) => s.type === "llm-prompt" || s.type === "extract-data",
-			)!.id,
+			llmStep?.id ?? "unknown",
 			"MODEL_NOT_PROVIDED",
 			"Workflow contains LLM steps but no model was provided",
 		);
