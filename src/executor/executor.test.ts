@@ -85,9 +85,9 @@ function createMockAgent(responses: unknown[]) {
 		id: "mock-agent",
 		tools: {},
 		async generate() {
-			return {
-				text: JSON.stringify(responses[callIndex++]),
-			} as any;
+			return { text: JSON.stringify(responses[callIndex++]) } as Awaited<
+				ReturnType<import("ai").Agent["generate"]>
+			>;
 		},
 		async stream(): Promise<never> {
 			throw new Error("stream not implemented in mock");
