@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { LanguageModelV3GenerateResult } from "@ai-sdk/provider";
-import { tool } from "ai";
+import { APICallError, tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { type } from "arktype";
 import { EXAMPLE_TASKS } from "../example-tasks";
@@ -700,6 +700,8 @@ describe("error handling", () => {
 		expect(result.error).toBeDefined();
 		expect(result.error?.stepId).toBe("fail");
 		expect(result.error?.message).toContain("Tool failed intentionally");
+		expect(result.error?.code).toBe("TOOL_EXECUTION_FAILED");
+		expect(result.error?.category).toBe("external-service");
 	});
 
 	test("missing tool returns error result", async () => {
@@ -719,6 +721,8 @@ describe("error handling", () => {
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(false);
 		expect(result.error?.message).toContain("not found");
+		expect(result.error?.code).toBe("TOOL_NOT_FOUND");
+		expect(result.error?.category).toBe("configuration");
 	});
 
 	test("tool input validation failure returns error result", async () => {
@@ -741,6 +745,8 @@ describe("error handling", () => {
 		expect(result.success).toBe(false);
 		expect(result.error?.stepId).toBe("bad_input");
 		expect(result.error?.message).toContain("validation failed");
+		expect(result.error?.code).toBe("TOOL_INPUT_VALIDATION_FAILED");
+		expect(result.error?.category).toBe("validation");
 	});
 
 	test("for-each target not an array returns error", async () => {
@@ -765,6 +771,8 @@ describe("error handling", () => {
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(false);
 		expect(result.error?.message).toContain("must be an array");
+		expect(result.error?.code).toBe("FOREACH_TARGET_NOT_ARRAY");
+		expect(result.error?.category).toBe("validation");
 	});
 
 	test("llm-prompt step without model returns error", async () => {
@@ -783,7 +791,9 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(false);
-		expect(result.error?.message).toContain("requires a model");
+		expect(result.error?.message).toContain("no model was provided");
+		expect(result.error?.code).toBe("MODEL_NOT_PROVIDED");
+		expect(result.error?.category).toBe("configuration");
 	});
 
 	test("extract-data step without model returns error", async () => {
@@ -802,7 +812,9 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(false);
-		expect(result.error?.message).toContain("requires a model");
+		expect(result.error?.message).toContain("no model was provided");
+		expect(result.error?.code).toBe("MODEL_NOT_PROVIDED");
+		expect(result.error?.category).toBe("configuration");
 	});
 
 	test("partial results are available even on failure", async () => {
@@ -825,6 +837,285 @@ describe("error handling", () => {
 		expect(result.success).toBe(false);
 		expect(result.stepOutputs.ok_step).toEqual({ echoed: true });
 		expect(result.error?.stepId).toBe("fail_step");
+	});
+
+	test("llm-prompt API error is classified as external-service", async () => {
+		const failingModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				const error = new Error("Service unavailable");
+				Object.assign(error, {
+					name: "AI_APICallError",
+					statusCode: 503,
+					isRetryable: true,
+					data: undefined,
+					url: "https://api.example.com",
+					requestBodyValues: {},
+					responseHeaders: {},
+					responseBody: undefined,
+				});
+				throw error;
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "prompt",
+			steps: [
+				step("prompt", {
+					type: "llm-prompt",
+					params: {
+						prompt: "Hello",
+						outputFormat: { type: "object", properties: {} },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: failingModel,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.category).toBe("external-service");
+	});
+
+	test("extract-data API error is classified as external-service", async () => {
+		const failingModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				const error = new Error("Service unavailable");
+				Object.assign(error, {
+					name: "AI_APICallError",
+					statusCode: 500,
+					isRetryable: true,
+					data: undefined,
+					url: "https://api.example.com",
+					requestBodyValues: {},
+					responseHeaders: {},
+					responseBody: undefined,
+				});
+				throw error;
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "extract",
+			steps: [
+				step("extract", {
+					type: "extract-data",
+					params: {
+						sourceData: { type: "literal", value: "some data" },
+						outputFormat: { type: "object", properties: {} },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: failingModel,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.category).toBe("external-service");
+	});
+});
+
+// ─── Error Recovery ──────────────────────────────────────────────
+
+describe("error recovery", () => {
+	test("retry succeeds on second attempt", async () => {
+		let callCount = 0;
+		const flakyModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					throw new Error("Temporary failure");
+				}
+				return {
+					content: [{ type: "text", text: JSON.stringify({ result: "ok" }) }],
+					finishReason: { unified: "stop", raw: undefined },
+					usage: {
+						inputTokens: { total: 10, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+						outputTokens: { total: 10, text: undefined, reasoning: undefined },
+					},
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "prompt",
+			steps: [
+				step("prompt", {
+					type: "llm-prompt",
+					params: {
+						prompt: "Hello",
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: flakyModel,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.prompt).toEqual({ result: "ok" });
+		expect(callCount).toBe(2);
+	});
+
+	test("retry exhausted after max attempts", async () => {
+		let callCount = 0;
+		const alwaysFailModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				throw new Error("Always fails");
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "prompt",
+			steps: [
+				step("prompt", {
+					type: "llm-prompt",
+					params: {
+						prompt: "Hello",
+						outputFormat: { type: "object", properties: {} },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: alwaysFailModel,
+			maxRetries: 2,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(false);
+		// 1 initial + 2 retries = 3
+		expect(callCount).toBe(3);
+	});
+
+	test("non-retryable LLM error skips recovery", async () => {
+		let callCount = 0;
+		const nonRetryableModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				throw new APICallError({
+					message: "Auth failed",
+					statusCode: 401,
+					isRetryable: false,
+					url: "https://api.example.com",
+					requestBodyValues: {},
+				});
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "prompt",
+			steps: [
+				step("prompt", {
+					type: "llm-prompt",
+					params: {
+						prompt: "Hello",
+						outputFormat: { type: "object", properties: {} },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: nonRetryableModel,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("LLM_API_ERROR");
+		expect(callCount).toBe(1);
+	});
+
+	test("tool execution failure is not retried", async () => {
+		let callCount = 0;
+		const countingTools = {
+			...testTools,
+			countingFail: {
+				...testTools.failingTool,
+				execute: async (): Promise<Record<string, never>> => {
+					callCount++;
+					throw new Error("Tool failed");
+				},
+			},
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fail",
+			steps: [
+				step("fail", {
+					type: "tool-call",
+					params: { toolName: "countingFail", toolInput: {} },
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: countingTools,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("TOOL_EXECUTION_FAILED");
+		expect(callCount).toBe(1);
+	});
+
+	test("extract-data retry succeeds on second attempt", async () => {
+		let callCount = 0;
+		const flakyModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					throw new Error("Temporary failure");
+				}
+				return {
+					content: [{ type: "text", text: JSON.stringify({ name: "Alice" }) }],
+					finishReason: { unified: "stop", raw: undefined },
+					usage: {
+						inputTokens: { total: 10, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+						outputTokens: { total: 10, text: undefined, reasoning: undefined },
+					},
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "extract",
+			steps: [
+				step("extract", {
+					type: "extract-data",
+					params: {
+						sourceData: { type: "literal", value: "Alice is here" },
+						outputFormat: {
+							type: "object",
+							properties: { name: { type: "string" } },
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: flakyModel,
+			retryDelayMs: 0,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.extract).toEqual({ name: "Alice" });
+		expect(callCount).toBe(2);
 	});
 });
 
