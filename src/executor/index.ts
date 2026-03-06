@@ -1,15 +1,14 @@
 import { safeValidateTypes } from "@ai-sdk/provider-utils";
 import { search } from "@jmespath-community/jmespath";
-import type { LanguageModel, ToolSet } from "ai";
+import type { Agent, LanguageModel, ToolSet } from "ai";
 import {
 	APICallError,
-	generateText,
 	JSONParseError,
-	jsonSchema,
 	NoContentGeneratedError,
-	Output,
 	RetryError,
+	ToolLoopAgent,
 	TypeValidationError,
+	stepCountIs,
 } from "ai";
 import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
@@ -33,12 +32,16 @@ export interface ExecutionResult {
 
 export interface ExecuteWorkflowOptions {
 	tools: ToolSet;
-	model?: LanguageModel;
+	agent?: Agent | LanguageModel;
 	inputs?: Record<string, unknown>;
 	maxRetries?: number;
 	retryDelayMs?: number;
 	onStepStart?: (stepId: string, step: WorkflowStep) => void;
 	onStepComplete?: (stepId: string, output: unknown) => void;
+}
+
+function isAgent(value: Agent | LanguageModel): value is Agent {
+	return typeof value === "object" && value !== null && "generate" in value;
 }
 
 // ─── Expression Evaluation ───────────────────────────────────────
@@ -292,24 +295,29 @@ async function executeToolCall(
 async function executeLlmPrompt(
 	step: WorkflowStep & { type: "llm-prompt" },
 	scope: Record<string, unknown>,
-	model: LanguageModel,
+	agent: Agent,
 ): Promise<unknown> {
 	const interpolatedPrompt = interpolateTemplate(
 		step.params.prompt,
 		scope,
 		step.id,
 	);
+	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
+	const prompt = `${interpolatedPrompt}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
 	try {
-		const result = await generateText({
-			model,
-			prompt: interpolatedPrompt,
-			output: Output.object({
-				schema: jsonSchema(step.params.outputFormat),
-			}),
-		});
-		return result.output;
+		const result = await agent.generate({ prompt });
+		return JSON.parse(result.text);
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
+		if (e instanceof SyntaxError) {
+			throw new OutputQualityError(
+				step.id,
+				"LLM_OUTPUT_PARSE_ERROR",
+				`LLM output is not valid JSON: ${e.message}`,
+				undefined,
+				e,
+			);
+		}
 		throw classifyLlmError(step.id, e);
 	}
 }
@@ -317,7 +325,7 @@ async function executeLlmPrompt(
 async function executeExtractData(
 	step: WorkflowStep & { type: "extract-data" },
 	scope: Record<string, unknown>,
-	model: LanguageModel,
+	agent: Agent,
 ): Promise<unknown> {
 	const sourceData = evaluateExpression(
 		step.params.sourceData as Expression,
@@ -329,17 +337,22 @@ async function executeExtractData(
 			? sourceData
 			: JSON.stringify(sourceData, null, 2);
 
+	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
+	const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
 	try {
-		const result = await generateText({
-			model,
-			prompt: `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}`,
-			output: Output.object({
-				schema: jsonSchema(step.params.outputFormat),
-			}),
-		});
-		return result.output;
+		const result = await agent.generate({ prompt });
+		return JSON.parse(result.text);
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
+		if (e instanceof SyntaxError) {
+			throw new OutputQualityError(
+				step.id,
+				"LLM_OUTPUT_PARSE_ERROR",
+				`LLM output is not valid JSON: ${e.message}`,
+				undefined,
+				e,
+			);
+		}
 		throw classifyLlmError(step.id, e);
 	}
 }
@@ -443,22 +456,22 @@ async function executeStep(
 		case "tool-call":
 			return executeToolCall(step, scope, options.tools);
 		case "llm-prompt": {
-			if (!options.model)
+			if (!options.agent)
 				throw new ConfigurationError(
 					step.id,
-					"MODEL_NOT_PROVIDED",
-					"No model provided",
+					"AGENT_NOT_PROVIDED",
+					"No agent provided",
 				);
-			return executeLlmPrompt(step, scope, options.model);
+			return executeLlmPrompt(step, scope, options.agent as Agent);
 		}
 		case "extract-data": {
-			if (!options.model)
+			if (!options.agent)
 				throw new ConfigurationError(
 					step.id,
-					"MODEL_NOT_PROVIDED",
-					"No model provided",
+					"AGENT_NOT_PROVIDED",
+					"No agent provided",
 				);
-			return executeExtractData(step, scope, options.model);
+			return executeExtractData(step, scope, options.agent as Agent);
 		}
 		case "switch-case":
 			return executeSwitchCase(
@@ -619,17 +632,17 @@ function validateWorkflowConfig(
 	workflow: WorkflowDefinition,
 	options: ExecuteWorkflowOptions,
 ): void {
-	const needsModel = workflow.steps.some(
+	const needsAgent = workflow.steps.some(
 		(s) => s.type === "llm-prompt" || s.type === "extract-data",
 	);
-	if (needsModel && !options.model) {
+	if (needsAgent && !options.agent) {
 		const llmStep = workflow.steps.find(
 			(s) => s.type === "llm-prompt" || s.type === "extract-data",
 		);
 		throw new ConfigurationError(
 			llmStep?.id ?? "unknown",
-			"MODEL_NOT_PROVIDED",
-			"Workflow contains LLM steps but no model was provided",
+			"AGENT_NOT_PROVIDED",
+			"Workflow contains LLM steps but no agent was provided",
 		);
 	}
 
@@ -666,14 +679,24 @@ export async function executeWorkflow(
 
 	const stepOutputs: Record<string, unknown> = {};
 
+	const resolvedAgent = options.agent
+		? isAgent(options.agent)
+			? options.agent
+			: new ToolLoopAgent({
+					model: options.agent,
+					stopWhen: stepCountIs(1),
+				})
+		: undefined;
+	const resolvedOptions = { ...options, agent: resolvedAgent };
+
 	try {
-		validateWorkflowConfig(workflow, options);
+		validateWorkflowConfig(workflow, resolvedOptions);
 		await executeChain(
 			workflow.initialStepId,
 			stepIndex,
 			stepOutputs,
 			{},
-			options,
+			resolvedOptions,
 		);
 		return { success: true, stepOutputs };
 	} catch (e) {
