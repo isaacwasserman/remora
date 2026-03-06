@@ -20,6 +20,7 @@ import { ForEachNode } from "./nodes/for-each-node";
 import { GroupHeaderNode } from "./nodes/group-header-node";
 import { LlmPromptNode } from "./nodes/llm-prompt-node";
 import { StartNode } from "./nodes/start-node";
+import { StartStepNode } from "./nodes/start-step-node";
 import { SwitchCaseNode } from "./nodes/switch-case-node";
 import { ToolCallNode } from "./nodes/tool-call-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
@@ -33,6 +34,7 @@ const nodeTypes: NodeTypes = {
 	forEach: ForEachNode,
 	end: EndNode,
 	start: StartNode,
+	startStep: StartStepNode,
 };
 
 const edgeTypes: EdgeTypes = {

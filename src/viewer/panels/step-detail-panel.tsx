@@ -24,6 +24,7 @@ function TypeBadge({ type }: { type: string }) {
 		"extract-data": "bg-purple-100 text-purple-700",
 		"switch-case": "bg-amber-100 text-amber-700",
 		"for-each": "bg-emerald-100 text-emerald-700",
+		start: "bg-green-100 text-green-700",
 		end: "bg-gray-100 text-gray-600",
 	};
 	return (
@@ -134,6 +135,16 @@ function StepParams({ step }: { step: WorkflowStep }) {
 					<div>
 						<Label>Loop Body</Label>
 						<Code>{step.params.loopBodyStepId}</Code>
+					</div>
+				</div>
+			);
+
+		case "start":
+			return (
+				<div className="space-y-2">
+					<div>
+						<Label>Input Schema</Label>
+						<Code>{JSON.stringify(step.params.inputSchema, null, 2)}</Code>
 					</div>
 				</div>
 			);

@@ -1509,3 +1509,109 @@ describe("integration: example tasks", () => {
 		expect(courses.courses).toHaveLength(3);
 	});
 });
+
+// ─── Start Step ─────────────────────────────────────────────────
+
+describe("start step", () => {
+	test("outputs provided inputs to scope", async () => {
+		const workflow = {
+			initialStepId: "entry",
+			steps: [
+				{
+					id: "entry",
+					name: "Entry",
+					description: "Entry point",
+					type: "start",
+					params: {
+						inputSchema: {
+							type: "object",
+							properties: { name: { type: "string" } },
+						},
+					},
+					nextStepId: "greet_step",
+				},
+				{
+					id: "greet_step",
+					name: "Greet",
+					description: "Greet by name",
+					type: "tool-call",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: {
+								type: "jmespath",
+								expression: "entry.name",
+							},
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			inputs: { name: "World" },
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.entry).toEqual({ name: "World" });
+		expect(result.stepOutputs.greet_step).toEqual({
+			greeting: "Hello, World!",
+		});
+	});
+
+	test("defaults to empty object when no inputs provided", async () => {
+		const workflow = {
+			initialStepId: "entry",
+			steps: [
+				{
+					id: "entry",
+					name: "Entry",
+					description: "Entry point",
+					type: "start",
+					params: { inputSchema: {} },
+					nextStepId: "do_work",
+				},
+				{
+					id: "do_work",
+					name: "Work",
+					description: "Do work",
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.entry).toEqual({});
+	});
+
+	test("validates inputs against schema and fails on mismatch", async () => {
+		const workflow = {
+			initialStepId: "entry",
+			steps: [
+				{
+					id: "entry",
+					name: "Entry",
+					description: "Entry point",
+					type: "start",
+					params: {
+						inputSchema: {
+							type: "object",
+							properties: { name: { type: "string" } },
+							required: ["name"],
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			inputs: {},
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.stepId).toBe("entry");
+		expect(result.error?.message).toContain("input validation failed");
+	});
+});

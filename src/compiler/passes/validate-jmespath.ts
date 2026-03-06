@@ -102,6 +102,9 @@ function collectExpressions(workflow: WorkflowDefinition): {
 				}
 				break;
 
+			case "start":
+				break;
+
 			case "llm-prompt": {
 				const { expressions: templateExprs, unclosed } =
 					extractTemplateExpressions(step.params.prompt);
