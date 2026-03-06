@@ -17,7 +17,7 @@ export type ErrorCode =
 	// configuration — workflow is misconfigured
 	| "TOOL_NOT_FOUND"
 	| "TOOL_MISSING_EXECUTE"
-	| "MODEL_NOT_PROVIDED"
+	| "AGENT_NOT_PROVIDED"
 	// validation — input data doesn't match expected schema/type
 	| "TOOL_INPUT_VALIDATION_FAILED"
 	| "FOREACH_TARGET_NOT_ARRAY"

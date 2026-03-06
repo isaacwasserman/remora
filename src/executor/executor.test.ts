@@ -78,6 +78,23 @@ function createMockModel(responses: unknown[]) {
 	});
 }
 
+function createMockAgent(responses: unknown[]) {
+	let callIndex = 0;
+	return {
+		version: "agent-v1" as const,
+		id: "mock-agent",
+		tools: {},
+		async generate() {
+			return { text: JSON.stringify(responses[callIndex++]) } as Awaited<
+				ReturnType<import("ai").Agent["generate"]>
+			>;
+		},
+		async stream(): Promise<never> {
+			throw new Error("stream not implemented in mock");
+		},
+	};
+}
+
 // ─── Workflow Helpers ────────────────────────────────────────────
 
 function step(
@@ -791,8 +808,8 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(false);
-		expect(result.error?.message).toContain("no model was provided");
-		expect(result.error?.code).toBe("MODEL_NOT_PROVIDED");
+		expect(result.error?.message).toContain("no agent was provided");
+		expect(result.error?.code).toBe("AGENT_NOT_PROVIDED");
 		expect(result.error?.category).toBe("configuration");
 	});
 
@@ -812,8 +829,8 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(false);
-		expect(result.error?.message).toContain("no model was provided");
-		expect(result.error?.code).toBe("MODEL_NOT_PROVIDED");
+		expect(result.error?.message).toContain("no agent was provided");
+		expect(result.error?.code).toBe("AGENT_NOT_PROVIDED");
 		expect(result.error?.category).toBe("configuration");
 	});
 
@@ -872,7 +889,7 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: failingModel,
+			agent: failingModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(false);
@@ -912,7 +929,7 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: failingModel,
+			agent: failingModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(false);
@@ -966,7 +983,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: flakyModel,
+			agent: flakyModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(true);
@@ -998,7 +1015,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: alwaysFailModel,
+			agent: alwaysFailModel,
 			maxRetries: 2,
 			retryDelayMs: 0,
 		});
@@ -1037,7 +1054,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: nonRetryableModel,
+			agent: nonRetryableModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(false);
@@ -1120,7 +1137,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: flakyModel,
+			agent: flakyModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(true);
@@ -1239,11 +1256,42 @@ describe("llm steps", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: mockModel,
+			agent: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.summarize).toEqual({
 			summary: "Three items found",
+		});
+	});
+
+	test("llm-prompt step works with Agent interface", async () => {
+		const mockAgent = createMockAgent([{ summary: "Agent response" }]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "summarize",
+			steps: [
+				step("summarize", {
+					type: "llm-prompt",
+					params: {
+						prompt: "Summarize something",
+						outputFormat: {
+							type: "object",
+							properties: {
+								summary: { type: "string" },
+							},
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockAgent,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.summarize).toEqual({
+			summary: "Agent response",
 		});
 	});
 
@@ -1274,7 +1322,7 @@ describe("llm steps", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			model: mockModel,
+			agent: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.extract).toEqual({ name: "Alice", age: 30 });
@@ -1439,7 +1487,7 @@ describe("integration: example tasks", () => {
 
 		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
 			tools: task.availableTools,
-			model: mockModel,
+			agent: mockModel,
 		});
 
 		expect(result.success).toBe(true);
@@ -1483,7 +1531,7 @@ describe("integration: example tasks", () => {
 
 		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
 			tools: task.availableTools,
-			model: mockModel,
+			agent: mockModel,
 		});
 
 		expect(result.success).toBe(true);
