@@ -1,35 +1,44 @@
 import { safeValidateTypes } from "@ai-sdk/provider-utils";
 import { search } from "@jmespath-community/jmespath";
 import type { LanguageModel, ToolSet } from "ai";
-import { generateObject, jsonSchema } from "ai";
+import {
+	APICallError,
+	generateText,
+	JSONParseError,
+	jsonSchema,
+	NoContentGeneratedError,
+	Output,
+	RetryError,
+	TypeValidationError,
+} from "ai";
 import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
+import type { ErrorCode } from "./errors";
+import {
+	ConfigurationError,
+	ExpressionError,
+	ExternalServiceError,
+	OutputQualityError,
+	StepExecutionError,
+	ValidationError,
+} from "./errors";
 
 // ─── Types ───────────────────────────────────────────────────────
 
 export interface ExecutionResult {
 	success: boolean;
 	stepOutputs: Record<string, unknown>;
-	error?: { stepId: string; message: string; cause?: unknown };
+	error?: StepExecutionError;
 }
 
 export interface ExecuteWorkflowOptions {
 	tools: ToolSet;
 	model?: LanguageModel;
 	inputs?: Record<string, unknown>;
+	maxRetries?: number;
+	retryDelayMs?: number;
 	onStepStart?: (stepId: string, step: WorkflowStep) => void;
 	onStepComplete?: (stepId: string, output: unknown) => void;
-}
-
-class StepExecutionError extends Error {
-	constructor(
-		public readonly stepId: string,
-		message: string,
-		public override readonly cause?: unknown,
-	) {
-		super(message);
-		this.name = "StepExecutionError";
-	}
 }
 
 // ─── Expression Evaluation ───────────────────────────────────────
@@ -41,11 +50,22 @@ type Expression =
 function evaluateExpression(
 	expr: Expression,
 	scope: Record<string, unknown>,
+	stepId: string,
 ): unknown {
 	if (expr.type === "literal") {
 		return expr.value;
 	}
-	return search(scope as Parameters<typeof search>[0], expr.expression);
+	try {
+		return search(scope as Parameters<typeof search>[0], expr.expression);
+	} catch (e) {
+		throw new ExpressionError(
+			stepId,
+			"JMESPATH_EVALUATION_ERROR",
+			`JMESPath expression '${expr.expression}' failed: ${e instanceof Error ? e.message : String(e)}`,
+			expr.expression,
+			e,
+		);
+	}
 }
 
 function stringifyValue(value: unknown): string {
@@ -57,6 +77,7 @@ function stringifyValue(value: unknown): string {
 function interpolateTemplate(
 	template: string,
 	scope: Record<string, unknown>,
+	stepId: string,
 ): string {
 	const { expressions } = extractTemplateExpressions(template);
 	if (expressions.length === 0) return template;
@@ -65,15 +86,88 @@ function interpolateTemplate(
 	let lastEnd = 0;
 	for (const expr of expressions) {
 		result += template.slice(lastEnd, expr.start);
-		const value = search(
-			scope as Parameters<typeof search>[0],
-			expr.expression,
-		);
-		result += stringifyValue(value);
+		try {
+			const value = search(
+				scope as Parameters<typeof search>[0],
+				expr.expression,
+			);
+			result += stringifyValue(value);
+		} catch (e) {
+			throw new ExpressionError(
+				stepId,
+				"TEMPLATE_INTERPOLATION_ERROR",
+				`Template expression '${expr.expression}' failed: ${e instanceof Error ? e.message : String(e)}`,
+				expr.expression,
+				e,
+			);
+		}
 		lastEnd = expr.end;
 	}
 	result += template.slice(lastEnd);
 	return result;
+}
+
+// ─── LLM Error Classification ───────────────────────────────────
+
+function classifyLlmError(stepId: string, e: unknown): StepExecutionError {
+	if (APICallError.isInstance(e)) {
+		const code: ErrorCode =
+			e.statusCode === 429 ? "LLM_RATE_LIMITED" : "LLM_API_ERROR";
+		return new ExternalServiceError(
+			stepId,
+			code,
+			e.message,
+			e,
+			e.statusCode,
+			e.isRetryable ?? true,
+		);
+	}
+	if (RetryError.isInstance(e)) {
+		return new ExternalServiceError(
+			stepId,
+			"LLM_API_ERROR",
+			e.message,
+			e,
+			undefined,
+			false,
+		);
+	}
+	if (NoContentGeneratedError.isInstance(e)) {
+		return new ExternalServiceError(
+			stepId,
+			"LLM_NO_CONTENT",
+			e.message,
+			e,
+			undefined,
+			true,
+		);
+	}
+	if (TypeValidationError.isInstance(e)) {
+		return new OutputQualityError(
+			stepId,
+			"LLM_OUTPUT_PARSE_ERROR",
+			`LLM output could not be parsed: ${e.message}`,
+			e.value,
+			e,
+		);
+	}
+	if (JSONParseError.isInstance(e)) {
+		return new OutputQualityError(
+			stepId,
+			"LLM_OUTPUT_PARSE_ERROR",
+			`LLM output could not be parsed: ${e.message}`,
+			e.text,
+			e,
+		);
+	}
+	return new ExternalServiceError(
+		stepId,
+		"LLM_NETWORK_ERROR",
+		e instanceof Error ? e.message : String(e),
+		e,
+		undefined,
+		true,
+	);
 }
 
 // ─── Input Validation ────────────────────────────────────────────
@@ -91,9 +185,11 @@ function validateWorkflowInputs(
 			(key: unknown) => typeof key === "string" && !(key in inputs),
 		);
 		if (missing.length > 0) {
-			throw new StepExecutionError(
+			throw new ValidationError(
 				step.id,
+				"TOOL_INPUT_VALIDATION_FAILED",
 				`Workflow input validation failed: missing required input(s): ${missing.join(", ")}`,
+				inputs,
 			);
 		}
 	}
@@ -111,22 +207,28 @@ function validateWorkflowInputs(
 				const actualType = typeof value;
 				if (expectedType === "integer" || expectedType === "number") {
 					if (actualType !== "number") {
-						throw new StepExecutionError(
+						throw new ValidationError(
 							step.id,
+							"TOOL_INPUT_VALIDATION_FAILED",
 							`Workflow input validation failed: input '${key}' expected type '${expectedType}' but got '${actualType}'`,
+							inputs,
 						);
 					}
 				} else if (expectedType === "array") {
 					if (!Array.isArray(value)) {
-						throw new StepExecutionError(
+						throw new ValidationError(
 							step.id,
+							"TOOL_INPUT_VALIDATION_FAILED",
 							`Workflow input validation failed: input '${key}' expected type 'array' but got '${actualType}'`,
+							inputs,
 						);
 					}
 				} else if (actualType !== expectedType) {
-					throw new StepExecutionError(
+					throw new ValidationError(
 						step.id,
+						"TOOL_INPUT_VALIDATION_FAILED",
 						`Workflow input validation failed: input '${key}' expected type '${expectedType}' but got '${actualType}'`,
+						inputs,
 					);
 				}
 			}
@@ -141,23 +243,19 @@ async function executeToolCall(
 	scope: Record<string, unknown>,
 	tools: ToolSet,
 ): Promise<unknown> {
+	// Tool existence and executability are validated in pre-flight checks
 	const toolDef = tools[step.params.toolName];
-	if (!toolDef) {
-		throw new StepExecutionError(
+	if (!toolDef?.execute) {
+		throw new ConfigurationError(
 			step.id,
-			`Tool '${step.params.toolName}' not found`,
-		);
-	}
-	if (!toolDef.execute) {
-		throw new StepExecutionError(
-			step.id,
-			`Tool '${step.params.toolName}' has no execute function`,
+			"TOOL_NOT_FOUND",
+			`Tool '${step.params.toolName}' not found or has no execute function`,
 		);
 	}
 
 	const resolvedInput: Record<string, unknown> = {};
 	for (const [key, expr] of Object.entries(step.params.toolInput)) {
-		resolvedInput[key] = evaluateExpression(expr as Expression, scope);
+		resolvedInput[key] = evaluateExpression(expr as Expression, scope, step.id);
 	}
 
 	if (toolDef.inputSchema) {
@@ -166,9 +264,11 @@ async function executeToolCall(
 			schema: toolDef.inputSchema,
 		});
 		if (!validation.success) {
-			throw new StepExecutionError(
+			throw new ValidationError(
 				step.id,
+				"TOOL_INPUT_VALIDATION_FAILED",
 				`Tool '${step.params.toolName}' input validation failed: ${validation.error.message}`,
+				resolvedInput,
 				validation.error,
 			);
 		}
@@ -180,8 +280,9 @@ async function executeToolCall(
 			messages: [],
 		});
 	} catch (e) {
-		throw new StepExecutionError(
+		throw new ExternalServiceError(
 			step.id,
+			"TOOL_EXECUTION_FAILED",
 			e instanceof Error ? e.message : String(e),
 			e,
 		);
@@ -193,13 +294,24 @@ async function executeLlmPrompt(
 	scope: Record<string, unknown>,
 	model: LanguageModel,
 ): Promise<unknown> {
-	const interpolatedPrompt = interpolateTemplate(step.params.prompt, scope);
-	const result = await generateObject({
-		model,
-		prompt: interpolatedPrompt,
-		schema: jsonSchema(step.params.outputFormat),
-	});
-	return result.object;
+	const interpolatedPrompt = interpolateTemplate(
+		step.params.prompt,
+		scope,
+		step.id,
+	);
+	try {
+		const result = await generateText({
+			model,
+			prompt: interpolatedPrompt,
+			output: Output.object({
+				schema: jsonSchema(step.params.outputFormat),
+			}),
+		});
+		return result.output;
+	} catch (e) {
+		if (e instanceof StepExecutionError) throw e;
+		throw classifyLlmError(step.id, e);
+	}
 }
 
 async function executeExtractData(
@@ -210,18 +322,26 @@ async function executeExtractData(
 	const sourceData = evaluateExpression(
 		step.params.sourceData as Expression,
 		scope,
+		step.id,
 	);
 	const sourceStr =
 		typeof sourceData === "string"
 			? sourceData
 			: JSON.stringify(sourceData, null, 2);
 
-	const result = await generateObject({
-		model,
-		prompt: `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}`,
-		schema: jsonSchema(step.params.outputFormat),
-	});
-	return result.object;
+	try {
+		const result = await generateText({
+			model,
+			prompt: `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}`,
+			output: Output.object({
+				schema: jsonSchema(step.params.outputFormat),
+			}),
+		});
+		return result.output;
+	} catch (e) {
+		if (e instanceof StepExecutionError) throw e;
+		throw classifyLlmError(step.id, e);
+	}
 }
 
 async function executeSwitchCase(
@@ -235,6 +355,7 @@ async function executeSwitchCase(
 	const switchValue = evaluateExpression(
 		step.params.switchOn as Expression,
 		scope,
+		step.id,
 	);
 
 	let matchedBranchId: string | undefined;
@@ -244,7 +365,11 @@ async function executeSwitchCase(
 		if (c.value.type === "default") {
 			defaultBranchId = c.branchBodyStepId;
 		} else {
-			const caseValue = evaluateExpression(c.value as Expression, scope);
+			const caseValue = evaluateExpression(
+				c.value as Expression,
+				scope,
+				step.id,
+			);
 			if (caseValue === switchValue) {
 				matchedBranchId = c.branchBodyStepId;
 				break;
@@ -274,12 +399,18 @@ async function executeForEach(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 ): Promise<unknown[]> {
-	const target = evaluateExpression(step.params.target as Expression, scope);
+	const target = evaluateExpression(
+		step.params.target as Expression,
+		scope,
+		step.id,
+	);
 
 	if (!Array.isArray(target)) {
-		throw new StepExecutionError(
+		throw new ValidationError(
 			step.id,
+			"FOREACH_TARGET_NOT_ARRAY",
 			`for-each target must be an array, got ${typeof target}`,
+			target,
 		);
 	}
 
@@ -298,6 +429,135 @@ async function executeForEach(
 	return results;
 }
 
+// ─── Step Dispatch ───────────────────────────────────────────────
+
+async function executeStep(
+	step: WorkflowStep,
+	scope: Record<string, unknown>,
+	stepIndex: Map<string, WorkflowStep>,
+	stepOutputs: Record<string, unknown>,
+	loopVars: Record<string, unknown>,
+	options: ExecuteWorkflowOptions,
+): Promise<unknown> {
+	switch (step.type) {
+		case "tool-call":
+			return executeToolCall(step, scope, options.tools);
+		case "llm-prompt": {
+			if (!options.model)
+				throw new ConfigurationError(
+					step.id,
+					"MODEL_NOT_PROVIDED",
+					"No model provided",
+				);
+			return executeLlmPrompt(step, scope, options.model);
+		}
+		case "extract-data": {
+			if (!options.model)
+				throw new ConfigurationError(
+					step.id,
+					"MODEL_NOT_PROVIDED",
+					"No model provided",
+				);
+			return executeExtractData(step, scope, options.model);
+		}
+		case "switch-case":
+			return executeSwitchCase(
+				step,
+				scope,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+			);
+		case "for-each":
+			return executeForEach(
+				step,
+				scope,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+			);
+		case "start": {
+			const inputs = options.inputs ?? {};
+			const startStep = step as WorkflowStep & { type: "start" };
+			validateWorkflowInputs(startStep, inputs);
+			return inputs;
+		}
+		case "end":
+			return undefined;
+	}
+}
+
+// ─── Error Recovery ──────────────────────────────────────────────
+
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_BASE_DELAY_MS = 1000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function retryStep(
+	step: WorkflowStep,
+	stepIndex: Map<string, WorkflowStep>,
+	stepOutputs: Record<string, unknown>,
+	loopVars: Record<string, unknown>,
+	options: ExecuteWorkflowOptions,
+	originalError: StepExecutionError,
+): Promise<unknown> {
+	const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+	const baseDelay = options.retryDelayMs ?? DEFAULT_BASE_DELAY_MS;
+	const scope = { ...stepOutputs, ...loopVars };
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		await sleep(baseDelay * 2 ** (attempt - 1));
+		try {
+			return await executeStep(
+				step,
+				scope,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+			);
+		} catch {
+			if (attempt === maxRetries) throw originalError;
+		}
+	}
+	throw originalError;
+}
+
+async function recoverFromError(
+	error: StepExecutionError,
+	step: WorkflowStep,
+	stepIndex: Map<string, WorkflowStep>,
+	stepOutputs: Record<string, unknown>,
+	loopVars: Record<string, unknown>,
+	options: ExecuteWorkflowOptions,
+): Promise<unknown> {
+	switch (error.code) {
+		case "LLM_RATE_LIMITED":
+		case "LLM_NETWORK_ERROR":
+		case "LLM_NO_CONTENT":
+		case "LLM_OUTPUT_PARSE_ERROR":
+			return retryStep(step, stepIndex, stepOutputs, loopVars, options, error);
+
+		case "LLM_API_ERROR":
+			if (error instanceof ExternalServiceError && error.isRetryable) {
+				return retryStep(
+					step,
+					stepIndex,
+					stepOutputs,
+					loopVars,
+					options,
+					error,
+				);
+			}
+			throw error;
+
+		default:
+			throw error;
+	}
+}
+
 // ─── Chain Execution ─────────────────────────────────────────────
 
 async function executeChain(
@@ -313,10 +573,8 @@ async function executeChain(
 	while (currentStepId) {
 		const step = stepIndex.get(currentStepId);
 		if (!step) {
-			throw new StepExecutionError(
-				currentStepId,
-				`Step '${currentStepId}' not found`,
-			);
+			// Defensive: the compiler and pre-flight checks should prevent this
+			throw new Error(`Step '${currentStepId}' not found`);
 		}
 
 		options.onStepStart?.(step.id, step);
@@ -324,58 +582,25 @@ async function executeChain(
 		const scope = { ...stepOutputs, ...loopVars };
 		let stepOutput: unknown;
 
-		switch (step.type) {
-			case "tool-call":
-				stepOutput = await executeToolCall(step, scope, options.tools);
-				break;
-			case "llm-prompt":
-				if (!options.model) {
-					throw new StepExecutionError(
-						step.id,
-						"llm-prompt step requires a model but none was provided",
-					);
-				}
-				stepOutput = await executeLlmPrompt(step, scope, options.model);
-				break;
-			case "extract-data":
-				if (!options.model) {
-					throw new StepExecutionError(
-						step.id,
-						"extract-data step requires a model but none was provided",
-					);
-				}
-				stepOutput = await executeExtractData(step, scope, options.model);
-				break;
-			case "switch-case":
-				stepOutput = await executeSwitchCase(
-					step,
-					scope,
-					stepIndex,
-					stepOutputs,
-					loopVars,
-					options,
-				);
-				break;
-			case "for-each":
-				stepOutput = await executeForEach(
-					step,
-					scope,
-					stepIndex,
-					stepOutputs,
-					loopVars,
-					options,
-				);
-				break;
-			case "start": {
-				const inputs = options.inputs ?? {};
-				const startStep = step as WorkflowStep & { type: "start" };
-				validateWorkflowInputs(startStep, inputs);
-				stepOutput = inputs;
-				break;
-			}
-			case "end":
-				stepOutput = undefined;
-				break;
+		try {
+			stepOutput = await executeStep(
+				step,
+				scope,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+			);
+		} catch (e) {
+			if (!(e instanceof StepExecutionError)) throw e;
+			stepOutput = await recoverFromError(
+				e,
+				step,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+			);
 		}
 
 		stepOutputs[step.id] = stepOutput;
@@ -386,6 +611,46 @@ async function executeChain(
 	}
 
 	return lastOutput;
+}
+
+// ─── Pre-flight Validation ───────────────────────────────────────
+
+function validateWorkflowConfig(
+	workflow: WorkflowDefinition,
+	options: ExecuteWorkflowOptions,
+): void {
+	const needsModel = workflow.steps.some(
+		(s) => s.type === "llm-prompt" || s.type === "extract-data",
+	);
+	if (needsModel && !options.model) {
+		const llmStep = workflow.steps.find(
+			(s) => s.type === "llm-prompt" || s.type === "extract-data",
+		);
+		throw new ConfigurationError(
+			llmStep?.id ?? "unknown",
+			"MODEL_NOT_PROVIDED",
+			"Workflow contains LLM steps but no model was provided",
+		);
+	}
+
+	for (const step of workflow.steps) {
+		if (step.type !== "tool-call") continue;
+		const toolDef = options.tools[step.params.toolName];
+		if (!toolDef) {
+			throw new ConfigurationError(
+				step.id,
+				"TOOL_NOT_FOUND",
+				`Tool '${step.params.toolName}' not found`,
+			);
+		}
+		if (!toolDef.execute) {
+			throw new ConfigurationError(
+				step.id,
+				"TOOL_MISSING_EXECUTE",
+				`Tool '${step.params.toolName}' has no execute function`,
+			);
+		}
+	}
 }
 
 // ─── Public API ──────────────────────────────────────────────────
@@ -402,6 +667,7 @@ export async function executeWorkflow(
 	const stepOutputs: Record<string, unknown> = {};
 
 	try {
+		validateWorkflowConfig(workflow, options);
 		await executeChain(
 			workflow.initialStepId,
 			stepIndex,
@@ -411,21 +677,21 @@ export async function executeWorkflow(
 		);
 		return { success: true, stepOutputs };
 	} catch (e) {
-		if (e instanceof StepExecutionError) {
-			return {
-				success: false,
-				stepOutputs,
-				error: { stepId: e.stepId, message: e.message, cause: e.cause },
-			};
-		}
+		const error =
+			e instanceof StepExecutionError
+				? e
+				: new ExternalServiceError(
+						"unknown",
+						"TOOL_EXECUTION_FAILED",
+						e instanceof Error ? e.message : String(e),
+						e,
+						undefined,
+						false,
+					);
 		return {
 			success: false,
 			stepOutputs,
-			error: {
-				stepId: "unknown",
-				message: e instanceof Error ? e.message : String(e),
-				cause: e,
-			},
+			error,
 		};
 	}
 }

@@ -11,6 +11,19 @@ export type {
 export { compileWorkflow } from "./compiler";
 export type { ExecuteWorkflowOptions, ExecutionResult } from "./executor";
 export { executeWorkflow } from "./executor";
+export type {
+	ErrorCategory,
+	ErrorCode,
+	RecoveryStrategy,
+} from "./executor/errors";
+export {
+	ConfigurationError,
+	ExpressionError,
+	ExternalServiceError,
+	OutputQualityError,
+	StepExecutionError,
+	ValidationError,
+} from "./executor/errors";
 export {
 	type WorkflowDefinition,
 	type WorkflowStep,
