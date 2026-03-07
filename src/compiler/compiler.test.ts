@@ -3075,3 +3075,265 @@ describe("start step JMESPath scope", () => {
 		).toBe(false);
 	});
 });
+
+// ─── Workflow Output Validation ──────────────────────────────────
+
+describe("workflow output", () => {
+	test("valid jmespath in end step output expression", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "jmespath",
+							expression: "fetch.result",
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(errors(result.diagnostics)).toHaveLength(0);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(false);
+	});
+
+	test("invalid jmespath root in end step output expression", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "jmespath",
+							expression: "nonexistent.data",
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"JMESPATH_INVALID_ROOT_REFERENCE",
+		);
+		expect(diag.location.stepId).toBe("done");
+	});
+
+	test("literal output expression is not jmespath-checked", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "literal", value: { key: "value" } },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(errors(result.diagnostics)).toHaveLength(0);
+	});
+
+	test("END_STEP_MISSING_OUTPUT warning when outputSchema defined", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"END_STEP_MISSING_OUTPUT",
+		);
+		expect(diag.severity).toBe("warning");
+		expect(diag.location.stepId).toBe("done");
+	});
+
+	test("END_STEP_UNEXPECTED_OUTPUT warning when no outputSchema", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "literal", value: "hello" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "END_STEP_UNEXPECTED_OUTPUT"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"END_STEP_UNEXPECTED_OUTPUT",
+		);
+		expect(diag.severity).toBe("warning");
+	});
+
+	test("no warnings when outputSchema and output expressions are consistent", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "fetch" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(errors(result.diagnostics)).toHaveLength(0);
+		expect(hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT")).toBe(
+			false,
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "END_STEP_UNEXPECTED_OUTPUT"),
+		).toBe(false);
+	});
+
+	test("no warnings when no outputSchema and no output expressions", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT")).toBe(
+			false,
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "END_STEP_UNEXPECTED_OUTPUT"),
+		).toBe(false);
+	});
+});

@@ -27,6 +27,7 @@ import {
 export interface ExecutionResult {
 	success: boolean;
 	stepOutputs: Record<string, unknown>;
+	output?: unknown;
 	error?: StepExecutionError;
 }
 
@@ -233,6 +234,121 @@ function validateWorkflowInputs(
 						`Workflow input validation failed: input '${key}' expected type '${expectedType}' but got '${actualType}'`,
 						inputs,
 					);
+				}
+			}
+		}
+	}
+}
+
+// ─── Output Validation ──────────────────────────────────────────
+
+function validateWorkflowOutput(
+	outputSchema: Record<string, unknown>,
+	output: unknown,
+	endStepId: string,
+): void {
+	const expectedType = outputSchema.type;
+	if (typeof expectedType === "string") {
+		if (
+			expectedType === "object" &&
+			(typeof output !== "object" || output === null)
+		) {
+			throw new ValidationError(
+				endStepId,
+				"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+				`Workflow output validation failed: expected type 'object' but got '${output === null ? "null" : typeof output}'`,
+				output,
+			);
+		}
+		if (expectedType === "array" && !Array.isArray(output)) {
+			throw new ValidationError(
+				endStepId,
+				"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+				`Workflow output validation failed: expected type 'array' but got '${typeof output}'`,
+				output,
+			);
+		}
+		if (
+			(expectedType === "string" || expectedType === "boolean") &&
+			typeof output !== expectedType
+		) {
+			throw new ValidationError(
+				endStepId,
+				"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+				`Workflow output validation failed: expected type '${expectedType}' but got '${typeof output}'`,
+				output,
+			);
+		}
+		if (
+			(expectedType === "number" || expectedType === "integer") &&
+			typeof output !== "number"
+		) {
+			throw new ValidationError(
+				endStepId,
+				"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+				`Workflow output validation failed: expected type '${expectedType}' but got '${typeof output}'`,
+				output,
+			);
+		}
+	}
+
+	if (typeof output === "object" && output !== null && !Array.isArray(output)) {
+		const required = outputSchema.required;
+		if (Array.isArray(required)) {
+			const missing = required.filter(
+				(key: unknown) =>
+					typeof key === "string" &&
+					!(key in (output as Record<string, unknown>)),
+			);
+			if (missing.length > 0) {
+				throw new ValidationError(
+					endStepId,
+					"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+					`Workflow output validation failed: missing required field(s): ${missing.join(", ")}`,
+					output,
+				);
+			}
+		}
+
+		const properties = outputSchema.properties;
+		if (properties && typeof properties === "object") {
+			for (const [key, value] of Object.entries(
+				output as Record<string, unknown>,
+			)) {
+				const propSchema = (properties as Record<string, unknown>)[key];
+				if (
+					propSchema &&
+					typeof propSchema === "object" &&
+					"type" in propSchema
+				) {
+					const propExpectedType = (propSchema as { type: string }).type;
+					const actualType = typeof value;
+					if (propExpectedType === "integer" || propExpectedType === "number") {
+						if (actualType !== "number") {
+							throw new ValidationError(
+								endStepId,
+								"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+								`Workflow output validation failed: field '${key}' expected type '${propExpectedType}' but got '${actualType}'`,
+								output,
+							);
+						}
+					} else if (propExpectedType === "array") {
+						if (!Array.isArray(value)) {
+							throw new ValidationError(
+								endStepId,
+								"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+								`Workflow output validation failed: field '${key}' expected type 'array' but got '${actualType}'`,
+								output,
+							);
+						}
+					} else if (actualType !== propExpectedType) {
+						throw new ValidationError(
+							endStepId,
+							"WORKFLOW_OUTPUT_VALIDATION_FAILED",
+							`Workflow output validation failed: field '${key}' expected type '${propExpectedType}' but got '${actualType}'`,
+							output,
+						);
+					}
 				}
 			}
 		}
@@ -497,8 +613,17 @@ async function executeStep(
 			validateWorkflowInputs(startStep, inputs);
 			return inputs;
 		}
-		case "end":
+		case "end": {
+			const endStep = step as WorkflowStep & { type: "end" };
+			if (endStep.params?.output) {
+				return evaluateExpression(
+					endStep.params.output as Expression,
+					scope,
+					step.id,
+				);
+			}
 			return undefined;
+		}
 	}
 }
 
@@ -691,14 +816,30 @@ export async function executeWorkflow(
 
 	try {
 		validateWorkflowConfig(workflow, resolvedOptions);
-		await executeChain(
+		const chainOutput = await executeChain(
 			workflow.initialStepId,
 			stepIndex,
 			stepOutputs,
 			{},
 			resolvedOptions,
 		);
-		return { success: true, stepOutputs };
+
+		if (workflow.outputSchema) {
+			// Find the terminating end step for error reporting
+			let endStepId = "unknown";
+			for (const step of workflow.steps) {
+				if (step.type === "end" && step.id in stepOutputs) {
+					endStepId = step.id;
+				}
+			}
+			validateWorkflowOutput(
+				workflow.outputSchema as Record<string, unknown>,
+				chainOutput,
+				endStepId,
+			);
+		}
+
+		return { success: true, stepOutputs, output: chainOutput };
 	} catch (e) {
 		const error =
 			e instanceof StepExecutionError
