@@ -70,6 +70,31 @@ export function validateControlFlow(
 		}
 	}
 
+	// Output consistency checks
+	if (workflow.outputSchema) {
+		for (const step of workflow.steps) {
+			if (step.type === "end" && !step.params?.output) {
+				diagnostics.push({
+					severity: "warning",
+					location: { stepId: step.id, field: "params" },
+					message: `End step '${step.id}' has no output expression, but the workflow declares an outputSchema`,
+					code: "END_STEP_MISSING_OUTPUT",
+				});
+			}
+		}
+	} else {
+		for (const step of workflow.steps) {
+			if (step.type === "end" && step.params?.output) {
+				diagnostics.push({
+					severity: "warning",
+					location: { stepId: step.id, field: "params.output" },
+					message: `End step '${step.id}' has an output expression, but the workflow does not declare an outputSchema`,
+					code: "END_STEP_UNEXPECTED_OUTPUT",
+				});
+			}
+		}
+	}
+
 	return diagnostics;
 }
 

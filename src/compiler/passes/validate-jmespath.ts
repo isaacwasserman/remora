@@ -105,6 +105,16 @@ function collectExpressions(workflow: WorkflowDefinition): {
 			case "start":
 				break;
 
+			case "end":
+				if (step.params?.output && step.params.output.type === "jmespath") {
+					expressions.push({
+						expression: step.params.output.expression,
+						stepId: step.id,
+						field: "params.output.expression",
+					});
+				}
+				break;
+
 			case "llm-prompt": {
 				const { expressions: templateExprs, unclosed } =
 					extractTemplateExpressions(step.params.prompt);

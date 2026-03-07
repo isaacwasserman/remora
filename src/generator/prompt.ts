@@ -24,6 +24,7 @@ export function buildWorkflowGenerationPrompt(serializedTools: string): string {
 A workflow has:
 - \`initialStepId\`: the id of the first step to execute
 - \`steps\`: an array of step objects (order does not matter — execution flow is determined by nextStepId links)
+- \`outputSchema\` (optional): a JSON Schema object declaring the shape of the workflow's output. When present, every \`end\` step should have an \`output\` expression that evaluates to a value matching this schema.
 
 ## Step Common Fields
 
@@ -121,10 +122,20 @@ Iterates over a list and executes a chain of steps for each item. The loop body 
 \`\`\`
 
 ### end
-Marks the end of a branch or the workflow. Must NOT have a nextStepId.
+Marks the end of a branch or the workflow. Must NOT have a nextStepId. Optionally, specify an output expression whose value becomes the workflow's return value.
 \`\`\`json
 {
   "type": "end"
+}
+\`\`\`
+
+With output (when the workflow declares an outputSchema):
+\`\`\`json
+{
+  "type": "end",
+  "params": {
+    "output": { "type": "jmespath", "expression": "summarize.result" }
+  }
 }
 \`\`\`
 
@@ -170,7 +181,9 @@ ${serializedTools}
 
 5. For-each itemName is a scoped variable accessible ONLY within the loop body steps.
 
-6. Step IDs must be at least 2 characters long.`;
+6. Step IDs must be at least 2 characters long.
+
+7. If the workflow needs to return structured data, declare an \`outputSchema\` on the workflow and give every \`end\` step an \`output\` expression that evaluates to a value matching it.`;
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {
