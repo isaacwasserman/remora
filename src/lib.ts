@@ -29,3 +29,13 @@ export {
 	type WorkflowStep,
 	workflowDefinitionSchema,
 } from "./types";
+export type {
+	GenerateWorkflowOptions,
+	GenerateWorkflowResult,
+	WorkflowGeneratorToolOptions,
+} from "./generator";
+export { generateWorkflow, createWorkflowGeneratorTool } from "./generator";
+export {
+	buildWorkflowGenerationPrompt,
+	serializeToolsForPrompt,
+} from "./generator/prompt";
