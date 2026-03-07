@@ -16,9 +16,7 @@ export async function serializeToolsForPrompt(tools: ToolSet): Promise<string> {
 	);
 }
 
-export function buildWorkflowGenerationPrompt(
-	serializedTools: string,
-): string {
+export function buildWorkflowGenerationPrompt(serializedTools: string): string {
 	return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. You MUST call the createWorkflow tool with a valid workflow definition.
 
 ## Workflow Structure

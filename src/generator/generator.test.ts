@@ -4,8 +4,11 @@ import { tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { type } from "arktype";
 import type { WorkflowDefinition } from "../types";
-import { generateWorkflow, createWorkflowGeneratorTool } from ".";
-import { buildWorkflowGenerationPrompt, serializeToolsForPrompt } from "./prompt";
+import { createWorkflowGeneratorTool, generateWorkflow } from ".";
+import {
+	buildWorkflowGenerationPrompt,
+	serializeToolsForPrompt,
+} from "./prompt";
 
 // ─── Test Tools ──────────────────────────────────────────────────
 
@@ -68,7 +71,9 @@ function createMockModel(workflows: WorkflowDefinition[]) {
 						type: "tool-call",
 						toolCallId: `call_${callIndex}`,
 						toolName: "createWorkflow",
-						input: JSON.stringify(workflows[callIndex++] ?? workflows[workflows.length - 1]),
+						input: JSON.stringify(
+							workflows[callIndex++] ?? workflows[workflows.length - 1],
+						),
 					},
 				],
 				finishReason: { unified: "tool-calls", raw: undefined },
@@ -168,7 +173,7 @@ describe("generateWorkflow", () => {
 
 		expect(result.workflow).not.toBeNull();
 		// The compiler's applyBestPractices adds start/end steps
-		const stepIds = result.workflow!.steps.map((s) => s.id);
+		const stepIds = result.workflow?.steps.map((s) => s.id);
 		expect(stepIds).toContain("call_echo");
 	});
 });
@@ -187,7 +192,7 @@ describe("createWorkflowGeneratorTool", () => {
 		expect(genTool.inputSchema).toBeDefined();
 		expect(genTool.execute).toBeDefined();
 
-		const result = (await genTool.execute!(
+		const result = (await genTool.execute?.(
 			{ task: "Call the echo tool" },
 			{} as never,
 		)) as Awaited<ReturnType<typeof generateWorkflow>>;
@@ -206,16 +211,12 @@ describe("serializeToolsForPrompt", () => {
 
 		expect(parsed).toHaveLength(2);
 
-		const echo = parsed.find(
-			(t: { name: string }) => t.name === "echo",
-		);
+		const echo = parsed.find((t: { name: string }) => t.name === "echo");
 		expect(echo).toBeDefined();
 		expect(echo.description).toBe("Echoes back the input");
 		expect(echo.inputSchema).toBeDefined();
 
-		const greet = parsed.find(
-			(t: { name: string }) => t.name === "greet",
-		);
+		const greet = parsed.find((t: { name: string }) => t.name === "greet");
 		expect(greet).toBeDefined();
 		expect(greet.description).toBe("Greets someone by name");
 	});

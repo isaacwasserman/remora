@@ -24,18 +24,18 @@ export {
 	StepExecutionError,
 	ValidationError,
 } from "./executor/errors";
-export {
-	type WorkflowDefinition,
-	type WorkflowStep,
-	workflowDefinitionSchema,
-} from "./types";
 export type {
 	GenerateWorkflowOptions,
 	GenerateWorkflowResult,
 	WorkflowGeneratorToolOptions,
 } from "./generator";
-export { generateWorkflow, createWorkflowGeneratorTool } from "./generator";
+export { createWorkflowGeneratorTool, generateWorkflow } from "./generator";
 export {
 	buildWorkflowGenerationPrompt,
 	serializeToolsForPrompt,
 } from "./generator/prompt";
+export {
+	type WorkflowDefinition,
+	type WorkflowStep,
+	workflowDefinitionSchema,
+} from "./types";

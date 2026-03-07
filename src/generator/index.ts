@@ -54,9 +54,7 @@ export async function generateWorkflow(
 			const result = await compileWorkflow(workflowDef, { tools });
 			lastDiagnostics = result.diagnostics;
 
-			const errors = result.diagnostics.filter(
-				(d) => d.severity === "error",
-			);
+			const errors = result.diagnostics.filter((d) => d.severity === "error");
 			if (errors.length > 0) {
 				return {
 					success: false,
@@ -75,10 +73,7 @@ export async function generateWorkflow(
 		prompt: `Create a workflow to accomplish the following task:\n\n${task}`,
 		tools: { createWorkflow: createWorkflowTool },
 		toolChoice: { type: "tool", toolName: "createWorkflow" },
-		stopWhen: [
-			stepCountIs(maxRetries + 1),
-			() => successWorkflow !== null,
-		],
+		stopWhen: [stepCountIs(maxRetries + 1), () => successWorkflow !== null],
 	});
 
 	return {
