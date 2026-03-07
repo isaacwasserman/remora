@@ -3296,9 +3296,9 @@ describe("workflow output", () => {
 
 		const result = await compileWorkflow(workflow);
 		expect(errors(result.diagnostics)).toHaveLength(0);
-		expect(
-			hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT"),
-		).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT")).toBe(
+			false,
+		);
 		expect(
 			hasDiagnostic(result.diagnostics, "END_STEP_UNEXPECTED_OUTPUT"),
 		).toBe(false);
@@ -3329,9 +3329,9 @@ describe("workflow output", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow);
-		expect(
-			hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT"),
-		).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT")).toBe(
+			false,
+		);
 		expect(
 			hasDiagnostic(result.diagnostics, "END_STEP_UNEXPECTED_OUTPUT"),
 		).toBe(false);

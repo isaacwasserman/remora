@@ -249,7 +249,10 @@ function validateWorkflowOutput(
 ): void {
 	const expectedType = outputSchema.type;
 	if (typeof expectedType === "string") {
-		if (expectedType === "object" && (typeof output !== "object" || output === null)) {
+		if (
+			expectedType === "object" &&
+			(typeof output !== "object" || output === null)
+		) {
 			throw new ValidationError(
 				endStepId,
 				"WORKFLOW_OUTPUT_VALIDATION_FAILED",
@@ -266,8 +269,7 @@ function validateWorkflowOutput(
 			);
 		}
 		if (
-			(expectedType === "string" ||
-				expectedType === "boolean") &&
+			(expectedType === "string" || expectedType === "boolean") &&
 			typeof output !== expectedType
 		) {
 			throw new ValidationError(
@@ -321,10 +323,7 @@ function validateWorkflowOutput(
 				) {
 					const propExpectedType = (propSchema as { type: string }).type;
 					const actualType = typeof value;
-					if (
-						propExpectedType === "integer" ||
-						propExpectedType === "number"
-					) {
+					if (propExpectedType === "integer" || propExpectedType === "number") {
 						if (actualType !== "number") {
 							throw new ValidationError(
 								endStepId,
