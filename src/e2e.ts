@@ -167,10 +167,13 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 				});
 
 				if (!result.workflow) {
-					console.error("Scenario 1 generation failed. Diagnostics:", result.diagnostics);
+					console.error(
+						"Scenario 1 generation failed. Diagnostics:",
+						result.diagnostics,
+					);
 				}
 				expect(result.workflow).not.toBeNull();
-				workflow = result.workflow!;
+				if (result.workflow) workflow = result.workflow;
 			} catch (e) {
 				console.error("Scenario 1 beforeAll error:", e);
 				throw e;
@@ -208,151 +211,135 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 			],
 		};
 
-		test(
-			"happy path: all items in stock at primary",
-			async () => {
-				orderData = STANDARD_ORDERS;
-				inventoryData = {
-					"primary:WIDGET-A": { available: true, stock: 50 },
-					"primary:GADGET-B": { available: true, stock: 30 },
-					"primary:DOOHICK-C": { available: true, stock: 20 },
-				};
+		test("happy path: all items in stock at primary", async () => {
+			orderData = STANDARD_ORDERS;
+			inventoryData = {
+				"primary:WIDGET-A": { available: true, stock: 50 },
+				"primary:GADGET-B": { available: true, stock: 30 },
+				"primary:DOOHICK-C": { available: true, stock: 20 },
+			};
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				if (!result.success) {
-					console.error("Execution failed:", result.error);
-				}
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			if (!result.success) {
+				console.error("Execution failed:", result.error);
+			}
+			expect(result.success).toBe(true);
 
-				// All 3 items checked at primary
-				expect(
-					inventoryChecks.filter((c) => c.warehouse === "primary"),
-				).toHaveLength(3);
-				// No alternate checks needed
-				expect(
-					inventoryChecks.filter((c) => c.warehouse === "alternate"),
-				).toHaveLength(0);
-				// All 3 reserved and shipped
-				expect(reservations).toHaveLength(3);
-				expect(shipments).toHaveLength(3);
-				// Manager notified
-				expect(managerNotifications).toHaveLength(1);
-			},
-			120_000,
-		);
+			// All 3 items checked at primary
+			expect(
+				inventoryChecks.filter((c) => c.warehouse === "primary"),
+			).toHaveLength(3);
+			// No alternate checks needed
+			expect(
+				inventoryChecks.filter((c) => c.warehouse === "alternate"),
+			).toHaveLength(0);
+			// All 3 reserved and shipped
+			expect(reservations).toHaveLength(3);
+			expect(shipments).toHaveLength(3);
+			// Manager notified
+			expect(managerNotifications).toHaveLength(1);
+		}, 120_000);
 
-		test(
-			"mixed: primary, alternate fallback, and backorder",
-			async () => {
-				orderData = STANDARD_ORDERS;
-				inventoryData = {
-					"primary:WIDGET-A": { available: true, stock: 50 },
-					"primary:GADGET-B": { available: false, stock: 0 },
-					"alternate:GADGET-B": { available: true, stock: 20 },
-					"primary:DOOHICK-C": { available: false, stock: 0 },
-					"alternate:DOOHICK-C": { available: false, stock: 0 },
-				};
+		test("mixed: primary, alternate fallback, and backorder", async () => {
+			orderData = STANDARD_ORDERS;
+			inventoryData = {
+				"primary:WIDGET-A": { available: true, stock: 50 },
+				"primary:GADGET-B": { available: false, stock: 0 },
+				"alternate:GADGET-B": { available: true, stock: 20 },
+				"primary:DOOHICK-C": { available: false, stock: 0 },
+				"alternate:DOOHICK-C": { available: false, stock: 0 },
+			};
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				if (!result.success) {
-					console.error("Execution failed:", result.error);
-				}
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			if (!result.success) {
+				console.error("Execution failed:", result.error);
+			}
+			expect(result.success).toBe(true);
 
-				// WIDGET-A reserved from primary
-				expect(
-					reservations.some(
-						(r) => r.itemId === "WIDGET-A" && r.warehouse === "primary",
-					),
-				).toBe(true);
-				// GADGET-B fell back to alternate
-				expect(
-					reservations.some(
-						(r) => r.itemId === "GADGET-B" && r.warehouse === "alternate",
-					),
-				).toBe(true);
-				// DOOHICK-C not reserved at all (backordered)
-				expect(reservations.some((r) => r.itemId === "DOOHICK-C")).toBe(false);
-				// 2 shipments
-				expect(shipments).toHaveLength(2);
-				// Carol notified about backorder
-				expect(
-					customerNotifications.some((n) => n.email === "carol@test.com"),
-				).toBe(true);
-				// Manager notified
-				expect(managerNotifications).toHaveLength(1);
-			},
-			120_000,
-		);
+			// WIDGET-A reserved from primary
+			expect(
+				reservations.some(
+					(r) => r.itemId === "WIDGET-A" && r.warehouse === "primary",
+				),
+			).toBe(true);
+			// GADGET-B fell back to alternate
+			expect(
+				reservations.some(
+					(r) => r.itemId === "GADGET-B" && r.warehouse === "alternate",
+				),
+			).toBe(true);
+			// DOOHICK-C not reserved at all (backordered)
+			expect(reservations.some((r) => r.itemId === "DOOHICK-C")).toBe(false);
+			// 2 shipments
+			expect(shipments).toHaveLength(2);
+			// Carol notified about backorder
+			expect(
+				customerNotifications.some((n) => n.email === "carol@test.com"),
+			).toBe(true);
+			// Manager notified
+			expect(managerNotifications).toHaveLength(1);
+		}, 120_000);
 
-		test(
-			"worst case: nothing in stock anywhere",
-			async () => {
-				orderData = STANDARD_ORDERS;
-				inventoryData = {}; // Everything defaults to unavailable
+		test("worst case: nothing in stock anywhere", async () => {
+			orderData = STANDARD_ORDERS;
+			inventoryData = {}; // Everything defaults to unavailable
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				if (!result.success) {
-					console.error("Execution failed:", result.error);
-				}
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			if (!result.success) {
+				console.error("Execution failed:", result.error);
+			}
+			expect(result.success).toBe(true);
 
-				// All checked at primary, then all at alternate
-				expect(
-					inventoryChecks.filter((c) => c.warehouse === "primary"),
-				).toHaveLength(3);
-				expect(
-					inventoryChecks.filter((c) => c.warehouse === "alternate"),
-				).toHaveLength(3);
-				// Nothing reserved or shipped
-				expect(reservations).toHaveLength(0);
-				expect(shipments).toHaveLength(0);
-				// All 3 customers notified
-				expect(customerNotifications).toHaveLength(3);
-				// Manager notified
-				expect(managerNotifications).toHaveLength(1);
-			},
-			120_000,
-		);
+			// All checked at primary, then all at alternate
+			expect(
+				inventoryChecks.filter((c) => c.warehouse === "primary"),
+			).toHaveLength(3);
+			expect(
+				inventoryChecks.filter((c) => c.warehouse === "alternate"),
+			).toHaveLength(3);
+			// Nothing reserved or shipped
+			expect(reservations).toHaveLength(0);
+			expect(shipments).toHaveLength(0);
+			// All 3 customers notified
+			expect(customerNotifications).toHaveLength(3);
+			// Manager notified
+			expect(managerNotifications).toHaveLength(1);
+		}, 120_000);
 
-		test(
-			"empty: no pending orders",
-			async () => {
-				orderData = { orders: [] };
-				inventoryData = {};
+		test("empty: no pending orders", async () => {
+			orderData = { orders: [] };
+			inventoryData = {};
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				if (!result.success) {
-					console.error("Execution failed:", result.error);
-				}
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			if (!result.success) {
+				console.error("Execution failed:", result.error);
+			}
+			expect(result.success).toBe(true);
 
-				// No processing
-				expect(inventoryChecks).toHaveLength(0);
-				expect(reservations).toHaveLength(0);
-				expect(shipments).toHaveLength(0);
-				expect(customerNotifications).toHaveLength(0);
-				// Manager still notified (post-loop step runs for empty loop)
-				expect(managerNotifications).toHaveLength(1);
-			},
-			120_000,
-		);
+			// No processing
+			expect(inventoryChecks).toHaveLength(0);
+			expect(reservations).toHaveLength(0);
+			expect(shipments).toHaveLength(0);
+			expect(customerNotifications).toHaveLength(0);
+			// Manager still notified (post-loop step runs for empty loop)
+			expect(managerNotifications).toHaveLength(1);
+		}, 120_000);
 	});
 
 	// ─────────────────────────────────────────────────────────────
@@ -431,8 +418,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 				},
 			}),
 			"publish-content": tool({
-				description:
-					"Publish approved content. Returns the published URL.",
+				description: "Publish approved content. Returns the published URL.",
 				inputSchema: type({
 					submissionId: "string",
 					title: "string",
@@ -504,10 +490,13 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 			});
 
 			if (!result.workflow) {
-				console.error("Scenario 2 generation failed. Diagnostics:", result.diagnostics);
+				console.error(
+					"Scenario 2 generation failed. Diagnostics:",
+					result.diagnostics,
+				);
 			}
 			expect(result.workflow).not.toBeNull();
-			workflow = result.workflow!;
+			if (result.workflow) workflow = result.workflow;
 		}, 600_000);
 
 		beforeEach(() => {
@@ -545,146 +534,129 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 			],
 		};
 
-		test(
-			"all original: no plagiarism, mixed quality",
-			async () => {
-				submissionData = STANDARD_SUBMISSIONS;
-				plagiarismResultFn = () => ({ isPlagiarized: false, score: 0.05 });
+		test("all original: no plagiarism, mixed quality", async () => {
+			submissionData = STANDARD_SUBMISSIONS;
+			plagiarismResultFn = () => ({ isPlagiarized: false, score: 0.05 });
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				if (!result.success) {
-					console.error("Scenario 2 run 1 failed:", result.error);
-					console.error("Step outputs:", JSON.stringify(result.stepOutputs, null, 2));
-				}
-				expect(result.success).toBe(true);
-
-				// All 3 checked for plagiarism
-				expect(plagiarismChecks).toHaveLength(3);
-				// Each submission got exactly one outcome action
-				const totalOutcomes =
-					publishCalls.length +
-					rejectCalls.length +
-					revisionCalls.length +
-					archiveCalls.length;
-				expect(totalOutcomes).toBe(3);
-				// If anything was published, social posts were scheduled
-				if (publishCalls.length > 0) {
-					expect(socialPostCalls.length).toBeGreaterThan(0);
-				}
-			},
-			300_000,
-		);
-
-		test(
-			"mixed: one plagiarized, others go through quality gate",
-			async () => {
-				submissionData = STANDARD_SUBMISSIONS;
-				plagiarismResultFn = (content) => {
-					if (content.includes("stolen") || content.includes("plagiarized")) {
-						return { isPlagiarized: true, score: 0.92 };
-					}
-					return { isPlagiarized: false, score: 0.08 };
-				};
-
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
-
-				// All 3 checked for plagiarism
-				expect(plagiarismChecks).toHaveLength(3);
-				// SUB-2 (plagiarized) must NOT have been published
-				expect(publishCalls.some((c) => c.submissionId === "SUB-2")).toBe(
-					false,
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			if (!result.success) {
+				console.error("Scenario 2 run 1 failed:", result.error);
+				console.error(
+					"Step outputs:",
+					JSON.stringify(result.stepOutputs, null, 2),
 				);
-				// SUB-2 should have been rejected
-				expect(rejectCalls.some((c) => c.submissionId === "SUB-2")).toBe(true);
-				// The non-plagiarized submissions got some outcome
-				const nonPlagiarizedOutcomes =
-					publishCalls.filter((c) => c.submissionId !== "SUB-2").length +
-					revisionCalls.filter((c) => c.submissionId !== "SUB-2").length +
-					archiveCalls.filter((c) => c.submissionId !== "SUB-2").length;
-				expect(nonPlagiarizedOutcomes).toBe(2);
-			},
-			300_000,
-		);
+			}
+			expect(result.success).toBe(true);
 
-		test(
-			"all plagiarized: everything rejected, no publications",
-			async () => {
-				submissionData = STANDARD_SUBMISSIONS;
-				plagiarismResultFn = () => ({ isPlagiarized: true, score: 0.95 });
+			// All 3 checked for plagiarism
+			expect(plagiarismChecks).toHaveLength(3);
+			// Each submission got exactly one outcome action
+			const totalOutcomes =
+				publishCalls.length +
+				rejectCalls.length +
+				revisionCalls.length +
+				archiveCalls.length;
+			expect(totalOutcomes).toBe(3);
+			// If anything was published, social posts were scheduled
+			if (publishCalls.length > 0) {
+				expect(socialPostCalls.length).toBeGreaterThan(0);
+			}
+		}, 300_000);
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
-
-				// All checked for plagiarism
-				expect(plagiarismChecks).toHaveLength(3);
-				// Nothing published
-				expect(publishCalls).toHaveLength(0);
-				// No social posts
-				expect(socialPostCalls).toHaveLength(0);
-				// All 3 rejected
-				expect(rejectCalls).toHaveLength(3);
-			},
-			300_000,
-		);
-
-		test(
-			"single high-quality submission with many platforms",
-			async () => {
-				submissionData = {
-					submissions: [
-						{
-							id: "SUB-FEATURED",
-							authorId: "AUTH-STAR",
-							content:
-								"EXCLUSIVE: Award-winning investigative report reveals breakthrough in quantum error correction. After three years of research across 12 institutions, scientists have achieved a 99.9% error correction rate in topological qubits, bringing practical quantum computing within reach. This peer-reviewed study, published in Nature, represents the most significant advance in quantum computing since Shor's algorithm.",
-							platforms: ["twitter", "linkedin", "facebook", "instagram"],
-						},
-					],
-				};
-				plagiarismResultFn = () => ({ isPlagiarized: false, score: 0.01 });
-
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
-
-				// Plagiarism check ran
-				expect(plagiarismChecks).toHaveLength(1);
-				// Not plagiarized, so not rejected via plagiarism path
-				expect(rejectCalls).toHaveLength(0);
-				// Exactly one quality outcome (LLM decides publish/revise/reject)
-				const totalOutcomes =
-					publishCalls.length +
-					revisionCalls.length +
-					archiveCalls.length;
-				expect(totalOutcomes).toBe(1);
-				// If published, social posts should match all platforms
-				if (publishCalls.length === 1) {
-					expect(publishCalls[0].submissionId).toBe("SUB-FEATURED");
-					expect(socialPostCalls).toHaveLength(4);
-					const platforms = new Set(socialPostCalls.map((c) => c.platform));
-					expect(platforms).toEqual(
-						new Set(["twitter", "linkedin", "facebook", "instagram"]),
-					);
+		test("mixed: one plagiarized, others go through quality gate", async () => {
+			submissionData = STANDARD_SUBMISSIONS;
+			plagiarismResultFn = (content) => {
+				if (content.includes("stolen") || content.includes("plagiarized")) {
+					return { isPlagiarized: true, score: 0.92 };
 				}
-			},
-			300_000,
-		);
+				return { isPlagiarized: false, score: 0.08 };
+			};
+
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
+
+			// All 3 checked for plagiarism
+			expect(plagiarismChecks).toHaveLength(3);
+			// SUB-2 (plagiarized) must NOT have been published
+			expect(publishCalls.some((c) => c.submissionId === "SUB-2")).toBe(false);
+			// SUB-2 should have been rejected
+			expect(rejectCalls.some((c) => c.submissionId === "SUB-2")).toBe(true);
+			// The non-plagiarized submissions got some outcome
+			const nonPlagiarizedOutcomes =
+				publishCalls.filter((c) => c.submissionId !== "SUB-2").length +
+				revisionCalls.filter((c) => c.submissionId !== "SUB-2").length +
+				archiveCalls.filter((c) => c.submissionId !== "SUB-2").length;
+			expect(nonPlagiarizedOutcomes).toBe(2);
+		}, 300_000);
+
+		test("all plagiarized: everything rejected, no publications", async () => {
+			submissionData = STANDARD_SUBMISSIONS;
+			plagiarismResultFn = () => ({ isPlagiarized: true, score: 0.95 });
+
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
+
+			// All checked for plagiarism
+			expect(plagiarismChecks).toHaveLength(3);
+			// Nothing published
+			expect(publishCalls).toHaveLength(0);
+			// No social posts
+			expect(socialPostCalls).toHaveLength(0);
+			// All 3 rejected
+			expect(rejectCalls).toHaveLength(3);
+		}, 300_000);
+
+		test("single high-quality submission with many platforms", async () => {
+			submissionData = {
+				submissions: [
+					{
+						id: "SUB-FEATURED",
+						authorId: "AUTH-STAR",
+						content:
+							"EXCLUSIVE: Award-winning investigative report reveals breakthrough in quantum error correction. After three years of research across 12 institutions, scientists have achieved a 99.9% error correction rate in topological qubits, bringing practical quantum computing within reach. This peer-reviewed study, published in Nature, represents the most significant advance in quantum computing since Shor's algorithm.",
+						platforms: ["twitter", "linkedin", "facebook", "instagram"],
+					},
+				],
+			};
+			plagiarismResultFn = () => ({ isPlagiarized: false, score: 0.01 });
+
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
+
+			// Plagiarism check ran
+			expect(plagiarismChecks).toHaveLength(1);
+			// Not plagiarized, so not rejected via plagiarism path
+			expect(rejectCalls).toHaveLength(0);
+			// Exactly one quality outcome (LLM decides publish/revise/reject)
+			const totalOutcomes =
+				publishCalls.length + revisionCalls.length + archiveCalls.length;
+			expect(totalOutcomes).toBe(1);
+			// If published, social posts should match all platforms
+			if (publishCalls.length === 1) {
+				expect(publishCalls[0]?.submissionId).toBe("SUB-FEATURED");
+				expect(socialPostCalls).toHaveLength(4);
+				const platforms = new Set(socialPostCalls.map((c) => c.platform));
+				expect(platforms).toEqual(
+					new Set(["twitter", "linkedin", "facebook", "instagram"]),
+				);
+			}
+		}, 300_000);
 	});
 
 	// ─────────────────────────────────────────────────────────────
@@ -881,10 +853,13 @@ After processing all incidents, send a triage summary to the ops channel.`,
 			});
 
 			if (!result.workflow) {
-				console.error("Scenario 3 generation failed. Diagnostics:", result.diagnostics);
+				console.error(
+					"Scenario 3 generation failed. Diagnostics:",
+					result.diagnostics,
+				);
 			}
 			expect(result.workflow).not.toBeNull();
-			workflow = result.workflow!;
+			if (result.workflow) workflow = result.workflow;
 		}, 600_000);
 
 		beforeEach(() => {
@@ -898,330 +873,308 @@ After processing all incidents, send a triage summary to the ops channel.`,
 			opsMessages.length = 0;
 		});
 
-		test(
-			"mixed severity: critical resolved, high and low get tickets",
-			async () => {
-				incidentData = {
-					incidents: [
-						{
-							id: "INC-1",
-							service: "payment-api",
-							description:
-								"Payment API returning 500 errors on all endpoints. Revenue impact: $50k/hour. All customer transactions failing.",
-						},
-						{
-							id: "INC-2",
-							service: "search-service",
-							description:
-								"Search results returning stale data. Users seeing results from 6 hours ago. No data loss.",
-						},
-						{
-							id: "INC-3",
-							service: "logging-agent",
-							description:
-								"Log collection delayed by 2 minutes. No user-facing impact. Monitoring still functional.",
-						},
-					],
-				};
-				logData = {
-					"payment-api": {
-						logs: "CRITICAL: Connection pool exhausted. 15,847 errors in last 5 minutes. All POST /payments returning 500. Database connections maxed out.",
-						errorCount: 15847,
+		test("mixed severity: critical resolved, high and low get tickets", async () => {
+			incidentData = {
+				incidents: [
+					{
+						id: "INC-1",
+						service: "payment-api",
+						description:
+							"Payment API returning 500 errors on all endpoints. Revenue impact: $50k/hour. All customer transactions failing.",
 					},
-					"search-service": {
-						logs: "WARNING: Cache invalidation lag detected. Index refresh delayed. Serving stale data for 12% of queries.",
-						errorCount: 23,
+					{
+						id: "INC-2",
+						service: "search-service",
+						description:
+							"Search results returning stale data. Users seeing results from 6 hours ago. No data loss.",
 					},
-					"logging-agent": {
-						logs: "INFO: Minor collection buffer delay. Buffer at 12% capacity. All logs eventually delivered.",
-						errorCount: 0,
+					{
+						id: "INC-3",
+						service: "logging-agent",
+						description:
+							"Log collection delayed by 2 minutes. No user-facing impact. Monitoring still functional.",
 					},
-				};
-				metricData = {
-					"payment-api": {
-						cpuPercent: 95,
-						memoryPercent: 88,
-						errorRate: 45,
-					},
-					"search-service": {
-						cpuPercent: 40,
-						memoryPercent: 55,
-						errorRate: 5,
-					},
-					"logging-agent": {
-						cpuPercent: 15,
-						memoryPercent: 30,
-						errorRate: 0.1,
-					},
-				};
-				remediationResults = {
-					"INC-1": {
-						success: true,
-						details: "Connection pool reset successfully",
-					},
-				};
-				verifyResults = { "payment-api": { healthy: true } };
+				],
+			};
+			logData = {
+				"payment-api": {
+					logs: "CRITICAL: Connection pool exhausted. 15,847 errors in last 5 minutes. All POST /payments returning 500. Database connections maxed out.",
+					errorCount: 15847,
+				},
+				"search-service": {
+					logs: "WARNING: Cache invalidation lag detected. Index refresh delayed. Serving stale data for 12% of queries.",
+					errorCount: 23,
+				},
+				"logging-agent": {
+					logs: "INFO: Minor collection buffer delay. Buffer at 12% capacity. All logs eventually delivered.",
+					errorCount: 0,
+				},
+			};
+			metricData = {
+				"payment-api": {
+					cpuPercent: 95,
+					memoryPercent: 88,
+					errorRate: 45,
+				},
+				"search-service": {
+					cpuPercent: 40,
+					memoryPercent: 55,
+					errorRate: 5,
+				},
+				"logging-agent": {
+					cpuPercent: 15,
+					memoryPercent: 30,
+					errorRate: 0.1,
+				},
+			};
+			remediationResults = {
+				"INC-1": {
+					success: true,
+					details: "Connection pool reset successfully",
+				},
+			};
+			verifyResults = { "payment-api": { healthy: true } };
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
 
-				// Diagnostics gathered for all 3 services
-				expect(logChecks).toHaveLength(3);
-				expect(metricChecks).toHaveLength(3);
-				// Critical incident was remediated and verified
-				expect(
-					remediations.some((r) => r.incidentId === "INC-1"),
-				).toBe(true);
-				expect(
-					verifications.some((v) => v.service === "payment-api"),
-				).toBe(true);
-				// Critical incident resolved (verification passed)
-				expect(
-					resolutions.some((r) => r.incidentId === "INC-1"),
-				).toBe(true);
-				// Non-critical incidents got tickets
-				expect(tickets.length).toBeGreaterThanOrEqual(2);
-				// Summary sent
-				expect(opsMessages).toHaveLength(1);
-			},
-			300_000,
-		);
+			// Diagnostics gathered for all 3 services
+			expect(logChecks).toHaveLength(3);
+			expect(metricChecks).toHaveLength(3);
+			// Critical incident was remediated and verified
+			expect(remediations.some((r) => r.incidentId === "INC-1")).toBe(true);
+			expect(verifications.some((v) => v.service === "payment-api")).toBe(true);
+			// Critical incident resolved (verification passed)
+			expect(resolutions.some((r) => r.incidentId === "INC-1")).toBe(true);
+			// Non-critical incidents got tickets
+			expect(tickets.length).toBeGreaterThanOrEqual(2);
+			// Summary sent
+			expect(opsMessages).toHaveLength(1);
+		}, 300_000);
 
-		test(
-			"all critical: all remediated and verified",
-			async () => {
-				incidentData = {
-					incidents: [
-						{
-							id: "INC-1",
-							service: "service-a",
-							description:
-								"Service A completely unresponsive. Timeout on all requests. Customers unable to access the platform.",
-						},
-						{
-							id: "INC-2",
-							service: "service-b",
-							description:
-								"Service B crashing repeatedly with segfaults. Auto-restart failing. Data corruption risk.",
-						},
-						{
-							id: "INC-3",
-							service: "service-c",
-							description:
-								"Service C returning corrupted data on all write operations. Data integrity compromised.",
-						},
-					],
-				};
-				logData = {
-					"service-a": {
-						logs: "CRITICAL: Process killed by OOM killer. 50,000 errors in last 10 minutes. Zero successful requests.",
-						errorCount: 50000,
+		test("all critical: all remediated and verified", async () => {
+			incidentData = {
+				incidents: [
+					{
+						id: "INC-1",
+						service: "service-a",
+						description:
+							"Service A completely unresponsive. Timeout on all requests. Customers unable to access the platform.",
 					},
-					"service-b": {
-						logs: "CRITICAL: Segmentation fault in core module. Crash loop: 47 restarts in 5 minutes.",
-						errorCount: 30000,
+					{
+						id: "INC-2",
+						service: "service-b",
+						description:
+							"Service B crashing repeatedly with segfaults. Auto-restart failing. Data corruption risk.",
 					},
-					"service-c": {
-						logs: "CRITICAL: Data corruption detected in write path. Checksums failing on 100% of writes.",
-						errorCount: 25000,
+					{
+						id: "INC-3",
+						service: "service-c",
+						description:
+							"Service C returning corrupted data on all write operations. Data integrity compromised.",
 					},
-				};
-				metricData = {
-					"service-a": {
-						cpuPercent: 99,
-						memoryPercent: 98,
-						errorRate: 100,
-					},
-					"service-b": {
-						cpuPercent: 85,
-						memoryPercent: 92,
-						errorRate: 60,
-					},
-					"service-c": {
-						cpuPercent: 92,
-						memoryPercent: 80,
-						errorRate: 100,
-					},
-				};
-				remediationResults = {
-					"INC-1": { success: true, details: "Process restarted" },
-					"INC-2": { success: true, details: "Module reloaded" },
-					"INC-3": { success: true, details: "Write path cleared" },
-				};
-				verifyResults = {
-					"service-a": { healthy: true },
-					"service-b": { healthy: true },
-					"service-c": { healthy: true },
-				};
+				],
+			};
+			logData = {
+				"service-a": {
+					logs: "CRITICAL: Process killed by OOM killer. 50,000 errors in last 10 minutes. Zero successful requests.",
+					errorCount: 50000,
+				},
+				"service-b": {
+					logs: "CRITICAL: Segmentation fault in core module. Crash loop: 47 restarts in 5 minutes.",
+					errorCount: 30000,
+				},
+				"service-c": {
+					logs: "CRITICAL: Data corruption detected in write path. Checksums failing on 100% of writes.",
+					errorCount: 25000,
+				},
+			};
+			metricData = {
+				"service-a": {
+					cpuPercent: 99,
+					memoryPercent: 98,
+					errorRate: 100,
+				},
+				"service-b": {
+					cpuPercent: 85,
+					memoryPercent: 92,
+					errorRate: 60,
+				},
+				"service-c": {
+					cpuPercent: 92,
+					memoryPercent: 80,
+					errorRate: 100,
+				},
+			};
+			remediationResults = {
+				"INC-1": { success: true, details: "Process restarted" },
+				"INC-2": { success: true, details: "Module reloaded" },
+				"INC-3": { success: true, details: "Write path cleared" },
+			};
+			verifyResults = {
+				"service-a": { healthy: true },
+				"service-b": { healthy: true },
+				"service-c": { healthy: true },
+			};
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
 
-				// Diagnostics for all 3
-				expect(logChecks).toHaveLength(3);
-				expect(metricChecks).toHaveLength(3);
-				// All 3 should be remediated
-				expect(remediations).toHaveLength(3);
-				// All 3 verified
-				expect(verifications).toHaveLength(3);
-				// All should be resolved (all verifications pass)
-				expect(resolutions).toHaveLength(3);
-				expect(escalations).toHaveLength(0);
-				// No regular tickets (all were critical)
-				expect(tickets).toHaveLength(0);
-				// Summary sent
-				expect(opsMessages).toHaveLength(1);
-			},
-			300_000,
-		);
+			// Diagnostics for all 3
+			expect(logChecks).toHaveLength(3);
+			expect(metricChecks).toHaveLength(3);
+			// All 3 should be remediated
+			expect(remediations).toHaveLength(3);
+			// All 3 verified
+			expect(verifications).toHaveLength(3);
+			// All should be resolved (all verifications pass)
+			expect(resolutions).toHaveLength(3);
+			expect(escalations).toHaveLength(0);
+			// No regular tickets (all were critical)
+			expect(tickets).toHaveLength(0);
+			// Summary sent
+			expect(opsMessages).toHaveLength(1);
+		}, 300_000);
 
-		test(
-			"all quiet: no remediation needed, only backlog tickets",
-			async () => {
-				incidentData = {
-					incidents: [
-						{
-							id: "INC-1",
-							service: "service-a",
-							description:
-								"Minor UI alignment issue on settings page. Cosmetic only.",
-						},
-						{
-							id: "INC-2",
-							service: "service-b",
-							description:
-								"Occasional slow response (>2s) on rarely used admin report. No user impact.",
-						},
-						{
-							id: "INC-3",
-							service: "service-c",
-							description:
-								"Deprecation warning in log output. Library update recommended at next sprint.",
-						},
-					],
-				};
-				logData = {
-					"service-a": {
-						logs: "INFO: All systems nominal. 0 errors in last 24 hours. Uptime: 99.99%.",
-						errorCount: 0,
+		test("all quiet: no remediation needed, only backlog tickets", async () => {
+			incidentData = {
+				incidents: [
+					{
+						id: "INC-1",
+						service: "service-a",
+						description:
+							"Minor UI alignment issue on settings page. Cosmetic only.",
 					},
-					"service-b": {
-						logs: "INFO: Running smoothly. Last error 72 hours ago. Performance within SLA.",
-						errorCount: 0,
+					{
+						id: "INC-2",
+						service: "service-b",
+						description:
+							"Occasional slow response (>2s) on rarely used admin report. No user impact.",
 					},
-					"service-c": {
-						logs: "INFO: No issues detected. Deprecation notice for logging-lib v2.",
-						errorCount: 0,
+					{
+						id: "INC-3",
+						service: "service-c",
+						description:
+							"Deprecation warning in log output. Library update recommended at next sprint.",
 					},
-				};
-				metricData = {
-					"service-a": {
-						cpuPercent: 12,
-						memoryPercent: 25,
-						errorRate: 0,
-					},
-					"service-b": {
-						cpuPercent: 18,
-						memoryPercent: 30,
-						errorRate: 0.01,
-					},
-					"service-c": {
-						cpuPercent: 8,
-						memoryPercent: 20,
-						errorRate: 0,
-					},
-				};
+				],
+			};
+			logData = {
+				"service-a": {
+					logs: "INFO: All systems nominal. 0 errors in last 24 hours. Uptime: 99.99%.",
+					errorCount: 0,
+				},
+				"service-b": {
+					logs: "INFO: Running smoothly. Last error 72 hours ago. Performance within SLA.",
+					errorCount: 0,
+				},
+				"service-c": {
+					logs: "INFO: No issues detected. Deprecation notice for logging-lib v2.",
+					errorCount: 0,
+				},
+			};
+			metricData = {
+				"service-a": {
+					cpuPercent: 12,
+					memoryPercent: 25,
+					errorRate: 0,
+				},
+				"service-b": {
+					cpuPercent: 18,
+					memoryPercent: 30,
+					errorRate: 0.01,
+				},
+				"service-c": {
+					cpuPercent: 8,
+					memoryPercent: 20,
+					errorRate: 0,
+				},
+			};
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
 
-				// Diagnostics gathered
-				expect(logChecks).toHaveLength(3);
-				expect(metricChecks).toHaveLength(3);
-				// No remediation for non-critical issues
-				expect(remediations).toHaveLength(0);
-				expect(verifications).toHaveLength(0);
-				expect(resolutions).toHaveLength(0);
-				expect(escalations).toHaveLength(0);
-				// All get tickets (backlog)
-				expect(tickets).toHaveLength(3);
-				// Summary sent
-				expect(opsMessages).toHaveLength(1);
-			},
-			300_000,
-		);
+			// Diagnostics gathered
+			expect(logChecks).toHaveLength(3);
+			expect(metricChecks).toHaveLength(3);
+			// No remediation for non-critical issues
+			expect(remediations).toHaveLength(0);
+			expect(verifications).toHaveLength(0);
+			expect(resolutions).toHaveLength(0);
+			expect(escalations).toHaveLength(0);
+			// All get tickets (backlog)
+			expect(tickets).toHaveLength(3);
+			// Summary sent
+			expect(opsMessages).toHaveLength(1);
+		}, 300_000);
 
-		test(
-			"remediation fails: verification unhealthy → escalation",
-			async () => {
-				incidentData = {
-					incidents: [
-						{
-							id: "INC-1",
-							service: "payment-api",
-							description:
-								"Payment API completely down. All transactions failing. Revenue loss: $100k/hour. Highest priority.",
-						},
-					],
-				};
-				logData = {
-					"payment-api": {
-						logs: "CRITICAL: Database primary node unreachable. Failover failed. All queries timing out. 20,000 errors in 3 minutes.",
-						errorCount: 20000,
+		test("remediation fails: verification unhealthy → escalation", async () => {
+			incidentData = {
+				incidents: [
+					{
+						id: "INC-1",
+						service: "payment-api",
+						description:
+							"Payment API completely down. All transactions failing. Revenue loss: $100k/hour. Highest priority.",
 					},
-				};
-				metricData = {
-					"payment-api": {
-						cpuPercent: 95,
-						memoryPercent: 90,
-						errorRate: 100,
-					},
-				};
-				remediationResults = {
-					"INC-1": {
-						success: true,
-						details: "Attempted connection pool reset",
-					},
-				};
-				verifyResults = {
-					"payment-api": { healthy: false }, // Fix didn't work!
-				};
+				],
+			};
+			logData = {
+				"payment-api": {
+					logs: "CRITICAL: Database primary node unreachable. Failover failed. All queries timing out. 20,000 errors in 3 minutes.",
+					errorCount: 20000,
+				},
+			};
+			metricData = {
+				"payment-api": {
+					cpuPercent: 95,
+					memoryPercent: 90,
+					errorRate: 100,
+				},
+			};
+			remediationResults = {
+				"INC-1": {
+					success: true,
+					details: "Attempted connection pool reset",
+				},
+			};
+			verifyResults = {
+				"payment-api": { healthy: false }, // Fix didn't work!
+			};
 
-				const result = await executeWorkflow(workflow, {
-					tools,
-					agent: model,
-					retryDelayMs: 100,
-				});
-				expect(result.success).toBe(true);
+			const result = await executeWorkflow(workflow, {
+				tools,
+				agent: model,
+				retryDelayMs: 100,
+			});
+			expect(result.success).toBe(true);
 
-				// Diagnostics gathered
-				expect(logChecks).toHaveLength(1);
-				expect(metricChecks).toHaveLength(1);
-				// Remediation was attempted
-				expect(remediations).toHaveLength(1);
-				// Verification ran and showed unhealthy
-				expect(verifications).toHaveLength(1);
-				// NOT resolved — verification failed
-				expect(resolutions).toHaveLength(0);
-				// ESCALATED because fix didn't work
-				expect(escalations).toHaveLength(1);
-				expect(escalations[0].incidentId).toBe("INC-1");
-				// Summary sent
-				expect(opsMessages).toHaveLength(1);
-			},
-			300_000,
-		);
+			// Diagnostics gathered
+			expect(logChecks).toHaveLength(1);
+			expect(metricChecks).toHaveLength(1);
+			// Remediation was attempted
+			expect(remediations).toHaveLength(1);
+			// Verification ran and showed unhealthy
+			expect(verifications).toHaveLength(1);
+			// NOT resolved — verification failed
+			expect(resolutions).toHaveLength(0);
+			// ESCALATED because fix didn't work
+			expect(escalations).toHaveLength(1);
+			expect(escalations[0]?.incidentId).toBe("INC-1");
+			// Summary sent
+			expect(opsMessages).toHaveLength(1);
+		}, 300_000);
 	});
 });

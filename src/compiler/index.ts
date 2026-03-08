@@ -5,9 +5,9 @@ import { applyBestPractices } from "./passes/apply-best-practices";
 import { buildGraph } from "./passes/build-graph";
 import { generateConstrainedToolSchemas } from "./passes/generate-constrained-tool-schemas";
 import { validateControlFlow } from "./passes/validate-control-flow";
+import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateReferences } from "./passes/validate-references";
-import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateTools } from "./passes/validate-tools";
 import type {
 	CompilerResult,

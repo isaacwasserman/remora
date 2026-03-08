@@ -19,6 +19,7 @@ export function validateForeachTarget(
 		if (!segments) continue;
 
 		const [rootId, ...fieldPath] = segments;
+		if (!rootId) continue;
 
 		const referencedStep = graph.stepIndex.get(rootId);
 		if (!referencedStep) continue; // Handled by jmespath validation
@@ -59,9 +60,7 @@ export function validateForeachTarget(
 }
 
 function parseSimplePath(expression: string): string[] | null {
-	if (
-		!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(expression)
-	) {
+	if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(expression)) {
 		return null;
 	}
 	return expression.split(".");

@@ -3392,9 +3392,9 @@ describe("for-each target type validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow, { tools });
-		expect(
-			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
-		).toBe(true);
+		expect(hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY")).toBe(
+			true,
+		);
 
 		const diag = getFirstDiagnostic(
 			result.diagnostics,
@@ -3459,9 +3459,9 @@ describe("for-each target type validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow, { tools });
-		expect(
-			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
-		).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY")).toBe(
+			false,
+		);
 	});
 
 	test("no error when tool output is directly an array", async () => {
@@ -3513,9 +3513,9 @@ describe("for-each target type validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow, { tools });
-		expect(
-			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
-		).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY")).toBe(
+			false,
+		);
 	});
 
 	test("skips validation for complex JMESPath expressions", async () => {
@@ -3570,8 +3570,8 @@ describe("for-each target type validation", () => {
 		} as WorkflowDefinition;
 
 		const result = await compileWorkflow(workflow, { tools });
-		expect(
-			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
-		).toBe(false);
+		expect(hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY")).toBe(
+			false,
+		);
 	});
 });

@@ -26,7 +26,7 @@ import {
 
 function stripCodeFence(text: string): string {
 	const match = text.match(/^```(?:\w*)\s*\n?([\s\S]*?)\n?\s*```\s*$/);
-	return match ? match[1] : text;
+	return match?.[1] ?? text;
 }
 
 // ─── Types ───────────────────────────────────────────────────────

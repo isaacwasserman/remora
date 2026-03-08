@@ -15,6 +15,7 @@
 		"src/index.ts",
 		"src/example-tasks.ts",
 		"src/viewer/demo/**",
-		"src/**/*.test.ts"
+		"src/**/*.test.ts",
+		"src/e2e.ts"
 	]
 }
