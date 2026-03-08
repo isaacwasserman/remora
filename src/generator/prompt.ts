@@ -165,6 +165,8 @@ Every dynamic value must be an expression object:
 
 ## Available Tools
 
+Each tool below includes an \`outputSchema\` describing the shape of its return value. Use the output schema to construct correct JMESPath expressions. For example, if a tool returns \`{ "type": "object", "properties": { "orders": { "type": "array", ... } } }\`, reference the array as \`step_id.orders\`, not \`step_id\` alone.
+
 ${serializedTools}
 
 ## Common Mistakes
@@ -183,7 +185,11 @@ ${serializedTools}
 
 6. Step IDs must be at least 2 characters long.
 
-7. If the workflow needs to return structured data, declare an \`outputSchema\` on the workflow and give every \`end\` step an \`output\` expression that evaluates to a value matching it.`;
+7. for-each target must resolve to an ARRAY. Check the tool's outputSchema to determine the correct path.
+   WRONG: \`"target": { "type": "jmespath", "expression": "get_orders" }\` (when get_orders returns an object with an \`orders\` array property)
+   RIGHT: \`"target": { "type": "jmespath", "expression": "get_orders.orders" }\`
+
+8. If the workflow needs to return structured data, declare an \`outputSchema\` on the workflow and give every \`end\` step an \`output\` expression that evaluates to a value matching it.`;
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {

@@ -39,6 +39,15 @@ export async function generateWorkflow(
 ): Promise<GenerateWorkflowResult> {
 	const { model, tools, task, maxRetries = 3 } = options;
 
+	const missingOutputSchema = Object.entries(tools)
+		.filter(([_, t]) => !t.outputSchema)
+		.map(([name]) => name);
+	if (missingOutputSchema.length > 0) {
+		throw new Error(
+			`All tools must have an outputSchema. Missing: ${missingOutputSchema.join(", ")}`,
+		);
+	}
+
 	const serializedTools = await serializeToolsForPrompt(tools);
 	const systemPrompt = buildWorkflowGenerationPrompt(serializedTools);
 

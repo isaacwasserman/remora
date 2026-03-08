@@ -23,6 +23,7 @@
 		"build": "bun scripts/build.ts",
 		"prepublishOnly": "bun run build",
 		"test": "bun test",
+		"test:e2e": "bun test src/e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix --unsafe .",
 		"viewer": "bun src/viewer/demo/server.ts",
