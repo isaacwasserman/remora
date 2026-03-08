@@ -13,7 +13,7 @@ const openrouter = createOpenAI({
 	apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-const model = openrouter.chat("anthropic/claude-haiku-4.5");
+const model = openrouter.chat(process.env.OPENROUTER_MODEL_ID ?? "");
 
 const describeE2E = process.env.OPENROUTER_API_KEY ? describe : describe.skip;
 
