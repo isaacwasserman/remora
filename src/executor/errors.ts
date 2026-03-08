@@ -18,9 +18,10 @@ export type ErrorCode =
 	| "TOOL_NOT_FOUND"
 	| "TOOL_MISSING_EXECUTE"
 	| "AGENT_NOT_PROVIDED"
-	// validation — input data doesn't match expected schema/type
+	// validation — input/output data doesn't match expected schema/type
 	| "TOOL_INPUT_VALIDATION_FAILED"
 	| "FOREACH_TARGET_NOT_ARRAY"
+	| "WORKFLOW_OUTPUT_VALIDATION_FAILED"
 	// external-service — external service failure
 	| "TOOL_EXECUTION_FAILED"
 	| "LLM_API_ERROR"

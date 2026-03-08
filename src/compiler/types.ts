@@ -30,6 +30,8 @@ export type DiagnosticCode =
 	| "MISSING_TOOL_INPUT_KEY"
 	| "EXTRA_TOOL_INPUT_KEY"
 	| "MISSING_START_STEP"
+	| "END_STEP_MISSING_OUTPUT"
+	| "END_STEP_UNEXPECTED_OUTPUT"
 	| "FOREACH_TARGET_NOT_ARRAY";
 
 export interface Diagnostic {

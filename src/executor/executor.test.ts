@@ -1673,3 +1673,281 @@ describe("start step", () => {
 		expect(result.error?.message).toContain("input validation failed");
 	});
 });
+
+// ─── Workflow Output ─────────────────────────────────────────────
+
+describe("workflow output", () => {
+	test("end step with literal output expression", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "do_work",
+			steps: [
+				step("do_work", {
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: { type: "literal", value: { result: "finished" } },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.output).toEqual({ result: "finished" });
+	});
+
+	test("end step with jmespath output expression", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "greet_step",
+			steps: [
+				step("greet_step", {
+					type: "tool-call",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: { type: "literal", value: "World" },
+						},
+					},
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: {
+							type: "jmespath",
+							expression: "greet_step.greeting",
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.output).toBe("Hello, World!");
+	});
+
+	test("end step without output expression returns undefined (backward compat)", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "do_work",
+			steps: [
+				step("do_work", {
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "done",
+				}),
+				step("done", { type: "end" }),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.output).toBeUndefined();
+	});
+
+	test("output validated against outputSchema succeeds", async () => {
+		const workflow = {
+			initialStepId: "greet_step",
+			outputSchema: {
+				type: "object",
+				properties: {
+					greeting: { type: "string" },
+				},
+				required: ["greeting"],
+			},
+			steps: [
+				step("greet_step", {
+					type: "tool-call",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: { type: "literal", value: "World" },
+						},
+					},
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "greet_step" },
+					},
+				}),
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.output).toEqual({ greeting: "Hello, World!" });
+	});
+
+	test("output validation fails on type mismatch", async () => {
+		const workflow = {
+			initialStepId: "do_work",
+			outputSchema: { type: "object" },
+			steps: [
+				step("do_work", {
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: { type: "literal", value: "not an object" },
+					},
+				}),
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("WORKFLOW_OUTPUT_VALIDATION_FAILED");
+	});
+
+	test("output validation fails on missing required field", async () => {
+		const workflow = {
+			initialStepId: "do_work",
+			outputSchema: {
+				type: "object",
+				properties: { name: { type: "string" } },
+				required: ["name"],
+			},
+			steps: [
+				step("do_work", {
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: { type: "literal", value: {} },
+					},
+				}),
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("WORKFLOW_OUTPUT_VALIDATION_FAILED");
+		expect(result.error?.message).toContain("missing required field(s): name");
+	});
+
+	test("branching workflow with different end step outputs", async () => {
+		const workflow = {
+			initialStepId: "classify_step",
+			outputSchema: {
+				type: "object",
+				properties: { message: { type: "string" } },
+				required: ["message"],
+			},
+			steps: [
+				step("classify_step", {
+					type: "tool-call",
+					params: {
+						toolName: "classify",
+						toolInput: {
+							value: { type: "literal", value: "hi" },
+						},
+					},
+					nextStepId: "branch",
+				}),
+				step("branch", {
+					type: "switch-case",
+					params: {
+						switchOn: {
+							type: "jmespath",
+							expression: "classify_step.label",
+						},
+						cases: [
+							{
+								value: { type: "literal", value: "short" },
+								branchBodyStepId: "end_short",
+							},
+							{
+								value: { type: "literal", value: "long" },
+								branchBodyStepId: "end_long",
+							},
+						],
+					},
+				}),
+				step("end_short", {
+					type: "end",
+					params: {
+						output: {
+							type: "literal",
+							value: { message: "it was short" },
+						},
+					},
+				}),
+				step("end_long", {
+					type: "end",
+					params: {
+						output: {
+							type: "literal",
+							value: { message: "it was long" },
+						},
+					},
+				}),
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		// "hi" is short (length <= 4)
+		expect(result.output).toEqual({ message: "it was short" });
+	});
+
+	test("no outputSchema — output still returned without validation", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "do_work",
+			steps: [
+				step("do_work", {
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: { type: "literal", value: 42 },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.output).toBe(42);
+	});
+
+	test("output expression jmespath returns null for missing reference", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "do_work",
+			steps: [
+				step("do_work", {
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "done",
+				}),
+				step("done", {
+					type: "end",
+					params: {
+						output: {
+							type: "jmespath",
+							expression: "nonexistent_step.data",
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.output).toBeNull();
+	});
+});

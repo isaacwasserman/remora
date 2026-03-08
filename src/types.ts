@@ -114,7 +114,12 @@ const startParamsSchema = type({
 
 const endSchema = type({
 	type: "'end'",
-}).describe("a step that indicates the end of a branch");
+	"params?": {
+		output: expressionSchema,
+	},
+}).describe(
+	"a step that indicates the end of a branch; optionally specify an output expression whose evaluated value becomes the workflow's output",
+);
 
 const workflowStepSchema = type({
 	id: /^[a-zA-Z_][a-zA-Z0-9_]+$/,
@@ -133,6 +138,11 @@ const workflowStepSchema = type({
 
 export const workflowDefinitionSchema = type({
 	initialStepId: "string",
+	"outputSchema?": [
+		"object",
+		"@",
+		"an optional JSON Schema object declaring the shape of the workflow's output; when present, the value produced by the end step's output expression will be validated against this schema",
+	],
 	steps: [
 		[workflowStepSchema, "[]"],
 		"@",
