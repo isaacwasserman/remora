@@ -154,6 +154,8 @@ Every dynamic value must be an expression object:
 
 ## Available Tools
 
+Each tool below includes an \`outputSchema\` describing the shape of its return value. Use the output schema to construct correct JMESPath expressions. For example, if a tool returns \`{ "type": "object", "properties": { "orders": { "type": "array", ... } } }\`, reference the array as \`step_id.orders\`, not \`step_id\` alone.
+
 ${serializedTools}
 
 ## Common Mistakes
@@ -170,7 +172,11 @@ ${serializedTools}
 
 5. For-each itemName is a scoped variable accessible ONLY within the loop body steps.
 
-6. Step IDs must be at least 2 characters long.`;
+6. Step IDs must be at least 2 characters long.
+
+7. for-each target must resolve to an ARRAY. Check the tool's outputSchema to determine the correct path.
+   WRONG: \`"target": { "type": "jmespath", "expression": "get_orders" }\` (when get_orders returns an object with an \`orders\` array property)
+   RIGHT: \`"target": { "type": "jmespath", "expression": "get_orders.orders" }\``;
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {

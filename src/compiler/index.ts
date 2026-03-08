@@ -7,6 +7,7 @@ import { generateConstrainedToolSchemas } from "./passes/generate-constrained-to
 import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateReferences } from "./passes/validate-references";
+import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateTools } from "./passes/validate-tools";
 import type {
 	CompilerResult,
@@ -56,6 +57,13 @@ export async function compileWorkflow(
 			workflow,
 			toolSchemas,
 		);
+
+		// Pass 6: Validate for-each targets resolve to array types
+		if (graphResult.graph) {
+			diagnostics.push(
+				...validateForeachTarget(workflow, graphResult.graph, toolSchemas),
+			);
+		}
 	}
 
 	// Final pass: apply best-practice transformations (non-destructive)
@@ -82,6 +90,10 @@ async function extractToolSchemas(tools: ToolSet): Promise<ToolDefinitionMap> {
 		schemas[name] = {
 			inputSchema: jsonSchema as ToolDefinitionMap[string]["inputSchema"],
 		};
+		if (toolDef.outputSchema) {
+			schemas[name].outputSchema = (await asSchema(toolDef.outputSchema)
+				.jsonSchema) as Record<string, unknown>;
+		}
 	}
 	return schemas;
 }

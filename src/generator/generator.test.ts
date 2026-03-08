@@ -16,11 +16,13 @@ const testTools = {
 	echo: tool({
 		description: "Echoes back the input",
 		inputSchema: type({}),
+		outputSchema: type({ echoed: "boolean" }),
 		execute: async () => ({ echoed: true }),
 	}),
 	greet: tool({
 		description: "Greets someone by name",
 		inputSchema: type({ name: "string" }),
+		outputSchema: type({ greeting: "string" }),
 		execute: async ({ name }) => ({ greeting: `Hello, ${name}!` }),
 	}),
 };
@@ -145,6 +147,24 @@ describe("generateWorkflow", () => {
 		expect(
 			result.diagnostics.filter((d) => d.severity === "error").length,
 		).toBeGreaterThan(0);
+	});
+
+	test("rejects tools without outputSchema", async () => {
+		const toolsWithoutOutput = {
+			broken: tool({
+				description: "No output schema",
+				inputSchema: type({}),
+				execute: async () => ({}),
+			}),
+		};
+
+		await expect(
+			generateWorkflow({
+				model: createMockModel([validWorkflow]),
+				tools: toolsWithoutOutput,
+				task: "Do something",
+			}),
+		).rejects.toThrow("outputSchema");
 	});
 
 	test("maxRetries: 0 means single attempt only", async () => {

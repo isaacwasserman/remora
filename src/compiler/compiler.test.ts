@@ -3075,3 +3075,241 @@ describe("start step JMESPath scope", () => {
 		).toBe(false);
 	});
 });
+
+// ─── For-each target type validation ────────────────────────────
+
+describe("for-each target type validation", () => {
+	test("error when for-each target resolves to object instead of array", async () => {
+		const tools = {
+			"get-orders": tool({
+				inputSchema: type({}),
+				outputSchema: type({
+					orders: [{ id: "string" }, "[]"],
+				}),
+				execute: async () => ({ orders: [] }),
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get orders",
+					type: "tool-call",
+					params: { toolName: "get-orders", toolInput: {} },
+					nextStepId: "loop",
+				},
+				{
+					id: "loop",
+					name: "Loop",
+					description: "Process each order",
+					type: "for-each",
+					params: {
+						target: { type: "jmespath", expression: "fetch" },
+						itemName: "order",
+						loopBodyStepId: "process",
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "process",
+					name: "Process",
+					description: "Process order",
+					type: "tool-call",
+					params: { toolName: "get-orders", toolInput: {} },
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
+		).toBe(true);
+
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"FOREACH_TARGET_NOT_ARRAY",
+		);
+		expect(diag.message).toContain("fetch");
+		expect(diag.message).toContain("object");
+		expect(diag.message).toContain("fetch.orders");
+	});
+
+	test("no error when for-each target resolves to array via dotted path", async () => {
+		const tools = {
+			"get-orders": tool({
+				inputSchema: type({}),
+				outputSchema: type({
+					orders: [{ id: "string" }, "[]"],
+				}),
+				execute: async () => ({ orders: [] }),
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get orders",
+					type: "tool-call",
+					params: { toolName: "get-orders", toolInput: {} },
+					nextStepId: "loop",
+				},
+				{
+					id: "loop",
+					name: "Loop",
+					description: "Process each order",
+					type: "for-each",
+					params: {
+						target: {
+							type: "jmespath",
+							expression: "fetch.orders",
+						},
+						itemName: "order",
+						loopBodyStepId: "process",
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "process",
+					name: "Process",
+					description: "Process order",
+					type: "tool-call",
+					params: { toolName: "get-orders", toolInput: {} },
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
+		).toBe(false);
+	});
+
+	test("no error when tool output is directly an array", async () => {
+		const tools = {
+			"get-items": tool({
+				inputSchema: type({}),
+				outputSchema: type([{ id: "string" }, "[]"]),
+				execute: async () => [],
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get items",
+					type: "tool-call",
+					params: { toolName: "get-items", toolInput: {} },
+					nextStepId: "loop",
+				},
+				{
+					id: "loop",
+					name: "Loop",
+					description: "Process items",
+					type: "for-each",
+					params: {
+						target: { type: "jmespath", expression: "fetch" },
+						itemName: "item",
+						loopBodyStepId: "process",
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "process",
+					name: "Process",
+					description: "Process item",
+					type: "tool-call",
+					params: { toolName: "get-items", toolInput: {} },
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
+		).toBe(false);
+	});
+
+	test("skips validation for complex JMESPath expressions", async () => {
+		const tools = {
+			"get-data": tool({
+				inputSchema: type({}),
+				outputSchema: type({ items: [{ id: "string" }, "[]"] }),
+				execute: async () => ({ items: [] }),
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get data",
+					type: "tool-call",
+					params: { toolName: "get-data", toolInput: {} },
+					nextStepId: "loop",
+				},
+				{
+					id: "loop",
+					name: "Loop",
+					description: "Process items",
+					type: "for-each",
+					params: {
+						target: {
+							type: "jmespath",
+							expression: "fetch.items[?id == 'active']",
+						},
+						itemName: "item",
+						loopBodyStepId: "process",
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "process",
+					name: "Process",
+					description: "Process item",
+					type: "tool-call",
+					params: { toolName: "get-data", toolInput: {} },
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "FOREACH_TARGET_NOT_ARRAY"),
+		).toBe(false);
+	});
+});

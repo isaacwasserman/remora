@@ -22,6 +22,13 @@ import {
 	ValidationError,
 } from "./errors";
 
+// ─── Helpers ─────────────────────────────────────────────────────
+
+function stripCodeFence(text: string): string {
+	const match = text.match(/^```(?:\w*)\s*\n?([\s\S]*?)\n?\s*```\s*$/);
+	return match ? match[1] : text;
+}
+
 // ─── Types ───────────────────────────────────────────────────────
 
 export interface ExecutionResult {
@@ -306,7 +313,7 @@ async function executeLlmPrompt(
 	const prompt = `${interpolatedPrompt}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
 	try {
 		const result = await agent.generate({ prompt });
-		return JSON.parse(result.text);
+		return JSON.parse(stripCodeFence(result.text));
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
 		if (e instanceof SyntaxError) {
@@ -341,7 +348,7 @@ async function executeExtractData(
 	const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
 	try {
 		const result = await agent.generate({ prompt });
-		return JSON.parse(result.text);
+		return JSON.parse(stripCodeFence(result.text));
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
 		if (e instanceof SyntaxError) {
