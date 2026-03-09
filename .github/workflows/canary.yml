@@ -1,0 +1,42 @@
+name: Canary Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: canary-release
+  cancel-in-progress: true
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run build
+
+      - name: Check for pending changesets
+        id: check
+        run: |
+          count=$(find .changeset -name '*.md' ! -name 'README.md' | wc -l)
+          echo "changeset_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Version canary snapshot
+        if: steps.check.outputs.changeset_count != '0'
+        run: bunx changeset version --snapshot canary
+
+      - name: Publish canary to npm
+        if: steps.check.outputs.changeset_count != '0'
+        run: npm publish --tag canary --provenance --access public --no-git-checks

@@ -1,22 +1,39 @@
-name: Publish to npm
+name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    branches: [main]
+
+concurrency:
+  group: stable-release
+  cancel-in-progress: true
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
-    environment: release
     permissions:
+      contents: write
+      pull-requests: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: oven-sh/setup-bun@v2
+
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
+
       - run: bun install --frozen-lockfile
-      - run: bun run build
-      - run: npm publish --provenance --access public
+
+      - name: Create Release PR or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: bunx changeset version
+          publish: bun run build && npm publish --provenance --access public
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

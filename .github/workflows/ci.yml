@@ -36,3 +36,20 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run build
+
+  changeset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Check for changeset
+        run: |
+          count=$(find .changeset -name '*.md' ! -name 'README.md' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No changeset found. Run 'bunx changeset' to add one, or 'bunx changeset --empty' if this change doesn't need a release."
+            exit 1
+          fi
+          echo "Found $count changeset(s)"
