@@ -1,0 +1,282 @@
+{
+	"initialStepId": "get_pending_documents",
+	"steps": [
+		{
+			"id": "get_pending_documents",
+			"name": "Get Pending Documents",
+			"description": "Fetch contracts awaiting compliance review",
+			"type": "tool-call",
+			"params": { "toolName": "get-pending-documents", "toolInput": {} },
+			"nextStepId": "get_compliance_policies"
+		},
+		{
+			"id": "get_compliance_policies",
+			"name": "Get Compliance Policies",
+			"description": "Load current compliance rules and thresholds",
+			"type": "tool-call",
+			"params": { "toolName": "get-compliance-policies", "toolInput": {} },
+			"nextStepId": "review_documents"
+		},
+		{
+			"id": "review_documents",
+			"name": "Review Each Document",
+			"description": "Iterate over each document for compliance review",
+			"type": "for-each",
+			"params": {
+				"target": {
+					"type": "jmespath",
+					"expression": "get_pending_documents.documents"
+				},
+				"itemName": "document",
+				"loopBodyStepId": "extract_terms"
+			},
+			"nextStepId": "generate_summary"
+		},
+		{
+			"id": "extract_terms",
+			"name": "Extract Key Terms",
+			"description": "Extract key contract terms for compliance evaluation",
+			"type": "extract-data",
+			"params": {
+				"sourceData": {
+					"type": "jmespath",
+					"expression": "document.content"
+				},
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"liabilityCap": { "type": "string" },
+						"indemnification": { "type": "string" },
+						"dataHandling": { "type": "string" },
+						"termination": { "type": "string" },
+						"autoRenewal": { "type": "string" }
+					},
+					"required": [
+						"liabilityCap",
+						"indemnification",
+						"dataHandling",
+						"termination",
+						"autoRenewal"
+					]
+				}
+			},
+			"nextStepId": "evaluate_terms"
+		},
+		{
+			"id": "evaluate_terms",
+			"name": "Evaluate Terms Against Policies",
+			"description": "Evaluate extracted terms against compliance policies and produce a risk assessment",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Evaluate the following contract terms against our compliance policies.\n\nCompliance Policies: ${get_compliance_policies}\n\nExtracted Terms:\n- Liability Cap: ${extract_terms.liabilityCap}\n- Indemnification: ${extract_terms.indemnification}\n- Data Handling: ${extract_terms.dataHandling}\n- Termination: ${extract_terms.termination}\n- Auto-Renewal: ${extract_terms.autoRenewal}\n\nAssess the risk level, list any findings, and recommend an action: approve, revise, or reject.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"riskLevel": {
+							"type": "string",
+							"enum": ["low", "medium", "high"]
+						},
+						"findings": {
+							"type": "array",
+							"items": { "type": "string" }
+						},
+						"recommendedAction": {
+							"type": "string",
+							"enum": ["approve", "revise", "reject"]
+						}
+					},
+					"required": ["riskLevel", "findings", "recommendedAction"]
+				}
+			},
+			"nextStepId": "route_decision"
+		},
+		{
+			"id": "route_decision",
+			"name": "Route Decision",
+			"description": "Branch based on recommended action from compliance evaluation",
+			"type": "switch-case",
+			"params": {
+				"switchOn": {
+					"type": "jmespath",
+					"expression": "evaluate_terms.recommendedAction"
+				},
+				"cases": [
+					{
+						"value": { "type": "literal", "value": "approve" },
+						"branchBodyStepId": "stamp_approved"
+					},
+					{
+						"value": { "type": "literal", "value": "revise" },
+						"branchBodyStepId": "create_revision_request"
+					},
+					{
+						"value": { "type": "default" },
+						"branchBodyStepId": "flag_for_legal_review"
+					}
+				]
+			}
+		},
+		{
+			"id": "stamp_approved",
+			"name": "Stamp Approved",
+			"description": "Mark the document as approved",
+			"type": "tool-call",
+			"params": {
+				"toolName": "stamp-approved",
+				"toolInput": {
+					"documentId": {
+						"type": "jmespath",
+						"expression": "document.id"
+					}
+				}
+			},
+			"nextStepId": "notify_approved"
+		},
+		{
+			"id": "notify_approved",
+			"name": "Notify Requester (Approved)",
+			"description": "Notify the requester that the document has been approved",
+			"type": "tool-call",
+			"params": {
+				"toolName": "notify-requester",
+				"toolInput": {
+					"documentId": {
+						"type": "jmespath",
+						"expression": "document.id"
+					},
+					"status": {
+						"type": "literal",
+						"value": "approved"
+					}
+				}
+			}
+		},
+		{
+			"id": "create_revision_request",
+			"name": "Create Revision Request",
+			"description": "Create a revision request with compliance findings",
+			"type": "tool-call",
+			"params": {
+				"toolName": "create-revision-request",
+				"toolInput": {
+					"documentId": {
+						"type": "jmespath",
+						"expression": "document.id"
+					},
+					"findings": {
+						"type": "jmespath",
+						"expression": "evaluate_terms.findings"
+					}
+				}
+			},
+			"nextStepId": "notify_revision"
+		},
+		{
+			"id": "notify_revision",
+			"name": "Notify Requester (Revision Needed)",
+			"description": "Notify the requester that revisions are needed",
+			"type": "tool-call",
+			"params": {
+				"toolName": "notify-requester",
+				"toolInput": {
+					"documentId": {
+						"type": "jmespath",
+						"expression": "document.id"
+					},
+					"status": {
+						"type": "literal",
+						"value": "revision needed"
+					}
+				}
+			}
+		},
+		{
+			"id": "flag_for_legal_review",
+			"name": "Flag for Legal Review",
+			"description": "Flag the document for legal team review",
+			"type": "tool-call",
+			"params": {
+				"toolName": "flag-for-legal-review",
+				"toolInput": {
+					"documentId": {
+						"type": "jmespath",
+						"expression": "document.id"
+					},
+					"reason": {
+						"type": "jmespath",
+						"expression": "evaluate_terms.findings"
+					}
+				}
+			},
+			"nextStepId": "notify_legal_review"
+		},
+		{
+			"id": "notify_legal_review",
+			"name": "Notify Requester (Under Legal Review)",
+			"description": "Notify the requester that the document is under legal review",
+			"type": "tool-call",
+			"params": {
+				"toolName": "notify-requester",
+				"toolInput": {
+					"documentId": {
+						"type": "jmespath",
+						"expression": "document.id"
+					},
+					"status": {
+						"type": "literal",
+						"value": "under legal review"
+					}
+				}
+			}
+		},
+		{
+			"id": "generate_summary",
+			"name": "Generate Compliance Summary",
+			"description": "Generate a compliance review summary with risk distribution",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Generate a compliance review summary report for ${length(review_documents)} reviewed documents. Include the overall risk distribution across all reviewed contracts and highlight any critical findings that require immediate attention.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"totalReviewed": { "type": "number" },
+						"riskDistribution": {
+							"type": "object",
+							"properties": {
+								"low": { "type": "number" },
+								"medium": { "type": "number" },
+								"high": { "type": "number" }
+							},
+							"required": ["low", "medium", "high"]
+						},
+						"summary": { "type": "string" }
+					},
+					"required": ["totalReviewed", "riskDistribution", "summary"]
+				}
+			},
+			"nextStepId": "file_audit_report"
+		},
+		{
+			"id": "file_audit_report",
+			"name": "File Audit Report",
+			"description": "Archive the compliance review summary as an audit report",
+			"type": "tool-call",
+			"params": {
+				"toolName": "file-audit-report",
+				"toolInput": {
+					"report": {
+						"type": "jmespath",
+						"expression": "generate_summary"
+					}
+				}
+			},
+			"nextStepId": "done"
+		},
+		{
+			"id": "done",
+			"name": "Done",
+			"description": "End of workflow",
+			"type": "end"
+		}
+	]
+}

@@ -1,0 +1,237 @@
+{
+	"initialStepId": "get_new_leads",
+	"steps": [
+		{
+			"id": "get_new_leads",
+			"name": "Get New Leads",
+			"description": "Fetch unprocessed leads from CRM",
+			"type": "tool-call",
+			"params": { "toolName": "get-new-leads", "toolInput": {} },
+			"nextStepId": "process_leads"
+		},
+		{
+			"id": "process_leads",
+			"name": "Process Each Lead",
+			"description": "Iterate over each lead for qualification",
+			"type": "for-each",
+			"params": {
+				"target": {
+					"type": "jmespath",
+					"expression": "get_new_leads.leads"
+				},
+				"itemName": "lead",
+				"loopBodyStepId": "enrich_company"
+			},
+			"nextStepId": "generate_pipeline_summary"
+		},
+		{
+			"id": "enrich_company",
+			"name": "Enrich Company",
+			"description": "Pull firmographic data from enrichment API",
+			"type": "tool-call",
+			"params": {
+				"toolName": "enrich-company",
+				"toolInput": {
+					"companyDomain": {
+						"type": "jmespath",
+						"expression": "lead.companyDomain"
+					}
+				}
+			},
+			"nextStepId": "score_lead"
+		},
+		{
+			"id": "score_lead",
+			"name": "Score Lead",
+			"description": "Score the lead based on enrichment data, lead source, and ICP fit",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Score this lead based on the following data. Lead: ${lead.name} from ${lead.companyDomain}, source: ${lead.source}. Enrichment data: company size ${enrich_company.employeeCount}, industry ${enrich_company.industry}, revenue ${enrich_company.annualRevenue}, funding ${enrich_company.fundingStage}. Evaluate ICP fit and assign a score from 0-100, a tier (hot, warm, or cold), and reasoning.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"score": { "type": "number" },
+						"tier": { "type": "string", "enum": ["hot", "warm", "cold"] },
+						"reasoning": { "type": "string" }
+					},
+					"required": ["score", "tier", "reasoning"]
+				}
+			},
+			"nextStepId": "route_by_tier"
+		},
+		{
+			"id": "route_by_tier",
+			"name": "Route by Tier",
+			"description": "Branch based on lead tier classification",
+			"type": "switch-case",
+			"params": {
+				"switchOn": {
+					"type": "jmespath",
+					"expression": "score_lead.tier"
+				},
+				"cases": [
+					{
+						"value": { "type": "literal", "value": "hot" },
+						"branchBodyStepId": "assign_hot_lead"
+					},
+					{
+						"value": { "type": "literal", "value": "warm" },
+						"branchBodyStepId": "assign_warm_lead"
+					},
+					{
+						"value": { "type": "default" },
+						"branchBodyStepId": "enqueue_cold_nurture"
+					}
+				]
+			}
+		},
+		{
+			"id": "assign_hot_lead",
+			"name": "Assign to Senior AE",
+			"description": "Assign hot lead to a senior account executive",
+			"type": "tool-call",
+			"params": {
+				"toolName": "assign-to-rep",
+				"toolInput": {
+					"leadId": {
+						"type": "jmespath",
+						"expression": "lead.id"
+					},
+					"repTier": {
+						"type": "literal",
+						"value": "senior_ae"
+					}
+				}
+			},
+			"nextStepId": "notify_hot_lead"
+		},
+		{
+			"id": "notify_hot_lead",
+			"name": "Notify Hot Leads Channel",
+			"description": "Send Slack notification to #hot-leads channel",
+			"type": "tool-call",
+			"params": {
+				"toolName": "send-slack-notification",
+				"toolInput": {
+					"channel": {
+						"type": "literal",
+						"value": "#hot-leads"
+					},
+					"message": {
+						"type": "jmespath",
+						"expression": "score_lead.reasoning"
+					}
+				}
+			}
+		},
+		{
+			"id": "assign_warm_lead",
+			"name": "Assign to SDR",
+			"description": "Assign warm lead to a sales development representative",
+			"type": "tool-call",
+			"params": {
+				"toolName": "assign-to-rep",
+				"toolInput": {
+					"leadId": {
+						"type": "jmespath",
+						"expression": "lead.id"
+					},
+					"repTier": {
+						"type": "literal",
+						"value": "sdr"
+					}
+				}
+			},
+			"nextStepId": "enqueue_warm_nurture"
+		},
+		{
+			"id": "enqueue_warm_nurture",
+			"name": "Enqueue Warm Nurture Sequence",
+			"description": "Add warm lead to nurture email sequence",
+			"type": "tool-call",
+			"params": {
+				"toolName": "enqueue-nurture-sequence",
+				"toolInput": {
+					"leadId": {
+						"type": "jmespath",
+						"expression": "lead.id"
+					},
+					"sequenceType": {
+						"type": "literal",
+						"value": "warm_nurture"
+					}
+				}
+			}
+		},
+		{
+			"id": "enqueue_cold_nurture",
+			"name": "Enqueue Long-Term Drip",
+			"description": "Add cold lead to long-term drip nurture sequence",
+			"type": "tool-call",
+			"params": {
+				"toolName": "enqueue-nurture-sequence",
+				"toolInput": {
+					"leadId": {
+						"type": "jmespath",
+						"expression": "lead.id"
+					},
+					"sequenceType": {
+						"type": "literal",
+						"value": "long_term_drip"
+					}
+				}
+			}
+		},
+		{
+			"id": "generate_pipeline_summary",
+			"name": "Generate Pipeline Summary",
+			"description": "Generate pipeline summary with conversion projections",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Generate a pipeline summary for ${length(process_leads)} processed leads. Provide conversion projections based on tier distribution and lead scores. Include total leads processed, breakdown by tier, and projected conversion rates.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"totalLeads": { "type": "number" },
+						"hotCount": { "type": "number" },
+						"warmCount": { "type": "number" },
+						"coldCount": { "type": "number" },
+						"projectedConversionRate": { "type": "number" },
+						"summary": { "type": "string" }
+					},
+					"required": [
+						"totalLeads",
+						"hotCount",
+						"warmCount",
+						"coldCount",
+						"projectedConversionRate",
+						"summary"
+					]
+				}
+			},
+			"nextStepId": "update_dashboard"
+		},
+		{
+			"id": "update_dashboard",
+			"name": "Update Dashboard",
+			"description": "Push summary metrics to the dashboard",
+			"type": "tool-call",
+			"params": {
+				"toolName": "update-dashboard",
+				"toolInput": {
+					"reportData": {
+						"type": "jmespath",
+						"expression": "generate_pipeline_summary"
+					}
+				}
+			},
+			"nextStepId": "done"
+		},
+		{
+			"id": "done",
+			"name": "Done",
+			"description": "End of workflow",
+			"type": "end"
+		}
+	]
+}

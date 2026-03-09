@@ -1,0 +1,239 @@
+{
+	"initialStepId": "get_alerts",
+	"steps": [
+		{
+			"id": "get_alerts",
+			"name": "Get Active Alerts",
+			"description": "Fetch unacknowledged security alerts",
+			"type": "tool-call",
+			"params": { "toolName": "get-active-alerts", "toolInput": {} },
+			"nextStepId": "process_alerts"
+		},
+		{
+			"id": "process_alerts",
+			"name": "Process Each Alert",
+			"description": "Iterate over each alert",
+			"type": "for-each",
+			"params": {
+				"target": {
+					"type": "jmespath",
+					"expression": "get_alerts.alerts"
+				},
+				"itemName": "alert",
+				"loopBodyStepId": "enrich_alert"
+			},
+			"nextStepId": "generate_summary"
+		},
+		{
+			"id": "enrich_alert",
+			"name": "Enrich Alert",
+			"description": "Pull context (affected host, user, recent activity) from SIEM",
+			"type": "tool-call",
+			"params": {
+				"toolName": "enrich-alert",
+				"toolInput": {
+					"alertId": {
+						"type": "jmespath",
+						"expression": "alert.id"
+					}
+				}
+			},
+			"nextStepId": "classify_severity"
+		},
+		{
+			"id": "classify_severity",
+			"name": "Classify Severity",
+			"description": "Classify alert severity as critical, high, medium, or low with reasoning",
+			"type": "extract-data",
+			"params": {
+				"sourceData": {
+					"type": "jmespath",
+					"expression": "enrich_alert"
+				},
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"severity": {
+							"type": "string",
+							"enum": ["critical", "high", "medium", "low"]
+						},
+						"reasoning": { "type": "string" }
+					},
+					"required": ["severity", "reasoning"]
+				}
+			},
+			"nextStepId": "severity_branch"
+		},
+		{
+			"id": "severity_branch",
+			"name": "Severity Branch",
+			"description": "Branch based on alert severity",
+			"type": "switch-case",
+			"params": {
+				"switchOn": {
+					"type": "jmespath",
+					"expression": "classify_severity.severity"
+				},
+				"cases": [
+					{
+						"value": { "type": "literal", "value": "critical" },
+						"branchBodyStepId": "quarantine_host"
+					},
+					{
+						"value": { "type": "literal", "value": "high" },
+						"branchBodyStepId": "create_ticket_high"
+					},
+					{
+						"value": { "type": "default" },
+						"branchBodyStepId": "create_ticket_low"
+					}
+				]
+			}
+		},
+		{
+			"id": "quarantine_host",
+			"name": "Quarantine Host",
+			"description": "Isolate affected host from network",
+			"type": "tool-call",
+			"params": {
+				"toolName": "quarantine-host",
+				"toolInput": {
+					"hostId": {
+						"type": "jmespath",
+						"expression": "enrich_alert.hostId"
+					}
+				}
+			},
+			"nextStepId": "page_oncall"
+		},
+		{
+			"id": "page_oncall",
+			"name": "Page Security On-Call",
+			"description": "Page the security on-call engineer",
+			"type": "tool-call",
+			"params": {
+				"toolName": "page-security-oncall",
+				"toolInput": {
+					"alertId": {
+						"type": "jmespath",
+						"expression": "alert.id"
+					},
+					"severity": {
+						"type": "literal",
+						"value": "critical"
+					}
+				}
+			}
+		},
+		{
+			"id": "create_ticket_high",
+			"name": "Create Jira Ticket (P1)",
+			"description": "Create a P1 Jira ticket for high severity alert",
+			"type": "tool-call",
+			"params": {
+				"toolName": "create-jira-ticket",
+				"toolInput": {
+					"title": {
+						"type": "jmespath",
+						"expression": "alert.title"
+					},
+					"priority": {
+						"type": "literal",
+						"value": "P1"
+					},
+					"description": {
+						"type": "jmespath",
+						"expression": "classify_severity.reasoning"
+					}
+				}
+			},
+			"nextStepId": "send_slack_high"
+		},
+		{
+			"id": "send_slack_high",
+			"name": "Send Slack Alert",
+			"description": "Send alert notification to #security channel",
+			"type": "tool-call",
+			"params": {
+				"toolName": "send-slack-alert",
+				"toolInput": {
+					"channel": {
+						"type": "literal",
+						"value": "#security"
+					},
+					"message": {
+						"type": "jmespath",
+						"expression": "alert.title"
+					}
+				}
+			}
+		},
+		{
+			"id": "create_ticket_low",
+			"name": "Create Jira Ticket (P3)",
+			"description": "Create a P3 Jira ticket for medium/low severity alert",
+			"type": "tool-call",
+			"params": {
+				"toolName": "create-jira-ticket",
+				"toolInput": {
+					"title": {
+						"type": "jmespath",
+						"expression": "alert.title"
+					},
+					"priority": {
+						"type": "literal",
+						"value": "P3"
+					},
+					"description": {
+						"type": "jmespath",
+						"expression": "classify_severity.reasoning"
+					}
+				}
+			}
+		},
+		{
+			"id": "generate_summary",
+			"name": "Generate Incident Summary",
+			"description": "Generate incident summary report across all processed alerts",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Generate an incident summary report for ${length(process_alerts)} security alerts that were processed. Include counts by severity level and key actions taken.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"totalAlerts": { "type": "number" },
+						"summary": { "type": "string" }
+					},
+					"required": ["totalAlerts", "summary"]
+				}
+			},
+			"nextStepId": "send_summary"
+		},
+		{
+			"id": "send_summary",
+			"name": "Post Summary to Slack",
+			"description": "Post incident summary to #security-digest",
+			"type": "tool-call",
+			"params": {
+				"toolName": "send-slack-alert",
+				"toolInput": {
+					"channel": {
+						"type": "literal",
+						"value": "#security-digest"
+					},
+					"message": {
+						"type": "jmespath",
+						"expression": "generate_summary.summary"
+					}
+				}
+			},
+			"nextStepId": "done"
+		},
+		{
+			"id": "done",
+			"name": "Done",
+			"description": "End of workflow",
+			"type": "end"
+		}
+	]
+}

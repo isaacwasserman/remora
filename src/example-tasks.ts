@@ -809,4 +809,453 @@ export const EXAMPLE_TASKS = {
 			],
 		},
 	},
+
+	"incident-response": {
+		availableTools: {
+			"get-active-alerts": tool({
+				description:
+					"Get all unacknowledged security alerts from the monitoring system",
+				inputSchema: type({}),
+				outputSchema: type({
+					alerts: [
+						{
+							id: "string",
+							title: "string",
+							source: "string",
+							timestamp: "string",
+						},
+						"[]",
+					],
+				}),
+				execute: async () => ({
+					alerts: [
+						{
+							id: "ALT-001",
+							title: "Brute force SSH login attempts detected",
+							source: "ids",
+							timestamp: "2026-03-09T02:15:00Z",
+						},
+						{
+							id: "ALT-002",
+							title: "Unusual data exfiltration volume on db-prod-03",
+							source: "dlp",
+							timestamp: "2026-03-09T02:18:00Z",
+						},
+						{
+							id: "ALT-003",
+							title: "Expired TLS certificate on staging endpoint",
+							source: "cert-monitor",
+							timestamp: "2026-03-09T02:20:00Z",
+						},
+						{
+							id: "ALT-004",
+							title: "Failed authentication spike from IP 203.0.113.42",
+							source: "waf",
+							timestamp: "2026-03-09T02:22:00Z",
+						},
+					],
+				}),
+			}),
+
+			"enrich-alert": tool({
+				description:
+					"Enrich a security alert with context from the SIEM (affected host, user, recent activity)",
+				inputSchema: type({ alertId: "string" }),
+				outputSchema: type({
+					hostId: "string",
+					hostname: "string",
+					userId: "string",
+					recentActivity: "string",
+					affectedService: "string",
+				}),
+				execute: async ({ alertId }) => {
+					const data: Record<
+						string,
+						{
+							hostId: string;
+							hostname: string;
+							userId: string;
+							recentActivity: string;
+							affectedService: string;
+						}
+					> = {
+						"ALT-001": {
+							hostId: "HOST-042",
+							hostname: "bastion-prod-01",
+							userId: "unknown",
+							recentActivity:
+								"1,247 failed SSH attempts in 10 minutes from 3 IPs",
+							affectedService: "ssh-gateway",
+						},
+						"ALT-002": {
+							hostId: "HOST-103",
+							hostname: "db-prod-03",
+							userId: "svc-etl-pipeline",
+							recentActivity:
+								"4.2 GB outbound transfer to unknown external IP over 15 minutes",
+							affectedService: "customer-database",
+						},
+						"ALT-003": {
+							hostId: "HOST-201",
+							hostname: "staging-web-01",
+							userId: "n/a",
+							recentActivity:
+								"TLS certificate expired 2 hours ago, 12 connection warnings logged",
+							affectedService: "staging-api",
+						},
+						"ALT-004": {
+							hostId: "HOST-042",
+							hostname: "bastion-prod-01",
+							userId: "unknown",
+							recentActivity: "342 failed OAuth token requests in 5 minutes",
+							affectedService: "auth-service",
+						},
+					};
+					return (
+						data[alertId] ?? {
+							hostId: "unknown",
+							hostname: "unknown",
+							userId: "unknown",
+							recentActivity: "No data available",
+							affectedService: "unknown",
+						}
+					);
+				},
+			}),
+
+			"quarantine-host": tool({
+				description:
+					"Isolate a host from the network by applying quarantine firewall rules",
+				inputSchema: type({ hostId: "string" }),
+				outputSchema: type({ quarantined: "boolean", ruleId: "string" }),
+				execute: async ({ hostId }) => ({
+					quarantined: true,
+					ruleId: `QFW-${hostId}`,
+				}),
+			}),
+
+			"page-security-oncall": tool({
+				description: "Send an urgent page to the security on-call engineer",
+				inputSchema: type({
+					alertId: "string",
+					severity: "string",
+				}),
+				outputSchema: type({ paged: "boolean", oncallEngineer: "string" }),
+				execute: async () => ({
+					paged: true,
+					oncallEngineer: "security-team-lead",
+				}),
+			}),
+
+			"create-jira-ticket": tool({
+				description: "Create a Jira ticket for security incident tracking",
+				inputSchema: type({
+					title: "string",
+					priority: "string",
+					description: "string",
+				}),
+				outputSchema: type({ ticketId: "string", url: "string" }),
+				execute: async ({ priority }) => ({
+					ticketId: `SEC-${Math.floor(Math.random() * 10000)}`,
+					url: `https://jira.example.com/browse/SEC-${priority}`,
+				}),
+			}),
+
+			"send-slack-alert": tool({
+				description: "Send a message to a Slack channel",
+				inputSchema: type({
+					channel: "string",
+					message: "string",
+				}),
+				outputSchema: type({ sent: "boolean" }),
+				execute: async ({ channel, message }) => {
+					console.log(`Slack ${channel}: ${message}`);
+					return { sent: true };
+				},
+			}),
+		},
+		task: `Triage all unacknowledged security alerts. For each alert, enrich it with SIEM context, then classify severity as critical, high, medium, or low. For critical alerts, quarantine the affected host and page the security on-call. For high alerts, create a P1 Jira ticket and alert the #security Slack channel. For medium/low alerts, create a P3 Jira ticket. After processing all alerts, generate an incident summary and post it to #security-digest.`,
+	},
+
+	"lead-qualification": {
+		availableTools: {
+			"get-new-leads": tool({
+				description: "Fetch unprocessed leads from the CRM",
+				inputSchema: type({}),
+				outputSchema: type({
+					leads: [
+						{
+							id: "string",
+							name: "string",
+							companyDomain: "string",
+							source: "string",
+							email: "string",
+						},
+						"[]",
+					],
+				}),
+				execute: async () => ({
+					leads: [
+						{
+							id: "LEAD-001",
+							name: "Sarah Chen",
+							companyDomain: "techcorp.io",
+							source: "inbound-demo-request",
+							email: "sarah@techcorp.io",
+						},
+						{
+							id: "LEAD-002",
+							name: "James Wilson",
+							companyDomain: "smallshop.com",
+							source: "webinar-attendee",
+							email: "james@smallshop.com",
+						},
+						{
+							id: "LEAD-003",
+							name: "Maria Garcia",
+							companyDomain: "enterprise-global.com",
+							source: "outbound-linkedin",
+							email: "mgarcia@enterprise-global.com",
+						},
+						{
+							id: "LEAD-004",
+							name: "Alex Kim",
+							companyDomain: "startup-ai.dev",
+							source: "content-download",
+							email: "alex@startup-ai.dev",
+						},
+					],
+				}),
+			}),
+
+			"enrich-company": tool({
+				description:
+					"Pull firmographic data (company size, industry, funding) from enrichment API",
+				inputSchema: type({ companyDomain: "string" }),
+				outputSchema: type({
+					companyName: "string",
+					employeeCount: "number",
+					industry: "string",
+					annualRevenue: "string",
+					fundingStage: "string",
+				}),
+				execute: async ({ companyDomain }) => {
+					const data: Record<
+						string,
+						{
+							companyName: string;
+							employeeCount: number;
+							industry: string;
+							annualRevenue: string;
+							fundingStage: string;
+						}
+					> = {
+						"techcorp.io": {
+							companyName: "TechCorp",
+							employeeCount: 450,
+							industry: "SaaS",
+							annualRevenue: "$25M",
+							fundingStage: "Series B",
+						},
+						"smallshop.com": {
+							companyName: "Small Shop LLC",
+							employeeCount: 8,
+							industry: "Retail",
+							annualRevenue: "$500K",
+							fundingStage: "Bootstrapped",
+						},
+						"enterprise-global.com": {
+							companyName: "Enterprise Global",
+							employeeCount: 12000,
+							industry: "Financial Services",
+							annualRevenue: "$2.1B",
+							fundingStage: "Public",
+						},
+						"startup-ai.dev": {
+							companyName: "Startup AI",
+							employeeCount: 35,
+							industry: "AI/ML",
+							annualRevenue: "$2M",
+							fundingStage: "Seed",
+						},
+					};
+					return (
+						data[companyDomain] ?? {
+							companyName: "Unknown",
+							employeeCount: 0,
+							industry: "Unknown",
+							annualRevenue: "Unknown",
+							fundingStage: "Unknown",
+						}
+					);
+				},
+			}),
+
+			"assign-to-rep": tool({
+				description: "Assign a lead to a sales representative based on tier",
+				inputSchema: type({ leadId: "string", repTier: "string" }),
+				outputSchema: type({ assignedTo: "string", repName: "string" }),
+				execute: async ({ repTier }) => ({
+					assignedTo: repTier === "senior_ae" ? "rep-senior-01" : "rep-sdr-03",
+					repName:
+						repTier === "senior_ae"
+							? "Jessica Park (Senior AE)"
+							: "Tom Rivera (SDR)",
+				}),
+			}),
+
+			"send-slack-notification": tool({
+				description: "Send a notification to a Slack channel",
+				inputSchema: type({ channel: "string", message: "string" }),
+				outputSchema: type({ sent: "boolean" }),
+				execute: async ({ channel, message }) => {
+					console.log(`Slack ${channel}: ${message}`);
+					return { sent: true };
+				},
+			}),
+
+			"enqueue-nurture-sequence": tool({
+				description: "Enqueue a lead into an automated email nurture sequence",
+				inputSchema: type({ leadId: "string", sequenceType: "string" }),
+				outputSchema: type({ enqueuedAt: "string", sequenceId: "string" }),
+				execute: async ({ leadId, sequenceType }) => ({
+					enqueuedAt: new Date().toISOString(),
+					sequenceId: `SEQ-${sequenceType}-${leadId}`,
+				}),
+			}),
+
+			"update-dashboard": tool({
+				description: "Push pipeline summary metrics to the sales dashboard",
+				inputSchema: type({ reportData: "unknown" }),
+				outputSchema: type({ updated: "boolean" }),
+				execute: async () => ({ updated: true }),
+			}),
+		},
+		task: `Qualify all new leads from the CRM. For each lead, enrich with company firmographic data, then use LLM judgment to score (0-100) and classify into tiers: hot (80+), warm (50-79), or cold (<50). Assign hot leads to a senior AE and notify #hot-leads on Slack. Assign warm leads to an SDR and enqueue a nurture sequence. For cold leads, enqueue a long-term drip sequence. After processing all leads, generate a pipeline summary with conversion projections and update the dashboard.`,
+	},
+
+	"compliance-review": {
+		availableTools: {
+			"get-pending-documents": tool({
+				description: "Fetch vendor contracts awaiting compliance review",
+				inputSchema: type({}),
+				outputSchema: type({
+					documents: [
+						{
+							id: "string",
+							vendorName: "string",
+							contractType: "string",
+							content: "string",
+						},
+						"[]",
+					],
+				}),
+				execute: async () => ({
+					documents: [
+						{
+							id: "DOC-001",
+							vendorName: "CloudStore Inc.",
+							contractType: "SaaS Agreement",
+							content:
+								"This SaaS Agreement includes a liability cap of $500,000. The vendor provides full indemnification for IP infringement claims. Data is processed in US-East regions with AES-256 encryption at rest. Either party may terminate with 90 days written notice. The agreement auto-renews annually unless cancelled 60 days prior to renewal date.",
+						},
+						{
+							id: "DOC-002",
+							vendorName: "DataPipe Systems",
+							contractType: "Data Processing Agreement",
+							content:
+								"Liability is capped at fees paid in the prior 12 months. No indemnification is provided by the vendor. Data may be transferred to subprocessors in any jurisdiction without prior notice. Termination requires 180 days notice and payment of remaining contract term. No auto-renewal clause.",
+						},
+						{
+							id: "DOC-003",
+							vendorName: "SecureAuth Corp",
+							contractType: "Enterprise License Agreement",
+							content:
+								"Unlimited liability for data breaches caused by vendor negligence. Full mutual indemnification for third-party claims. All data processing occurs within customer-designated region with SOC2 Type II compliance. Either party may terminate for cause with 30 days cure period. Auto-renews for successive 1-year terms with 30-day opt-out window.",
+						},
+					],
+				}),
+			}),
+
+			"get-compliance-policies": tool({
+				description:
+					"Load current organizational compliance rules and risk thresholds",
+				inputSchema: type({}),
+				outputSchema: type({
+					policies: {
+						minLiabilityCap: "string",
+						requireIndemnification: "boolean",
+						approvedDataRegions: ["string", "[]"],
+						maxTerminationNoticeDays: "number",
+						requireAutoRenewalOptOut: "boolean",
+					},
+				}),
+				execute: async () => ({
+					policies: {
+						minLiabilityCap: "$1,000,000 or unlimited for data breaches",
+						requireIndemnification: true,
+						approvedDataRegions: ["US-East", "US-West", "EU-West"],
+						maxTerminationNoticeDays: 90,
+						requireAutoRenewalOptOut: true,
+					},
+				}),
+			}),
+
+			"stamp-approved": tool({
+				description: "Mark a document as compliance-approved",
+				inputSchema: type({ documentId: "string" }),
+				outputSchema: type({ approved: "boolean", approvedAt: "string" }),
+				execute: async () => ({
+					approved: true,
+					approvedAt: new Date().toISOString(),
+				}),
+			}),
+
+			"create-revision-request": tool({
+				description:
+					"Create a revision request with specific compliance findings",
+				inputSchema: type({
+					documentId: "string",
+					findings: ["string", "[]"],
+				}),
+				outputSchema: type({
+					requestId: "string",
+					created: "boolean",
+				}),
+				execute: async ({ documentId }) => ({
+					requestId: `REV-${documentId}`,
+					created: true,
+				}),
+			}),
+
+			"flag-for-legal-review": tool({
+				description: "Escalate a document to the legal team for review",
+				inputSchema: type({ documentId: "string", reason: "unknown" }),
+				outputSchema: type({ flagged: "boolean", legalTicketId: "string" }),
+				execute: async ({ documentId }) => ({
+					flagged: true,
+					legalTicketId: `LEG-${documentId}`,
+				}),
+			}),
+
+			"notify-requester": tool({
+				description: "Notify the contract requester about the review decision",
+				inputSchema: type({ documentId: "string", status: "string" }),
+				outputSchema: type({ notified: "boolean" }),
+				execute: async () => ({ notified: true }),
+			}),
+
+			"file-audit-report": tool({
+				description:
+					"Archive the compliance review summary as a regulatory audit record",
+				inputSchema: type({ report: "unknown" }),
+				outputSchema: type({ filed: "boolean", auditId: "string" }),
+				execute: async () => ({
+					filed: true,
+					auditId: `AUD-${Date.now()}`,
+				}),
+			}),
+		},
+		task: `Review all pending vendor contracts for compliance. For each document, extract key terms (liability cap, indemnification, data handling provisions, termination terms, auto-renewal) and evaluate them against our compliance policies. Approve compliant contracts, request revisions for those with addressable issues, and flag high-risk contracts for legal review. Notify the requester of each decision. After reviewing all documents, generate a compliance summary with risk distribution and file it as an audit report.`,
+	},
 };
