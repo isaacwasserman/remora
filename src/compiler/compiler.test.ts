@@ -3661,7 +3661,7 @@ describe("workflow output", () => {
 		).toBe(false);
 	});
 
-	test("no LITERAL_OUTPUT_SHAPE_MISMATCH for jmespath expressions", async () => {
+	test("no LITERAL_OUTPUT_SHAPE_MISMATCH for jmespath when tool schemas unavailable", async () => {
 		const workflow = {
 			initialStepId: "fetch",
 			outputSchema: { type: "object" },
