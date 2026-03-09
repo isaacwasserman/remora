@@ -1,8 +1,8 @@
-import type { WorkflowStep } from "../../types";
+import type { WorkflowDefinition, WorkflowStep } from "../../types";
 import type { Diagnostic, ExecutionGraph, ToolDefinitionMap } from "../types";
 
 export function validateForeachTarget(
-	workflow: { steps: WorkflowStep[] },
+	workflow: WorkflowDefinition,
 	graph: ExecutionGraph,
 	tools: ToolDefinitionMap,
 ): Diagnostic[] {
@@ -21,10 +21,14 @@ export function validateForeachTarget(
 		const [rootId, ...fieldPath] = segments;
 		if (!rootId) continue;
 
-		const referencedStep = graph.stepIndex.get(rootId);
-		if (!referencedStep) continue; // Handled by jmespath validation
-
-		const outputSchema = getStepOutputSchema(referencedStep, tools);
+		let outputSchema: Record<string, unknown> | null = null;
+		if (rootId === "input" && workflow.inputSchema) {
+			outputSchema = workflow.inputSchema as Record<string, unknown>;
+		} else {
+			const referencedStep = graph.stepIndex.get(rootId);
+			if (!referencedStep) continue; // Handled by jmespath validation
+			outputSchema = getStepOutputSchema(referencedStep, tools);
+		}
 		if (!outputSchema) continue;
 
 		const resolvedSchema = resolvePath(outputSchema, fieldPath);
@@ -73,9 +77,6 @@ function getStepOutputSchema(
 	if (step.type === "tool-call") {
 		const toolDef = tools[step.params.toolName];
 		return toolDef?.outputSchema ?? null;
-	}
-	if (step.type === "start" && step.params.inputSchema) {
-		return step.params.inputSchema as Record<string, unknown>;
 	}
 	return null;
 }

@@ -2967,14 +2967,11 @@ describe("best practices", () => {
 			expect(startStep?.nextStepId).toBe("start");
 		});
 
-		test("auto-inserted start step has empty input schema", async () => {
+		test("auto-inserted start step is a no-op marker", async () => {
 			const workflow = makeWorkflow();
 			const result = await compileWorkflow(workflow);
 			const startStep = result.workflow?.steps.find((s) => s.id === "__start");
 			expect(startStep?.type).toBe("start");
-			if (startStep?.type === "start") {
-				expect(startStep.params.inputSchema).toEqual({});
-			}
 		});
 
 		test("does not emit warning when start step already exists", async () => {
@@ -2986,12 +2983,6 @@ describe("best practices", () => {
 						name: "Entry",
 						description: "Workflow entry point",
 						type: "start",
-						params: {
-							inputSchema: {
-								type: "object",
-								properties: { name: { type: "string" } },
-							},
-						},
 						nextStepId: "do_work",
 					},
 					{
@@ -3022,22 +3013,20 @@ describe("best practices", () => {
 
 // ─── Start step: JMESPath scope ─────────────────────────────────
 
-describe("start step JMESPath scope", () => {
-	test("references to start step output are valid", async () => {
+describe("workflow input JMESPath scope", () => {
+	test("references to 'input' alias are valid when inputSchema is defined", async () => {
 		const workflow = {
 			initialStepId: "entry",
+			inputSchema: {
+				type: "object",
+				properties: { userId: { type: "string" } },
+			},
 			steps: [
 				{
 					id: "entry",
 					name: "Entry",
 					description: "Entry point",
 					type: "start",
-					params: {
-						inputSchema: {
-							type: "object",
-							properties: { userId: { type: "string" } },
-						},
-					},
 					nextStepId: "fetch_user",
 				},
 				{
@@ -3050,7 +3039,7 @@ describe("start step JMESPath scope", () => {
 						toolInput: {
 							id: {
 								type: "jmespath",
-								expression: "entry.userId",
+								expression: "input.userId",
 							},
 						},
 					},
@@ -3073,6 +3062,48 @@ describe("start step JMESPath scope", () => {
 		expect(
 			hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
 		).toBe(false);
+	});
+
+	test("references to 'input' alias are invalid when no inputSchema", async () => {
+		const workflow = {
+			initialStepId: "entry",
+			steps: [
+				{
+					id: "entry",
+					name: "Entry",
+					description: "Entry point",
+					type: "start",
+					nextStepId: "fetch_user",
+				},
+				{
+					id: "fetch_user",
+					name: "Fetch User",
+					description: "Fetch user data",
+					type: "tool-call",
+					params: {
+						toolName: "do-thing",
+						toolInput: {
+							id: {
+								type: "jmespath",
+								expression: "input.userId",
+							},
+						},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
 	});
 });
 
