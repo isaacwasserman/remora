@@ -24,8 +24,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - run: bun run build
-
       - name: Check for pending changesets
         id: check
         run: |
@@ -36,9 +34,15 @@ jobs:
         if: steps.check.outputs.changeset_count != '0'
         run: bunx changeset version --snapshot canary
 
+      - name: Build
+        if: steps.check.outputs.changeset_count != '0'
+        run: bun run build
+
       - name: Publish canary to npm
         if: steps.check.outputs.changeset_count != '0'
         run: npm publish --tag canary --provenance --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release:
     runs-on: ubuntu-latest
@@ -71,3 +75,4 @@ jobs:
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
