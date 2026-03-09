@@ -841,6 +841,11 @@ async function recoverFromError(
 
 // ─── Chain Execution ─────────────────────────────────────────────
 
+// In a durable execution environment, code outside context.step() re-runs
+// on every resume. All code in this loop body outside the context.step()
+// call must therefore be idempotent: pure reads (stepIndex lookups,
+// nextStepId traversal), scope construction, and writing the same cached
+// step output back into stepOutputs.
 async function executeChain(
 	startStepId: string,
 	stepIndex: Map<string, WorkflowStep>,

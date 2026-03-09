@@ -9,10 +9,24 @@ export interface WaitForConditionOptions {
 	timeoutMs?: number;
 }
 
+/**
+ * Injectable execution context for durable execution environments.
+ *
+ * In a durable environment (AWS Step Functions, Temporal, Inngest, etc.),
+ * each `step()` runs in its own execution environment. The workflow code
+ * **outside** of `step()` closures re-executes on every resume, so it
+ * must be idempotent (pure reads, expression evaluation, scope construction).
+ * Code **inside** a `step()` closure runs exactly once — the environment
+ * records its result and replays the cached value on subsequent resumes
+ * instead of re-executing the function.
+ */
 export interface DurableContext {
 	/**
-	 * Wrap an idempotent step execution. In durable environments,
-	 * this records the result and replays it on re-execution.
+	 * Wrap a step that should execute exactly once. In durable environments,
+	 * `fn` runs on the first invocation and its result is persisted; on
+	 * subsequent resumes the cached result is returned without calling `fn`
+	 * again. All code outside `step()` must be idempotent because it
+	 * re-runs on every resume.
 	 * Default: executes the function directly (passthrough).
 	 */
 	step: (name: string, fn: () => Promise<unknown>) => Promise<unknown>;
