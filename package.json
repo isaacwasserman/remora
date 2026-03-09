@@ -30,7 +30,9 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix --unsafe .",
 		"viewer": "bun src/viewer/demo/server.ts",
-		"typecheck": "tsgo --noEmit"
+		"typecheck": "tsgo --noEmit",
+		"changeset": "changeset",
+		"version-packages": "changeset version"
 	},
 	"dependencies": {
 		"arktype": "^2.1.29",
@@ -65,6 +67,7 @@
 		"@ai-sdk/anthropic": "^3.0.50",
 		"@ai-sdk/openai": "^3.0.37",
 		"@biomejs/biome": "2.4.4",
+		"@changesets/cli": "^2.30.0",
 		"@types/bun": "latest",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",

@@ -1,22 +1,83 @@
-name: Publish to npm
+name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    branches: [main]
 
 jobs:
-  publish:
+  canary:
     runs-on: ubuntu-latest
-    environment: release
+    concurrency:
+      group: canary-release
+      cancel-in-progress: true
     permissions:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: oven-sh/setup-bun@v2
+
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
+
       - run: bun install --frozen-lockfile
+
       - run: bun run build
-      - run: npm publish --provenance --access public
+
+      - name: Check for pending changesets
+        id: check
+        run: |
+          count=$(find .changeset -name '*.md' ! -name 'README.md' | wc -l)
+          echo "changeset_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Version canary snapshot
+        if: steps.check.outputs.changeset_count != '0'
+        id: version
+        run: |
+          bunx changeset version --snapshot canary
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if echo "$version" | grep -q "canary"; then
+            echo "is_snapshot=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_snapshot=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Snapshot version was not applied (version=$version). Skipping publish. Ensure changesets include a package bump."
+          fi
+
+      - name: Publish canary to npm
+        if: steps.version.outputs.is_snapshot == 'true'
+        run: npm publish --tag canary --provenance --access public --no-git-checks
+
+  release:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: stable-release
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+
+      - run: bun install --frozen-lockfile
+
+      - name: Create Release PR or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: bunx changeset version
+          publish: bun run build && npm publish --provenance --access public
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
