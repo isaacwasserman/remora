@@ -40,6 +40,10 @@ export function computeSuccessors(
 			succs.add(step.params.loopBodyStepId);
 		}
 
+		if (step.type === "wait-for-condition") {
+			succs.add(step.params.conditionStepId);
+		}
+
 		successors.set(id, succs);
 	}
 
@@ -273,6 +277,10 @@ export function computeLoopScopesAndOwnership(
 				for (const c of step.params.cases) {
 					walkChain(c.branchBodyStepId, loopVars, step.id);
 				}
+			}
+
+			if (step.type === "wait-for-condition") {
+				walkChain(step.params.conditionStepId, loopVars, step.id);
 			}
 		}
 	}

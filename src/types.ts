@@ -99,6 +99,53 @@ const extractDataParamsSchema = type({
 	"a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format",
 );
 
+const sleepParamsSchema = type({
+	type: "'sleep'",
+	params: {
+		durationMs: expressionSchema,
+	},
+}).describe(
+	"a step that pauses workflow execution for a specified duration in milliseconds; the durationMs parameter must evaluate to a non-negative number",
+);
+
+const waitForConditionParamsSchema = type({
+	type: "'wait-for-condition'",
+	params: {
+		conditionStepId: [
+			"string",
+			"@",
+			"the id of the first step in the condition-check chain that will be executed on each polling attempt; this chain runs until a step with no nextStepId, then the condition expression is evaluated",
+		],
+		condition: [
+			expressionSchema,
+			"@",
+			"an expression evaluated after each execution of the condition-check chain; if it evaluates to a truthy value, the wait completes with that value as its output; all step outputs from the condition chain are available in scope for this expression",
+		],
+		"maxAttempts?": [
+			expressionSchema,
+			"@",
+			"maximum number of polling attempts before giving up (default: 10)",
+		],
+		"intervalMs?": [
+			expressionSchema,
+			"@",
+			"milliseconds to wait between polling attempts (default: 1000)",
+		],
+		"backoffMultiplier?": [
+			expressionSchema,
+			"@",
+			"multiply the interval by this factor after each attempt (default: 1, i.e. no backoff; use 2 for exponential backoff)",
+		],
+		"timeoutMs?": [
+			expressionSchema,
+			"@",
+			"hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts",
+		],
+	},
+}).describe(
+	"a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression",
+);
+
 const startParamsSchema = type({
 	type: "'start'",
 }).describe(
@@ -125,6 +172,8 @@ const workflowStepSchema = type({
 		.or(extractDataParamsSchema)
 		.or(switchCaseParamsSchema)
 		.or(forEachParamsSchema)
+		.or(sleepParamsSchema)
+		.or(waitForConditionParamsSchema)
 		.or(startParamsSchema)
 		.or(endSchema),
 );

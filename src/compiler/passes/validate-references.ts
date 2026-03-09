@@ -57,6 +57,21 @@ export function validateReferences(workflow: WorkflowDefinition): Diagnostic[] {
 				});
 			}
 		}
+
+		// Check conditionStepId in wait-for-condition
+		if (step.type === "wait-for-condition") {
+			if (!stepIds.has(step.params.conditionStepId)) {
+				diagnostics.push({
+					severity: "error",
+					location: {
+						stepId: step.id,
+						field: "params.conditionStepId",
+					},
+					message: `Step '${step.id}' references non-existent condition body step '${step.params.conditionStepId}'`,
+					code: "MISSING_CONDITION_BODY_STEP",
+				});
+			}
+		}
 	}
 
 	return diagnostics;

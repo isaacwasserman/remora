@@ -12,6 +12,10 @@ import {
 } from "ai";
 import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
+import {
+	type DurableContext,
+	createDefaultDurableContext,
+} from "./context";
 import type { ErrorCode } from "./errors";
 import {
 	ConfigurationError,
@@ -46,6 +50,14 @@ export interface ExecuteWorkflowOptions {
 	retryDelayMs?: number;
 	onStepStart?: (stepId: string, step: WorkflowStep) => void;
 	onStepComplete?: (stepId: string, output: unknown) => void;
+	/** Injectable durable execution context. Default: simple in-process implementation. */
+	context?: DurableContext;
+	/** Maximum allowed sleep duration in ms. Default: 86400000 (24 hours). */
+	maxSleepMs?: number;
+	/** Maximum allowed polling attempts for wait-for-condition. Default: 100. */
+	maxWaitAttempts?: number;
+	/** Maximum allowed timeout for wait-for-condition in ms. Default: 86400000 (24 hours). */
+	maxWaitTimeoutMs?: number;
 }
 
 function isAgent(value: Agent | LanguageModel): value is Agent {
@@ -486,6 +498,7 @@ async function executeSwitchCase(
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
+	context: DurableContext,
 ): Promise<unknown> {
 	const switchValue = evaluateExpression(
 		step.params.switchOn as Expression,
@@ -523,6 +536,7 @@ async function executeSwitchCase(
 		stepOutputs,
 		loopVars,
 		options,
+		context,
 	);
 }
 
@@ -533,6 +547,7 @@ async function executeForEach(
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
+	context: DurableContext,
 ): Promise<unknown[]> {
 	const target = evaluateExpression(
 		step.params.target as Expression,
@@ -558,10 +573,111 @@ async function executeForEach(
 			stepOutputs,
 			innerLoopVars,
 			options,
+			context,
 		);
 		results.push(lastOutput);
 	}
 	return results;
+}
+
+// ─── Wait / Sleep Handlers ───────────────────────────────────────
+
+const DEFAULT_MAX_SLEEP_MS = 86_400_000; // 24 hours
+const DEFAULT_MAX_WAIT_ATTEMPTS = 100;
+const DEFAULT_MAX_WAIT_TIMEOUT_MS = 86_400_000; // 24 hours
+
+async function executeSleep(
+	step: WorkflowStep & { type: "sleep" },
+	scope: Record<string, unknown>,
+	context: DurableContext,
+	options: ExecuteWorkflowOptions,
+): Promise<void> {
+	const durationMs = evaluateExpression(
+		step.params.durationMs as Expression,
+		scope,
+		step.id,
+	);
+	if (typeof durationMs !== "number" || durationMs < 0) {
+		throw new ValidationError(
+			step.id,
+			"SLEEP_INVALID_DURATION",
+			`sleep durationMs must be a non-negative number, got ${typeof durationMs === "number" ? durationMs : typeof durationMs}`,
+			durationMs,
+		);
+	}
+	const maxSleepMs = options.maxSleepMs ?? DEFAULT_MAX_SLEEP_MS;
+	const clamped = Math.min(durationMs, maxSleepMs);
+	await context.sleep(step.id, clamped);
+}
+
+async function executeWaitForCondition(
+	step: WorkflowStep & { type: "wait-for-condition" },
+	scope: Record<string, unknown>,
+	stepIndex: Map<string, WorkflowStep>,
+	stepOutputs: Record<string, unknown>,
+	loopVars: Record<string, unknown>,
+	options: ExecuteWorkflowOptions,
+	context: DurableContext,
+): Promise<unknown> {
+	const maxWaitAttempts = options.maxWaitAttempts ?? DEFAULT_MAX_WAIT_ATTEMPTS;
+	const maxWaitTimeoutMs =
+		options.maxWaitTimeoutMs ?? DEFAULT_MAX_WAIT_TIMEOUT_MS;
+
+	const maxAttempts = Math.min(
+		step.params.maxAttempts
+			? (evaluateExpression(
+					step.params.maxAttempts as Expression,
+					scope,
+					step.id,
+				) as number)
+			: 10,
+		maxWaitAttempts,
+	);
+	const intervalMs = step.params.intervalMs
+		? (evaluateExpression(
+				step.params.intervalMs as Expression,
+				scope,
+				step.id,
+			) as number)
+		: 1000;
+	const backoffMultiplier = step.params.backoffMultiplier
+		? (evaluateExpression(
+				step.params.backoffMultiplier as Expression,
+				scope,
+				step.id,
+			) as number)
+		: 1;
+	const timeoutMs = step.params.timeoutMs
+		? Math.min(
+				evaluateExpression(
+					step.params.timeoutMs as Expression,
+					scope,
+					step.id,
+				) as number,
+				maxWaitTimeoutMs,
+			)
+		: undefined;
+
+	return context.waitForCondition(
+		step.id,
+		async () => {
+			await executeChain(
+				step.params.conditionStepId,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+				context,
+			);
+			const updatedScope = { ...stepOutputs, ...loopVars };
+			return evaluateExpression(
+				step.params.condition as Expression,
+				updatedScope,
+				step.id,
+			);
+		},
+		{ maxAttempts, intervalMs, backoffMultiplier, timeoutMs },
+	);
 }
 
 // ─── Step Dispatch ───────────────────────────────────────────────
@@ -573,6 +689,7 @@ async function executeStep(
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
+	context: DurableContext,
 ): Promise<unknown> {
 	switch (step.type) {
 		case "tool-call":
@@ -603,6 +720,7 @@ async function executeStep(
 				stepOutputs,
 				loopVars,
 				options,
+				context,
 			);
 		case "for-each":
 			return executeForEach(
@@ -612,6 +730,19 @@ async function executeStep(
 				stepOutputs,
 				loopVars,
 				options,
+				context,
+			);
+		case "sleep":
+			return executeSleep(step, scope, context, options);
+		case "wait-for-condition":
+			return executeWaitForCondition(
+				step,
+				scope,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+				context,
 			);
 		case "start":
 			return undefined;
@@ -634,8 +765,6 @@ async function executeStep(
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 1000;
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 async function retryStep(
 	step: WorkflowStep,
 	stepIndex: Map<string, WorkflowStep>,
@@ -643,12 +772,16 @@ async function retryStep(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 	originalError: StepExecutionError,
+	context: DurableContext,
 ): Promise<unknown> {
 	const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 	const baseDelay = options.retryDelayMs ?? DEFAULT_BASE_DELAY_MS;
 	const scope = { ...stepOutputs, ...loopVars };
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
-		await sleep(baseDelay * 2 ** (attempt - 1));
+		await context.sleep(
+			`${step.id}_retry_${attempt}`,
+			baseDelay * 2 ** (attempt - 1),
+		);
 		try {
 			return await executeStep(
 				step,
@@ -657,6 +790,7 @@ async function retryStep(
 				stepOutputs,
 				loopVars,
 				options,
+				context,
 			);
 		} catch {
 			if (attempt === maxRetries) throw originalError;
@@ -672,13 +806,22 @@ async function recoverFromError(
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
+	context: DurableContext,
 ): Promise<unknown> {
 	switch (error.code) {
 		case "LLM_RATE_LIMITED":
 		case "LLM_NETWORK_ERROR":
 		case "LLM_NO_CONTENT":
 		case "LLM_OUTPUT_PARSE_ERROR":
-			return retryStep(step, stepIndex, stepOutputs, loopVars, options, error);
+			return retryStep(
+				step,
+				stepIndex,
+				stepOutputs,
+				loopVars,
+				options,
+				error,
+				context,
+			);
 
 		case "LLM_API_ERROR":
 			if (error instanceof ExternalServiceError && error.isRetryable) {
@@ -689,6 +832,7 @@ async function recoverFromError(
 					loopVars,
 					options,
 					error,
+					context,
 				);
 			}
 			throw error;
@@ -706,6 +850,7 @@ async function executeChain(
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
+	context: DurableContext,
 ): Promise<unknown> {
 	let currentStepId: string | undefined = startStepId;
 	let lastOutput: unknown;
@@ -723,13 +868,16 @@ async function executeChain(
 		let stepOutput: unknown;
 
 		try {
-			stepOutput = await executeStep(
-				step,
-				scope,
-				stepIndex,
-				stepOutputs,
-				loopVars,
-				options,
+			stepOutput = await context.step(step.id, () =>
+				executeStep(
+					step,
+					scope,
+					stepIndex,
+					stepOutputs,
+					loopVars,
+					options,
+					context,
+				),
 			);
 		} catch (e) {
 			if (!(e instanceof StepExecutionError)) throw e;
@@ -740,6 +888,7 @@ async function executeChain(
 				stepOutputs,
 				loopVars,
 				options,
+				context,
 			);
 		}
 
@@ -815,6 +964,7 @@ export async function executeWorkflow(
 				})
 		: undefined;
 	const resolvedOptions = { ...options, agent: resolvedAgent };
+	const resolvedContext = options.context ?? createDefaultDurableContext();
 
 	try {
 		validateWorkflowConfig(workflow, resolvedOptions);
@@ -832,6 +982,7 @@ export async function executeWorkflow(
 			stepOutputs,
 			{},
 			resolvedOptions,
+			resolvedContext,
 		);
 
 		if (workflow.outputSchema) {

@@ -70,6 +70,26 @@ export function validateControlFlow(
 				});
 			}
 		}
+
+		// Wait-for-condition: validate condition body doesn't escape
+		if (step.type === "wait-for-condition") {
+			const escapes = checkBodyEscapes(
+				step.params.conditionStepId,
+				step.id,
+				graph,
+			);
+			if (escapes) {
+				diagnostics.push({
+					severity: "warning",
+					location: {
+						stepId: step.id,
+						field: "params.conditionStepId",
+					},
+					message: `Condition body starting at '${step.params.conditionStepId}' in step '${step.id}' has a step ('${escapes.escapingStep}') whose nextStepId points outside the condition body to '${escapes.target}'`,
+					code: "CONDITION_BODY_ESCAPES",
+				});
+			}
+		}
 	}
 
 	// Output consistency checks

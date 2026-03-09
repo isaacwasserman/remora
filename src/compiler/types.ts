@@ -34,7 +34,9 @@ export type DiagnosticCode =
 	| "END_STEP_UNEXPECTED_OUTPUT"
 	| "PATH_MISSING_END_STEP"
 	| "LITERAL_OUTPUT_SHAPE_MISMATCH"
-	| "FOREACH_TARGET_NOT_ARRAY";
+	| "FOREACH_TARGET_NOT_ARRAY"
+	| "MISSING_CONDITION_BODY_STEP"
+	| "CONDITION_BODY_ESCAPES";
 
 export interface Diagnostic {
 	severity: DiagnosticSeverity;
