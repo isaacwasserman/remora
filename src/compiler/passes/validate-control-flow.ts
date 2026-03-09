@@ -1,9 +1,11 @@
 import type { WorkflowDefinition } from "../../types";
-import type { Diagnostic, ExecutionGraph } from "../types";
+import type { Diagnostic, ExecutionGraph, ToolDefinitionMap } from "../types";
+import { resolveExpressionSchema } from "../utils/schema";
 
 export function validateControlFlow(
 	workflow: WorkflowDefinition,
 	graph: ExecutionGraph,
+	tools?: ToolDefinitionMap | null,
 ): Diagnostic[] {
 	const diagnostics: Diagnostic[] = [];
 
@@ -93,17 +95,38 @@ export function validateControlFlow(
 					code: "END_STEP_MISSING_OUTPUT",
 				});
 			} else if (point.type === "end_with_output") {
-				// Validate literal output shapes against outputSchema at compile time
+				// Validate output shapes against outputSchema at compile time
 				const step = graph.stepIndex.get(point.stepId);
 				if (step?.type === "end" && step.params?.output) {
 					const expr = step.params.output;
+					const outputSchema =
+						workflow.outputSchema as Record<string, unknown>;
 					if (expr.type === "literal") {
-						const shapeDiags = validateLiteralOutputShape(
-							expr.value,
-							workflow.outputSchema as Record<string, unknown>,
-							point.stepId,
+						diagnostics.push(
+							...validateOutputShapeMismatch(
+								expr.value,
+								outputSchema,
+								point.stepId,
+							),
 						);
-						diagnostics.push(...shapeDiags);
+					} else if (expr.type === "jmespath") {
+						const resolvedSchema = resolveExpressionSchema(
+							expr.expression,
+							point.stepId,
+							tools ?? null,
+							workflow,
+							graph,
+						);
+						if (resolvedSchema) {
+							diagnostics.push(
+								...validateSchemaCompatibility(
+									resolvedSchema,
+									outputSchema,
+									point.stepId,
+									expr.expression,
+								),
+							);
+						}
 					}
 				}
 			}
@@ -240,9 +263,8 @@ function collectOutputPoints(
 
 /**
  * Validate a literal output value against the outputSchema at compile time.
- * Returns diagnostics for shape mismatches.
  */
-function validateLiteralOutputShape(
+function validateOutputShapeMismatch(
 	value: unknown,
 	schema: Record<string, unknown>,
 	stepId: string,
@@ -317,4 +339,84 @@ function getValueType(value: unknown): string {
 	if (value === null) return "null";
 	if (Array.isArray(value)) return "array";
 	return typeof value;
+}
+
+/**
+ * Validate that a resolved JMESPath expression schema is compatible with
+ * the declared outputSchema. Checks root type and, for objects, required
+ * fields and property types.
+ */
+function validateSchemaCompatibility(
+	resolvedSchema: Record<string, unknown>,
+	outputSchema: Record<string, unknown>,
+	stepId: string,
+	expression: string,
+): Diagnostic[] {
+	const diagnostics: Diagnostic[] = [];
+	const expectedType = outputSchema.type;
+	const resolvedType = resolvedSchema.type;
+
+	if (typeof expectedType !== "string" || typeof resolvedType !== "string") {
+		return diagnostics;
+	}
+
+	// Root type check
+	if (expectedType !== resolvedType) {
+		diagnostics.push({
+			severity: "error",
+			location: { stepId, field: "params.output" },
+			message: `End step '${stepId}' output expression '${expression}' resolves to type '${resolvedType}' but outputSchema expects '${expectedType}'`,
+			code: "LITERAL_OUTPUT_SHAPE_MISMATCH",
+		});
+		return diagnostics;
+	}
+
+	// For objects, check required fields and property types
+	if (expectedType === "object") {
+		const expectedRequired = outputSchema.required;
+		const resolvedProps = (resolvedSchema.properties ?? {}) as Record<
+			string,
+			Record<string, unknown>
+		>;
+
+		if (Array.isArray(expectedRequired)) {
+			const missing = expectedRequired.filter(
+				(key: unknown) =>
+					typeof key === "string" && !(key as string in resolvedProps),
+			);
+			if (missing.length > 0) {
+				diagnostics.push({
+					severity: "error",
+					location: { stepId, field: "params.output" },
+					message: `End step '${stepId}' output expression '${expression}' schema is missing required field(s): ${missing.join(", ")}`,
+					code: "LITERAL_OUTPUT_SHAPE_MISMATCH",
+				});
+			}
+		}
+
+		const expectedProps = (outputSchema.properties ?? {}) as Record<
+			string,
+			Record<string, unknown>
+		>;
+		for (const [key, expectedPropSchema] of Object.entries(expectedProps)) {
+			const resolvedPropSchema = resolvedProps[key];
+			if (!resolvedPropSchema) continue;
+			const expectedPropType = expectedPropSchema.type;
+			const resolvedPropType = resolvedPropSchema.type;
+			if (
+				typeof expectedPropType === "string" &&
+				typeof resolvedPropType === "string" &&
+				expectedPropType !== resolvedPropType
+			) {
+				diagnostics.push({
+					severity: "error",
+					location: { stepId, field: "params.output" },
+					message: `End step '${stepId}' output expression '${expression}' field '${key}' has type '${resolvedPropType}' but outputSchema expects '${expectedPropType}'`,
+					code: "LITERAL_OUTPUT_SHAPE_MISMATCH",
+				});
+			}
+		}
+	}
+
+	return diagnostics;
 }

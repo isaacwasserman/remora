@@ -1,5 +1,12 @@
-import type { WorkflowDefinition, WorkflowStep } from "../../types";
+import type { WorkflowDefinition } from "../../types";
 import type { Diagnostic, ExecutionGraph, ToolDefinitionMap } from "../types";
+import {
+	findArrayProperties,
+	getSchemaType,
+	getStepOutputSchema,
+	parseSimplePath,
+	resolvePath,
+} from "../utils/schema";
 
 export function validateForeachTarget(
 	workflow: WorkflowDefinition,
@@ -27,7 +34,12 @@ export function validateForeachTarget(
 		} else {
 			const referencedStep = graph.stepIndex.get(rootId);
 			if (!referencedStep) continue; // Handled by jmespath validation
-			outputSchema = getStepOutputSchema(referencedStep, tools);
+			outputSchema = getStepOutputSchema(
+				referencedStep,
+				tools,
+				workflow,
+				graph,
+			);
 		}
 		if (!outputSchema) continue;
 
@@ -61,52 +73,4 @@ export function validateForeachTarget(
 	}
 
 	return diagnostics;
-}
-
-function parseSimplePath(expression: string): string[] | null {
-	if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(expression)) {
-		return null;
-	}
-	return expression.split(".");
-}
-
-function getStepOutputSchema(
-	step: WorkflowStep,
-	tools: ToolDefinitionMap,
-): Record<string, unknown> | null {
-	if (step.type === "tool-call") {
-		const toolDef = tools[step.params.toolName];
-		return toolDef?.outputSchema ?? null;
-	}
-	return null;
-}
-
-function resolvePath(
-	schema: Record<string, unknown>,
-	path: string[],
-): Record<string, unknown> | null {
-	let current = schema;
-	for (const segment of path) {
-		const properties = current.properties as
-			| Record<string, Record<string, unknown>>
-			| undefined;
-		if (!properties?.[segment]) return null;
-		current = properties[segment];
-	}
-	return current;
-}
-
-function getSchemaType(schema: Record<string, unknown>): string | null {
-	if (typeof schema.type === "string") return schema.type;
-	return null;
-}
-
-function findArrayProperties(schema: Record<string, unknown>): string[] {
-	const properties = schema.properties as
-		| Record<string, Record<string, unknown>>
-		| undefined;
-	if (!properties) return [];
-	return Object.entries(properties)
-		.filter(([_, propSchema]) => propSchema.type === "array")
-		.map(([name]) => name);
 }

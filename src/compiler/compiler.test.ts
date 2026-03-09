@@ -3748,6 +3748,463 @@ describe("workflow output", () => {
 		);
 		expect(diag.location.stepId).toBe("case_b_end");
 	});
+
+	test("LITERAL_OUTPUT_SHAPE_MISMATCH for jmespath resolving to wrong type via tool outputSchema", async () => {
+		const tools = {
+			"get-name": tool({
+				inputSchema: type({}),
+				outputSchema: type({ name: "string" }),
+				execute: async () => ({ name: "Alice" }),
+			}),
+		};
+
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "array" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get name",
+					type: "tool-call",
+					params: { toolName: "get-name", toolInput: {} },
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "fetch" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.severity).toBe("error");
+		expect(diag.message).toContain("object");
+		expect(diag.message).toContain("array");
+	});
+
+	test("LITERAL_OUTPUT_SHAPE_MISMATCH for jmespath missing required fields from tool schema", async () => {
+		const tools = {
+			"get-user": tool({
+				inputSchema: type({}),
+				outputSchema: type({ name: "string" }),
+				execute: async () => ({ name: "Alice" }),
+			}),
+		};
+
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: {
+				type: "object",
+				required: ["name", "email"],
+				properties: {
+					name: { type: "string" },
+					email: { type: "string" },
+				},
+			},
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get user",
+					type: "tool-call",
+					params: { toolName: "get-user", toolInput: {} },
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "fetch" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.message).toContain("email");
+	});
+
+	test("LITERAL_OUTPUT_SHAPE_MISMATCH for jmespath property type mismatch", async () => {
+		const tools = {
+			"get-data": tool({
+				inputSchema: type({}),
+				outputSchema: type({ count: "string" }),
+				execute: async () => ({ count: "5" }),
+			}),
+		};
+
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: {
+				type: "object",
+				properties: {
+					count: { type: "number" },
+				},
+			},
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get data",
+					type: "tool-call",
+					params: { toolName: "get-data", toolInput: {} },
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "fetch" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.message).toContain("count");
+		expect(diag.message).toContain("string");
+		expect(diag.message).toContain("number");
+	});
+
+	test("no shape error for jmespath when tool schema matches outputSchema", async () => {
+		const tools = {
+			"get-user": tool({
+				inputSchema: type({}),
+				outputSchema: type({ name: "string", email: "string" }),
+				execute: async () => ({ name: "Alice", email: "a@b.c" }),
+			}),
+		};
+
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: {
+				type: "object",
+				required: ["name"],
+				properties: {
+					name: { type: "string" },
+					email: { type: "string" },
+				},
+			},
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get user",
+					type: "tool-call",
+					params: { toolName: "get-user", toolInput: {} },
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "fetch" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("jmespath shape validation resolves dotted paths through tool schema", async () => {
+		const tools = {
+			"get-data": tool({
+				inputSchema: type({}),
+				outputSchema: type({
+					user: { name: "string", age: "number" },
+				}),
+				execute: async () => ({ user: { name: "Alice", age: 30 } }),
+			}),
+		};
+
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: {
+				type: "object",
+				required: ["name"],
+				properties: {
+					name: { type: "string" },
+					age: { type: "number" },
+				},
+			},
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get data",
+					type: "tool-call",
+					params: { toolName: "get-data", toolInput: {} },
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "jmespath",
+							expression: "fetch.user",
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("jmespath shape validation works with llm-prompt outputFormat", async () => {
+		const workflow = {
+			initialStepId: "analyze",
+			outputSchema: { type: "array" },
+			steps: [
+				{
+					id: "analyze",
+					name: "Analyze",
+					description: "Analyze data",
+					type: "llm-prompt",
+					params: {
+						prompt: "Analyze this data",
+						outputFormat: {
+							type: "object",
+							properties: {
+								summary: { type: "string" },
+							},
+						},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "analyze" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.message).toContain("object");
+		expect(diag.message).toContain("array");
+	});
+
+	test("jmespath shape validation works with extract-data outputFormat", async () => {
+		const workflow = {
+			initialStepId: "extract",
+			outputSchema: {
+				type: "object",
+				properties: {
+					items: { type: "array" },
+				},
+			},
+			steps: [
+				{
+					id: "extract",
+					name: "Extract",
+					description: "Extract data",
+					type: "extract-data",
+					params: {
+						sourceData: { type: "literal", value: "raw text" },
+						outputFormat: {
+							type: "object",
+							properties: {
+								items: { type: "array" },
+							},
+						},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "extract" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("jmespath shape validation skips complex expressions gracefully", async () => {
+		const tools = {
+			"get-data": tool({
+				inputSchema: type({}),
+				outputSchema: type({ items: [{ id: "string" }, "[]"] }),
+				execute: async () => ({ items: [] }),
+			}),
+		};
+
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "array" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Get data",
+					type: "tool-call",
+					params: { toolName: "get-data", toolInput: {} },
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "jmespath",
+							expression: "fetch.items[?id == 'active']",
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow, { tools });
+		// Complex JMESPath expressions can't be resolved, so no shape error
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("jmespath shape validation without tools still works for llm-prompt", async () => {
+		const workflow = {
+			initialStepId: "analyze",
+			outputSchema: {
+				type: "object",
+				properties: { result: { type: "string" } },
+			},
+			steps: [
+				{
+					id: "analyze",
+					name: "Analyze",
+					description: "Analyze",
+					type: "llm-prompt",
+					params: {
+						prompt: "Analyze",
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "analyze" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("jmespath referencing input schema validates against outputSchema", async () => {
+		const workflow = {
+			initialStepId: "done",
+			inputSchema: {
+				type: "object",
+				properties: {
+					data: {
+						type: "object",
+						properties: {
+							name: { type: "string" },
+						},
+					},
+				},
+			},
+			outputSchema: { type: "array" },
+			steps: [
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "input.data" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.message).toContain("object");
+		expect(diag.message).toContain("array");
+	});
 });
 
 // ─── For-each target type validation ────────────────────────────
