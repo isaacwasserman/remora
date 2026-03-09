@@ -39,6 +39,23 @@ export interface ExecutionResult {
 	error?: StepExecutionError;
 }
 
+export interface ExecutorLimits {
+	/** Max wall-clock time from start to finish, including sleeps/waits. Default: 600_000 (10 min). */
+	maxTotalMs?: number;
+	/** Max active execution time (inside step() + checkFn, excluding sleeps/waits). Default: 300_000 (5 min). */
+	maxActiveMs?: number;
+	/** Soft cap on sleep durationMs and wait intervalMs. Clamped silently. Default: 300_000 (5 min). */
+	maxSleepMs?: number;
+	/** Soft cap on wait-for-condition maxAttempts. Clamped silently. Default: Infinity (unbounded). */
+	maxAttempts?: number;
+	/** Soft cap on backoffMultiplier upper bound. Clamped silently. Default: 2. */
+	maxBackoffMultiplier?: number;
+	/** Soft cap on backoffMultiplier lower bound. Clamped silently. Default: 1. */
+	minBackoffMultiplier?: number;
+	/** Soft cap on wait-for-condition timeoutMs. Clamped silently. Default: 600_000 (10 min). */
+	maxTimeoutMs?: number;
+}
+
 export interface ExecuteWorkflowOptions {
 	tools: ToolSet;
 	agent?: Agent | LanguageModel;
@@ -49,12 +66,73 @@ export interface ExecuteWorkflowOptions {
 	onStepComplete?: (stepId: string, output: unknown) => void;
 	/** Injectable durable execution context. Default: simple in-process implementation. */
 	context?: DurableContext;
-	/** Maximum allowed sleep duration in ms. Default: 86400000 (24 hours). */
-	maxSleepMs?: number;
-	/** Maximum allowed polling attempts for wait-for-condition. Default: 100. */
-	maxWaitAttempts?: number;
-	/** Maximum allowed timeout for wait-for-condition in ms. Default: 86400000 (24 hours). */
-	maxWaitTimeoutMs?: number;
+	/** Execution limits for sleep/wait/timeout bounds. */
+	limits?: ExecutorLimits;
+}
+
+// ─── Execution Timer ─────────────────────────────────────────────
+
+const DEFAULT_EXECUTOR_LIMITS: Required<ExecutorLimits> = {
+	maxTotalMs: 600_000, // 10 minutes
+	maxActiveMs: 300_000, // 5 minutes
+	maxSleepMs: 300_000, // 5 minutes
+	maxAttempts: Number.POSITIVE_INFINITY,
+	maxBackoffMultiplier: 2,
+	minBackoffMultiplier: 1,
+	maxTimeoutMs: 600_000, // 10 minutes
+};
+
+class ExecutionTimer {
+	private readonly startTime = Date.now();
+	private activeMs = 0;
+	private activeStart: number | null = null;
+	private readonly limits: Required<ExecutorLimits>;
+
+	constructor(limits?: ExecutorLimits) {
+		this.limits = { ...DEFAULT_EXECUTOR_LIMITS, ...limits };
+	}
+
+	get resolvedLimits(): Required<ExecutorLimits> {
+		return this.limits;
+	}
+
+	/** Call before entering active work (step execution, condition check). */
+	beginActive(): void {
+		this.activeStart = Date.now();
+	}
+
+	/** Call after active work completes. Checks active timeout. */
+	endActive(stepId: string): void {
+		if (this.activeStart !== null) {
+			this.activeMs += Date.now() - this.activeStart;
+			this.activeStart = null;
+		}
+		if (this.activeMs > this.limits.maxActiveMs) {
+			throw new ExternalServiceError(
+				stepId,
+				"EXECUTION_ACTIVE_TIMEOUT",
+				`Active execution time ${this.activeMs}ms exceeded limit of ${this.limits.maxActiveMs}ms`,
+				undefined,
+				undefined,
+				false,
+			);
+		}
+	}
+
+	/** Check total wall-clock timeout before starting a step. */
+	checkTotal(stepId: string): void {
+		const elapsed = Date.now() - this.startTime;
+		if (elapsed > this.limits.maxTotalMs) {
+			throw new ExternalServiceError(
+				stepId,
+				"EXECUTION_TOTAL_TIMEOUT",
+				`Total execution time ${elapsed}ms exceeded limit of ${this.limits.maxTotalMs}ms`,
+				undefined,
+				undefined,
+				false,
+			);
+		}
+	}
 }
 
 function isAgent(value: Agent | LanguageModel): value is Agent {
@@ -579,15 +657,11 @@ async function executeForEach(
 
 // ─── Wait / Sleep Handlers ───────────────────────────────────────
 
-const DEFAULT_MAX_SLEEP_MS = 86_400_000; // 24 hours
-const DEFAULT_MAX_WAIT_ATTEMPTS = 100;
-const DEFAULT_MAX_WAIT_TIMEOUT_MS = 86_400_000; // 24 hours
-
 async function executeSleep(
 	step: WorkflowStep & { type: "sleep" },
 	scope: Record<string, unknown>,
 	context: DurableContext,
-	options: ExecuteWorkflowOptions,
+	timer: ExecutionTimer,
 ): Promise<void> {
 	const durationMs = evaluateExpression(
 		step.params.durationMs as Expression,
@@ -602,8 +676,7 @@ async function executeSleep(
 			durationMs,
 		);
 	}
-	const maxSleepMs = options.maxSleepMs ?? DEFAULT_MAX_SLEEP_MS;
-	const clamped = Math.min(durationMs, maxSleepMs);
+	const clamped = Math.min(durationMs, timer.resolvedLimits.maxSleepMs);
 	await context.sleep(step.id, clamped);
 }
 
@@ -615,10 +688,9 @@ async function executeWaitForCondition(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 	context: DurableContext,
+	timer: ExecutionTimer,
 ): Promise<unknown> {
-	const maxWaitAttempts = options.maxWaitAttempts ?? DEFAULT_MAX_WAIT_ATTEMPTS;
-	const maxWaitTimeoutMs =
-		options.maxWaitTimeoutMs ?? DEFAULT_MAX_WAIT_TIMEOUT_MS;
+	const limits = timer.resolvedLimits;
 
 	const maxAttempts = Math.min(
 		step.params.maxAttempts
@@ -628,22 +700,29 @@ async function executeWaitForCondition(
 					step.id,
 				) as number)
 			: 10,
-		maxWaitAttempts,
+		limits.maxAttempts,
 	);
-	const intervalMs = step.params.intervalMs
-		? (evaluateExpression(
-				step.params.intervalMs as Expression,
-				scope,
-				step.id,
-			) as number)
-		: 1000;
-	const backoffMultiplier = step.params.backoffMultiplier
+	const intervalMs = Math.min(
+		step.params.intervalMs
+			? (evaluateExpression(
+					step.params.intervalMs as Expression,
+					scope,
+					step.id,
+				) as number)
+			: 1000,
+		limits.maxSleepMs,
+	);
+	const rawBackoff = step.params.backoffMultiplier
 		? (evaluateExpression(
 				step.params.backoffMultiplier as Expression,
 				scope,
 				step.id,
 			) as number)
 		: 1;
+	const backoffMultiplier = Math.max(
+		limits.minBackoffMultiplier,
+		Math.min(rawBackoff, limits.maxBackoffMultiplier),
+	);
 	const timeoutMs = step.params.timeoutMs
 		? Math.min(
 				evaluateExpression(
@@ -651,27 +730,32 @@ async function executeWaitForCondition(
 					scope,
 					step.id,
 				) as number,
-				maxWaitTimeoutMs,
+				limits.maxTimeoutMs,
 			)
 		: undefined;
 
 	return context.waitForCondition(
 		step.id,
 		async () => {
-			await executeChain(
-				step.params.conditionStepId,
-				stepIndex,
-				stepOutputs,
-				loopVars,
-				options,
-				context,
-			);
-			const updatedScope = { ...stepOutputs, ...loopVars };
-			return evaluateExpression(
-				step.params.condition as Expression,
-				updatedScope,
-				step.id,
-			);
+			timer.beginActive();
+			try {
+				await executeChain(
+					step.params.conditionStepId,
+					stepIndex,
+					stepOutputs,
+					loopVars,
+					options,
+					context,
+				);
+				const updatedScope = { ...stepOutputs, ...loopVars };
+				return evaluateExpression(
+					step.params.condition as Expression,
+					updatedScope,
+					step.id,
+				);
+			} finally {
+				timer.endActive(step.id);
+			}
 		},
 		{ maxAttempts, intervalMs, backoffMultiplier, timeoutMs },
 	);
@@ -687,6 +771,7 @@ async function executeStep(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 	context: DurableContext,
+	timer: ExecutionTimer,
 ): Promise<unknown> {
 	switch (step.type) {
 		case "tool-call":
@@ -730,7 +815,7 @@ async function executeStep(
 				context,
 			);
 		case "sleep":
-			return executeSleep(step, scope, context, options);
+			return executeSleep(step, scope, context, timer);
 		case "wait-for-condition":
 			return executeWaitForCondition(
 				step,
@@ -740,6 +825,7 @@ async function executeStep(
 				loopVars,
 				options,
 				context,
+				timer,
 			);
 		case "start":
 			return undefined;
@@ -770,6 +856,7 @@ async function retryStep(
 	options: ExecuteWorkflowOptions,
 	originalError: StepExecutionError,
 	context: DurableContext,
+	timer: ExecutionTimer,
 ): Promise<unknown> {
 	const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 	const baseDelay = options.retryDelayMs ?? DEFAULT_BASE_DELAY_MS;
@@ -788,6 +875,7 @@ async function retryStep(
 				loopVars,
 				options,
 				context,
+				timer,
 			);
 		} catch {
 			if (attempt === maxRetries) throw originalError;
@@ -804,6 +892,7 @@ async function recoverFromError(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 	context: DurableContext,
+	timer: ExecutionTimer,
 ): Promise<unknown> {
 	switch (error.code) {
 		case "LLM_RATE_LIMITED":
@@ -818,6 +907,7 @@ async function recoverFromError(
 				options,
 				error,
 				context,
+				timer,
 			);
 
 		case "LLM_API_ERROR":
@@ -830,6 +920,7 @@ async function recoverFromError(
 					options,
 					error,
 					context,
+					timer,
 				);
 			}
 			throw error;
@@ -853,6 +944,7 @@ async function executeChain(
 	loopVars: Record<string, unknown>,
 	options: ExecuteWorkflowOptions,
 	context: DurableContext,
+	timer?: ExecutionTimer,
 ): Promise<unknown> {
 	let currentStepId: string | undefined = startStepId;
 	let lastOutput: unknown;
@@ -864,23 +956,30 @@ async function executeChain(
 			throw new Error(`Step '${currentStepId}' not found`);
 		}
 
+		timer?.checkTotal(step.id);
 		options.onStepStart?.(step.id, step);
 
 		const scope = { ...stepOutputs, ...loopVars };
 		let stepOutput: unknown;
 
 		try {
-			stepOutput = await context.step(step.id, () =>
-				executeStep(
-					step,
-					scope,
-					stepIndex,
-					stepOutputs,
-					loopVars,
-					options,
-					context,
-				),
-			);
+			timer?.beginActive();
+			try {
+				stepOutput = await context.step(step.id, () =>
+					executeStep(
+						step,
+						scope,
+						stepIndex,
+						stepOutputs,
+						loopVars,
+						options,
+						context,
+						timer ?? new ExecutionTimer(),
+					),
+				);
+			} finally {
+				timer?.endActive(step.id);
+			}
 		} catch (e) {
 			if (!(e instanceof StepExecutionError)) throw e;
 			stepOutput = await recoverFromError(
@@ -891,6 +990,7 @@ async function executeChain(
 				loopVars,
 				options,
 				context,
+				timer ?? new ExecutionTimer(),
 			);
 		}
 
@@ -967,6 +1067,7 @@ export async function executeWorkflow(
 		: undefined;
 	const resolvedOptions = { ...options, agent: resolvedAgent };
 	const resolvedContext = options.context ?? createDefaultDurableContext();
+	const timer = new ExecutionTimer(options.limits);
 
 	try {
 		validateWorkflowConfig(workflow, resolvedOptions);
@@ -985,6 +1086,7 @@ export async function executeWorkflow(
 			{},
 			resolvedOptions,
 			resolvedContext,
+			timer,
 		);
 
 		if (workflow.outputSchema) {

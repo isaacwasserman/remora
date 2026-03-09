@@ -1,4 +1,5 @@
 export type {
+	CompilerLimits,
 	CompilerResult,
 	ConstrainedToolSchema,
 	ConstrainedToolSchemaMap,
@@ -9,7 +10,11 @@ export type {
 	ExecutionGraph,
 } from "./compiler";
 export { compileWorkflow } from "./compiler";
-export type { ExecuteWorkflowOptions, ExecutionResult } from "./executor";
+export type {
+	ExecuteWorkflowOptions,
+	ExecutionResult,
+	ExecutorLimits,
+} from "./executor";
 export { executeWorkflow } from "./executor";
 export type {
 	DurableContext,

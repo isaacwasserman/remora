@@ -4444,3 +4444,257 @@ describe("for-each target type validation", () => {
 		);
 	});
 });
+
+// ─── Compiler Limits Tests ──────────────────────────────────────
+
+describe("compiler limits", () => {
+	const tools = testTools;
+
+	const sleepWorkflow = (durationMs: number): WorkflowDefinition =>
+		({
+			initialStepId: "sleep_step",
+			steps: [
+				{
+					id: "sleep_step",
+					name: "Sleep",
+					description: "sleep",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: durationMs },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		}) as WorkflowDefinition;
+
+	const waitWorkflow = (overrides: {
+		maxAttempts?: number;
+		intervalMs?: number;
+		backoffMultiplier?: number;
+		timeoutMs?: number;
+	}): WorkflowDefinition =>
+		({
+			initialStepId: "wait_step",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check",
+					description: "check",
+					type: "tool-call",
+					params: {
+						toolName: "do-thing",
+						toolInput: {},
+					},
+				},
+				{
+					id: "wait_step",
+					name: "Wait",
+					description: "wait",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "jmespath",
+							expression: "check_step.ready",
+						},
+						...(overrides.maxAttempts !== undefined && {
+							maxAttempts: {
+								type: "literal",
+								value: overrides.maxAttempts,
+							},
+						}),
+						...(overrides.intervalMs !== undefined && {
+							intervalMs: {
+								type: "literal",
+								value: overrides.intervalMs,
+							},
+						}),
+						...(overrides.backoffMultiplier !== undefined && {
+							backoffMultiplier: {
+								type: "literal",
+								value: overrides.backoffMultiplier,
+							},
+						}),
+						...(overrides.timeoutMs !== undefined && {
+							timeoutMs: {
+								type: "literal",
+								value: overrides.timeoutMs,
+							},
+						}),
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		}) as WorkflowDefinition;
+
+	test("sleep duration within default limit passes", async () => {
+		const result = await compileWorkflow(sleepWorkflow(60_000), { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "SLEEP_DURATION_EXCEEDS_LIMIT"),
+		).toBe(false);
+	});
+
+	test("sleep duration exceeding default limit (5 min) errors", async () => {
+		const result = await compileWorkflow(sleepWorkflow(600_000), { tools });
+		expect(
+			hasDiagnostic(result.diagnostics, "SLEEP_DURATION_EXCEEDS_LIMIT"),
+		).toBe(true);
+	});
+
+	test("sleep duration within custom limit passes", async () => {
+		const result = await compileWorkflow(sleepWorkflow(900_000), {
+			tools,
+			limits: { maxSleepMs: 1_000_000 },
+		});
+		expect(
+			hasDiagnostic(result.diagnostics, "SLEEP_DURATION_EXCEEDS_LIMIT"),
+		).toBe(false);
+	});
+
+	test("sleep duration exceeding custom limit errors", async () => {
+		const result = await compileWorkflow(sleepWorkflow(200), {
+			tools,
+			limits: { maxSleepMs: 100 },
+		});
+		expect(
+			hasDiagnostic(result.diagnostics, "SLEEP_DURATION_EXCEEDS_LIMIT"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"SLEEP_DURATION_EXCEEDS_LIMIT",
+		);
+		expect(diag.message).toContain("200ms");
+		expect(diag.message).toContain("100ms");
+	});
+
+	test("jmespath sleep duration is not validated (unknown at compile time)", async () => {
+		const workflow = {
+			initialStepId: "sleep_step",
+			steps: [
+				{
+					id: "sleep_step",
+					name: "Sleep",
+					description: "sleep",
+					type: "sleep",
+					params: {
+						durationMs: { type: "jmespath", expression: "input.duration" },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+		const result = await compileWorkflow(workflow, {
+			tools,
+			limits: { maxSleepMs: 1 },
+		});
+		expect(
+			hasDiagnostic(result.diagnostics, "SLEEP_DURATION_EXCEEDS_LIMIT"),
+		).toBe(false);
+	});
+
+	test("maxAttempts exceeding limit errors", async () => {
+		const result = await compileWorkflow(waitWorkflow({ maxAttempts: 200 }), {
+			tools,
+			limits: { maxAttempts: 100 },
+		});
+		expect(
+			hasDiagnostic(result.diagnostics, "WAIT_ATTEMPTS_EXCEEDS_LIMIT"),
+		).toBe(true);
+	});
+
+	test("maxAttempts within default unlimited passes", async () => {
+		const result = await compileWorkflow(
+			waitWorkflow({ maxAttempts: 10_000 }),
+			{ tools },
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "WAIT_ATTEMPTS_EXCEEDS_LIMIT"),
+		).toBe(false);
+	});
+
+	test("intervalMs exceeding limit errors", async () => {
+		const result = await compileWorkflow(
+			waitWorkflow({ intervalMs: 400_000 }),
+			{ tools },
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "WAIT_INTERVAL_EXCEEDS_LIMIT"),
+		).toBe(true);
+	});
+
+	test("backoffMultiplier below range errors", async () => {
+		const result = await compileWorkflow(
+			waitWorkflow({ backoffMultiplier: 0.5 }),
+			{ tools },
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "BACKOFF_MULTIPLIER_OUT_OF_RANGE"),
+		).toBe(true);
+	});
+
+	test("backoffMultiplier above range errors", async () => {
+		const result = await compileWorkflow(
+			waitWorkflow({ backoffMultiplier: 3 }),
+			{ tools },
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "BACKOFF_MULTIPLIER_OUT_OF_RANGE"),
+		).toBe(true);
+	});
+
+	test("backoffMultiplier within range passes", async () => {
+		const result = await compileWorkflow(
+			waitWorkflow({ backoffMultiplier: 1.5 }),
+			{ tools },
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "BACKOFF_MULTIPLIER_OUT_OF_RANGE"),
+		).toBe(false);
+	});
+
+	test("timeoutMs exceeding limit errors", async () => {
+		const result = await compileWorkflow(waitWorkflow({ timeoutMs: 700_000 }), {
+			tools,
+		});
+		expect(
+			hasDiagnostic(result.diagnostics, "WAIT_TIMEOUT_EXCEEDS_LIMIT"),
+		).toBe(true);
+	});
+
+	test("timeoutMs within limit passes", async () => {
+		const result = await compileWorkflow(waitWorkflow({ timeoutMs: 500_000 }), {
+			tools,
+		});
+		expect(
+			hasDiagnostic(result.diagnostics, "WAIT_TIMEOUT_EXCEEDS_LIMIT"),
+		).toBe(false);
+	});
+
+	test("custom backoff range", async () => {
+		const result = await compileWorkflow(
+			waitWorkflow({ backoffMultiplier: 1.5 }),
+			{ tools, limits: { minBackoffMultiplier: 1, maxBackoffMultiplier: 1.2 } },
+		);
+		expect(
+			hasDiagnostic(result.diagnostics, "BACKOFF_MULTIPLIER_OUT_OF_RANGE"),
+		).toBe(true);
+	});
+});

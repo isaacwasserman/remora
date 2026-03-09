@@ -36,7 +36,10 @@ export type ErrorCode =
 	// wait — wait/sleep step errors
 	| "SLEEP_INVALID_DURATION"
 	| "WAIT_CONDITION_TIMEOUT"
-	| "WAIT_CONDITION_MAX_ATTEMPTS";
+	| "WAIT_CONDITION_MAX_ATTEMPTS"
+	// execution limits — aggregate time bounds
+	| "EXECUTION_TOTAL_TIMEOUT"
+	| "EXECUTION_ACTIVE_TIMEOUT";
 
 // ─── Base Error Class ───────────────────────────────────────────
 
