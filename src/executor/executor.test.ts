@@ -2110,7 +2110,7 @@ describe("sleep step", () => {
 
 		expect(result.success).toBe(true);
 		expect(sleepCalls).toHaveLength(1);
-		expect(sleepCalls[0]!.ms).toBe(50);
+		expect(sleepCalls[0]?.ms).toBe(50);
 	});
 });
 
@@ -2532,7 +2532,7 @@ describe("executor limits", () => {
 		});
 
 		expect(result.success).toBe(true);
-		expect(sleepCalls[0]!.ms).toBe(100);
+		expect(sleepCalls[0]?.ms).toBe(100);
 	});
 
 	test("soft clamps wait intervalMs to limits.maxSleepMs", async () => {
@@ -2606,7 +2606,7 @@ describe("executor limits", () => {
 		});
 
 		expect(result.success).toBe(true);
-		expect(waitCalls[0]!.intervalMs).toBe(200); // clamped from 50_000
+		expect(waitCalls[0]?.intervalMs).toBe(200); // clamped from 50_000
 	});
 
 	test("soft clamps backoffMultiplier to range", async () => {
@@ -2676,7 +2676,7 @@ describe("executor limits", () => {
 		});
 
 		expect(result.success).toBe(true);
-		expect(waitCalls[0]!.backoffMultiplier).toBe(2); // clamped from 5
+		expect(waitCalls[0]?.backoffMultiplier).toBe(2); // clamped from 5
 	});
 
 	test("total execution timeout fires", async () => {
