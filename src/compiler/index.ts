@@ -7,9 +7,11 @@ import { generateConstrainedToolSchemas } from "./passes/generate-constrained-to
 import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateJmespath } from "./passes/validate-jmespath";
+import { validateLimits } from "./passes/validate-limits";
 import { validateReferences } from "./passes/validate-references";
 import { validateTools } from "./passes/validate-tools";
 import type {
+	CompilerLimits,
 	CompilerResult,
 	ConstrainedToolSchemaMap,
 	Diagnostic,
@@ -20,6 +22,7 @@ export async function compileWorkflow(
 	workflow: WorkflowDefinition,
 	options?: {
 		tools?: ToolSet;
+		limits?: CompilerLimits;
 	},
 ): Promise<CompilerResult> {
 	const diagnostics: Diagnostic[] = [];
@@ -40,6 +43,9 @@ export async function compileWorkflow(
 		}
 		diagnostics.push(d);
 	}
+
+	// Pass 2b: Validate sleep/wait literal values against configured limits
+	diagnostics.push(...validateLimits(workflow, options?.limits));
 
 	// Pass 3: Extract tool schemas (needed by control flow and for-each validation)
 	let constrainedToolSchemas: ConstrainedToolSchemaMap | null = null;
@@ -102,6 +108,7 @@ async function extractToolSchemas(tools: ToolSet): Promise<ToolDefinitionMap> {
 }
 
 export type {
+	CompilerLimits,
 	CompilerResult,
 	ConstrainedToolSchema,
 	ConstrainedToolSchemaMap,

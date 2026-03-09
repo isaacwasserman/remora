@@ -105,6 +105,13 @@ bun --hot ./index.ts
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
 
+## Pre-push Checks
+
+Before pushing, always run these checks and fix any issues:
+
+1. `bun run typecheck` — TypeScript type checking via tsgo
+2. `bun run lint:fix` — Biome linter with auto-fix
+
 ## Changesets
 
 Every PR must include a changeset describing the changes. This is required for the automated release process.

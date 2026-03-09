@@ -1946,3 +1946,857 @@ describe("workflow output", () => {
 		expect(result.output).toBeNull();
 	});
 });
+
+// ─── Sleep Step Tests ────────────────────────────────────────────
+
+describe("sleep step", () => {
+	test("pauses execution for a literal duration", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "start",
+			steps: [
+				{
+					id: "start",
+					name: "Start",
+					description: "start",
+					type: "start",
+					nextStepId: "wait",
+				},
+				{
+					id: "wait",
+					name: "Wait",
+					description: "wait 10ms",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: 10 },
+					},
+					nextStepId: "do_echo",
+				},
+				{
+					id: "do_echo",
+					name: "Echo",
+					description: "echo",
+					type: "tool-call",
+					params: {
+						toolName: "echo",
+						toolInput: {},
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const start = Date.now();
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		const elapsed = Date.now() - start;
+
+		expect(result.success).toBe(true);
+		expect(elapsed).toBeGreaterThanOrEqual(8); // allow some timing slack
+		expect(result.stepOutputs.do_echo).toEqual({ echoed: true });
+	});
+
+	test("evaluates durationMs from a JMESPath expression", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "get_delay",
+			steps: [
+				{
+					id: "get_delay",
+					name: "Get delay",
+					description: "get delay",
+					type: "tool-call",
+					params: {
+						toolName: "add",
+						toolInput: {
+							a: { type: "literal", value: 5 },
+							b: { type: "literal", value: 5 },
+						},
+					},
+					nextStepId: "wait",
+				},
+				{
+					id: "wait",
+					name: "Wait",
+					description: "wait for computed duration",
+					type: "sleep",
+					params: {
+						durationMs: {
+							type: "jmespath",
+							expression: "get_delay.sum",
+						},
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+	});
+
+	test("rejects negative duration", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait",
+			steps: [
+				{
+					id: "wait",
+					name: "Wait",
+					description: "wait negative",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: -100 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("SLEEP_INVALID_DURATION");
+	});
+
+	test("clamps duration to maxSleepMs", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait",
+			steps: [
+				{
+					id: "wait",
+					name: "Wait",
+					description: "wait long",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: 999999 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const sleepCalls: { name: string; ms: number }[] = [];
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			limits: { maxSleepMs: 50 },
+			context: {
+				step: (_name, fn) => fn(),
+				sleep: async (name, ms) => {
+					sleepCalls.push({ name, ms });
+				},
+				waitForCondition: async () => undefined,
+			},
+		});
+
+		expect(result.success).toBe(true);
+		expect(sleepCalls).toHaveLength(1);
+		expect(sleepCalls[0]?.ms).toBe(50);
+	});
+});
+
+// ─── Wait-for-condition Step Tests ───────────────────────────────
+
+describe("wait-for-condition step", () => {
+	let pollCount: number;
+
+	const pollTools = {
+		...testTools,
+		checkStatus: tool({
+			inputSchema: type({}),
+			execute: async () => {
+				pollCount++;
+				return { ready: pollCount >= 3 };
+			},
+		}),
+	};
+
+	test("completes when condition is truthy on first attempt", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait_cond",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check",
+					description: "check ready",
+					type: "tool-call",
+					params: {
+						toolName: "echo",
+						toolInput: {},
+					},
+				},
+				{
+					id: "wait_cond",
+					name: "Wait for condition",
+					description: "wait until ready",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "literal",
+							value: true,
+						},
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.wait_cond).toBe(true);
+	});
+
+	test("polls until condition becomes truthy", async () => {
+		pollCount = 0;
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait_cond",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check status",
+					description: "poll status",
+					type: "tool-call",
+					params: {
+						toolName: "checkStatus",
+						toolInput: {},
+					},
+				},
+				{
+					id: "wait_cond",
+					name: "Wait for ready",
+					description: "wait until status is ready",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "jmespath",
+							expression: "check_step.ready",
+						},
+						maxAttempts: { type: "literal", value: 10 },
+						intervalMs: { type: "literal", value: 1 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: pollTools });
+		expect(result.success).toBe(true);
+		expect(pollCount).toBe(3);
+		expect(result.stepOutputs.wait_cond).toBe(true);
+	});
+
+	test("fails when max attempts exceeded", async () => {
+		const neverReady = {
+			...testTools,
+			checkStatus: tool({
+				inputSchema: type({}),
+				execute: async () => ({ ready: false }),
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait_cond",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check status",
+					description: "poll status",
+					type: "tool-call",
+					params: {
+						toolName: "checkStatus",
+						toolInput: {},
+					},
+				},
+				{
+					id: "wait_cond",
+					name: "Wait for ready",
+					description: "wait until status is ready",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "jmespath",
+							expression: "check_step.ready",
+						},
+						maxAttempts: { type: "literal", value: 3 },
+						intervalMs: { type: "literal", value: 1 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: neverReady });
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("WAIT_CONDITION_MAX_ATTEMPTS");
+	});
+
+	test("clamps maxAttempts to maxWaitAttempts option", async () => {
+		let attempts = 0;
+		const countingTools = {
+			...testTools,
+			checkStatus: tool({
+				inputSchema: type({}),
+				execute: async () => {
+					attempts++;
+					return { ready: false };
+				},
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait_cond",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check",
+					description: "check",
+					type: "tool-call",
+					params: {
+						toolName: "checkStatus",
+						toolInput: {},
+					},
+				},
+				{
+					id: "wait_cond",
+					name: "Wait",
+					description: "wait",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "jmespath",
+							expression: "check_step.ready",
+						},
+						maxAttempts: { type: "literal", value: 100 },
+						intervalMs: { type: "literal", value: 1 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: countingTools,
+			limits: { maxAttempts: 5 },
+		});
+		expect(result.success).toBe(false);
+		expect(attempts).toBe(5);
+	});
+});
+
+// ─── DurableContext Tests ────────────────────────────────────────
+
+describe("DurableContext injection", () => {
+	test("custom context.step wraps all step executions", async () => {
+		const stepCalls: string[] = [];
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "start",
+			steps: [
+				{
+					id: "start",
+					name: "Start",
+					description: "start",
+					type: "start",
+					nextStepId: "do_echo",
+				},
+				{
+					id: "do_echo",
+					name: "Echo",
+					description: "echo",
+					type: "tool-call",
+					params: {
+						toolName: "echo",
+						toolInput: {},
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			context: {
+				step: async (name, fn) => {
+					stepCalls.push(name);
+					return fn();
+				},
+				sleep: async () => {},
+				waitForCondition: async () => undefined,
+			},
+		});
+
+		expect(result.success).toBe(true);
+		expect(stepCalls).toEqual(["start", "do_echo", "end_step"]);
+	});
+
+	test("custom context.sleep is used by sleep steps", async () => {
+		const sleepCalls: { name: string; ms: number }[] = [];
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait",
+			steps: [
+				{
+					id: "wait",
+					name: "Wait",
+					description: "wait",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: 5000 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			context: {
+				step: (_name, fn) => fn(),
+				sleep: async (name, ms) => {
+					sleepCalls.push({ name, ms });
+				},
+				waitForCondition: async () => undefined,
+			},
+		});
+
+		expect(result.success).toBe(true);
+		expect(sleepCalls).toHaveLength(1);
+		expect(sleepCalls[0]).toEqual({ name: "wait", ms: 5000 });
+	});
+
+	test("context.step enables idempotent replay", async () => {
+		const cache = new Map<string, unknown>();
+		let toolExecutions = 0;
+
+		const countingTools = {
+			echo: tool({
+				inputSchema: type({}),
+				execute: async () => {
+					toolExecutions++;
+					return { echoed: true };
+				},
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "do_echo",
+			steps: [
+				{
+					id: "do_echo",
+					name: "Echo",
+					description: "echo",
+					type: "tool-call",
+					params: {
+						toolName: "echo",
+						toolInput: {},
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		};
+
+		const replayContext = {
+			step: async (name: string, fn: () => Promise<unknown>) => {
+				if (cache.has(name)) return cache.get(name);
+				const result = await fn();
+				cache.set(name, result);
+				return result;
+			},
+			sleep: async () => {},
+			waitForCondition: async () => undefined,
+		};
+
+		// First execution — tool runs
+		const result1 = await executeWorkflow(workflow, {
+			tools: countingTools,
+			context: replayContext,
+		});
+		expect(result1.success).toBe(true);
+		expect(toolExecutions).toBe(1);
+
+		// Second execution — tool is replayed from cache
+		toolExecutions = 0;
+		const result2 = await executeWorkflow(workflow, {
+			tools: countingTools,
+			context: replayContext,
+		});
+		expect(result2.success).toBe(true);
+		expect(toolExecutions).toBe(0);
+		expect(result2.stepOutputs.do_echo).toEqual({ echoed: true });
+	});
+});
+
+// ─── Executor Limits Tests ──────────────────────────────────────
+
+describe("executor limits", () => {
+	test("soft clamps sleep duration to limits.maxSleepMs", async () => {
+		const sleepCalls: { name: string; ms: number }[] = [];
+		const workflow: WorkflowDefinition = {
+			initialStepId: "sleep_step",
+			steps: [
+				{
+					id: "sleep_step",
+					name: "Sleep",
+					description: "sleep",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: 10_000 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			limits: { maxSleepMs: 100 },
+			context: {
+				step: (_name, fn) => fn(),
+				sleep: async (name, ms) => {
+					sleepCalls.push({ name, ms });
+				},
+				waitForCondition: async () => undefined,
+			},
+		});
+
+		expect(result.success).toBe(true);
+		expect(sleepCalls[0]?.ms).toBe(100);
+	});
+
+	test("soft clamps wait intervalMs to limits.maxSleepMs", async () => {
+		let attempts = 0;
+		const waitCalls: { intervalMs: number; backoffMultiplier: number }[] = [];
+		const countingTools = {
+			...testTools,
+			checkStatus: tool({
+				inputSchema: type({}),
+				execute: async () => {
+					attempts++;
+					return { ready: attempts >= 2 };
+				},
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait_step",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check",
+					description: "check",
+					type: "tool-call",
+					params: { toolName: "checkStatus", toolInput: {} },
+				},
+				{
+					id: "wait_step",
+					name: "Wait",
+					description: "wait",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "jmespath",
+							expression: "check_step.ready",
+						},
+						intervalMs: { type: "literal", value: 50_000 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: countingTools,
+			limits: { maxSleepMs: 200 },
+			context: {
+				step: (_name, fn) => fn(),
+				sleep: async () => {},
+				waitForCondition: async (_name, checkFn, opts) => {
+					waitCalls.push({
+						intervalMs: opts.intervalMs,
+						backoffMultiplier: opts.backoffMultiplier,
+					});
+					// Just run checkFn until truthy
+					let result: unknown;
+					for (let i = 0; i < opts.maxAttempts; i++) {
+						result = await checkFn();
+						if (result) return result;
+					}
+					return result;
+				},
+			},
+		});
+
+		expect(result.success).toBe(true);
+		expect(waitCalls[0]?.intervalMs).toBe(200); // clamped from 50_000
+	});
+
+	test("soft clamps backoffMultiplier to range", async () => {
+		let attempts = 0;
+		const waitCalls: { backoffMultiplier: number }[] = [];
+		const countingTools = {
+			...testTools,
+			checkStatus: tool({
+				inputSchema: type({}),
+				execute: async () => {
+					attempts++;
+					return { ready: attempts >= 2 };
+				},
+			}),
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "wait_step",
+			steps: [
+				{
+					id: "check_step",
+					name: "Check",
+					description: "check",
+					type: "tool-call",
+					params: { toolName: "checkStatus", toolInput: {} },
+				},
+				{
+					id: "wait_step",
+					name: "Wait",
+					description: "wait",
+					type: "wait-for-condition",
+					params: {
+						conditionStepId: "check_step",
+						condition: {
+							type: "jmespath",
+							expression: "check_step.ready",
+						},
+						backoffMultiplier: { type: "literal", value: 5 },
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: countingTools,
+			limits: { maxBackoffMultiplier: 2 },
+			context: {
+				step: (_name, fn) => fn(),
+				sleep: async () => {},
+				waitForCondition: async (_name, checkFn, opts) => {
+					waitCalls.push({ backoffMultiplier: opts.backoffMultiplier });
+					let result: unknown;
+					for (let i = 0; i < opts.maxAttempts; i++) {
+						result = await checkFn();
+						if (result) return result;
+					}
+					return result;
+				},
+			},
+		});
+
+		expect(result.success).toBe(true);
+		expect(waitCalls[0]?.backoffMultiplier).toBe(2); // clamped from 5
+	});
+
+	test("total execution timeout fires", async () => {
+		// Create a workflow where step() takes longer than maxTotalMs
+		const workflow: WorkflowDefinition = {
+			initialStepId: "sleep_step",
+			steps: [
+				{
+					id: "sleep_step",
+					name: "Sleep",
+					description: "sleep",
+					type: "sleep",
+					params: {
+						durationMs: { type: "literal", value: 10 },
+					},
+					nextStepId: "step_two",
+				},
+				{
+					id: "step_two",
+					name: "Step 2",
+					description: "second step",
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			limits: { maxTotalMs: 1 }, // 1ms — will expire immediately
+			context: {
+				step: async (_name, fn) => {
+					// Simulate some delay so total time exceeds 1ms
+					await new Promise((r) => setTimeout(r, 5));
+					return fn();
+				},
+				sleep: async () => {
+					await new Promise((r) => setTimeout(r, 5));
+				},
+				waitForCondition: async () => undefined,
+			},
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("EXECUTION_TOTAL_TIMEOUT");
+	});
+
+	test("active execution timeout fires", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "step_one",
+			steps: [
+				{
+					id: "step_one",
+					name: "Step 1",
+					description: "first",
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await executeWorkflow(workflow, {
+			tools: {
+				echo: tool({
+					inputSchema: type({}),
+					execute: async () => {
+						// Simulate slow work
+						await new Promise((r) => setTimeout(r, 20));
+						return { echoed: true };
+					},
+				}),
+			},
+			limits: { maxActiveMs: 1 }, // 1ms — will expire after first step
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("EXECUTION_ACTIVE_TIMEOUT");
+	});
+
+	test("defaults allow normal workflows to complete", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "step_one",
+			steps: [
+				{
+					id: "step_one",
+					name: "Step 1",
+					description: "first",
+					type: "tool-call",
+					params: { toolName: "echo", toolInput: {} },
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "end",
+					type: "end",
+				},
+			],
+		} as WorkflowDefinition;
+
+		// With default limits (10 min total, 5 min active), a simple workflow should succeed
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			limits: {},
+		});
+
+		expect(result.success).toBe(true);
+	});
+});
