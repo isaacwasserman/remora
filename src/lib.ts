@@ -11,7 +11,10 @@ export type {
 export { compileWorkflow } from "./compiler";
 export type { ExecuteWorkflowOptions, ExecutionResult } from "./executor";
 export { executeWorkflow } from "./executor";
-export type { DurableContext, WaitForConditionOptions } from "./executor/context";
+export type {
+	DurableContext,
+	WaitForConditionOptions,
+} from "./executor/context";
 export { createDefaultDurableContext } from "./executor/context";
 export type {
 	ErrorCategory,

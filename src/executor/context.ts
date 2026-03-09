@@ -46,9 +46,7 @@ export function createDefaultDurableContext(): DurableContext {
 
 		waitForCondition: async (_name, checkFn, opts) => {
 			let delay = opts.intervalMs;
-			const deadline = opts.timeoutMs
-				? Date.now() + opts.timeoutMs
-				: undefined;
+			const deadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : undefined;
 
 			for (let attempt = 0; attempt < opts.maxAttempts; attempt++) {
 				const result = await checkFn();

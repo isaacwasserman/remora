@@ -12,10 +12,7 @@ import {
 } from "ai";
 import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
-import {
-	type DurableContext,
-	createDefaultDurableContext,
-} from "./context";
+import { createDefaultDurableContext, type DurableContext } from "./context";
 import type { ErrorCode } from "./errors";
 import {
 	ConfigurationError,
