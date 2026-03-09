@@ -99,8 +99,7 @@ export function validateControlFlow(
 				const step = graph.stepIndex.get(point.stepId);
 				if (step?.type === "end" && step.params?.output) {
 					const expr = step.params.output;
-					const outputSchema =
-						workflow.outputSchema as Record<string, unknown>;
+					const outputSchema = workflow.outputSchema as Record<string, unknown>;
 					if (expr.type === "literal") {
 						diagnostics.push(
 							...validateOutputShapeMismatch(
@@ -227,9 +226,7 @@ function collectOutputPoints(
 			// This is a terminal step on this chain
 			if (step.type === "end") {
 				points.push({
-					type: step.params?.output
-						? "end_with_output"
-						: "end_without_output",
+					type: step.params?.output ? "end_with_output" : "end_without_output",
 					stepId: step.id,
 				});
 			} else if (step.type === "switch-case") {
@@ -242,11 +239,7 @@ function collectOutputPoints(
 			} else if (step.type === "for-each") {
 				// Terminal for-each: loop body determines output shape
 				points.push(
-					...collectOutputPoints(
-						step.params.loopBodyStepId,
-						graph,
-						visited,
-					),
+					...collectOutputPoints(step.params.loopBodyStepId, graph, visited),
 				);
 			} else {
 				// Non-end, non-branching terminal step — path doesn't reach an end step
@@ -296,7 +289,7 @@ function validateOutputShapeMismatch(
 		const required = schema.required;
 		if (Array.isArray(required)) {
 			const missing = required.filter(
-				(key: unknown) => typeof key === "string" && !(key as string in obj),
+				(key: unknown) => typeof key === "string" && !((key as string) in obj),
 			);
 			if (missing.length > 0) {
 				diagnostics.push({
@@ -382,7 +375,7 @@ function validateSchemaCompatibility(
 		if (Array.isArray(expectedRequired)) {
 			const missing = expectedRequired.filter(
 				(key: unknown) =>
-					typeof key === "string" && !(key as string in resolvedProps),
+					typeof key === "string" && !((key as string) in resolvedProps),
 			);
 			if (missing.length > 0) {
 				diagnostics.push({

@@ -7,9 +7,7 @@ import type { ExecutionGraph, ToolDefinitionMap } from "../types";
  * projections, functions, etc.).
  */
 export function parseSimplePath(expression: string): string[] | null {
-	if (
-		!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(expression)
-	) {
+	if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(expression)) {
 		return null;
 	}
 	return expression.split(".");
@@ -45,9 +43,7 @@ export function getSchemaType(schema: Record<string, unknown>): string | null {
 /**
  * Find property names in a schema that are arrays.
  */
-export function findArrayProperties(
-	schema: Record<string, unknown>,
-): string[] {
+export function findArrayProperties(schema: Record<string, unknown>): string[] {
 	const properties = schema.properties as
 		| Record<string, Record<string, unknown>>
 		| undefined;
@@ -137,7 +133,7 @@ function resolveChainOutputSchema(
  */
 export function resolveExpressionSchema(
 	expression: string,
-	endStepId: string,
+	_endStepId: string,
 	tools: ToolDefinitionMap | null,
 	workflow: WorkflowDefinition,
 	graph: ExecutionGraph,
