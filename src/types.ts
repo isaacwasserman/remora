@@ -101,15 +101,8 @@ const extractDataParamsSchema = type({
 
 const startParamsSchema = type({
 	type: "'start'",
-	params: {
-		inputSchema: [
-			"object",
-			"@",
-			"a JSON Schema object defining the inputs required to run the workflow; the workflow executor will validate provided inputs against this schema, and the validated inputs become available in JMESPath scope via this step's id",
-		],
-	},
 }).describe(
-	"a step that marks the entry point of a workflow and declares the input schema; its output is the validated input data, accessible by subsequent steps via its step id",
+	"a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
 );
 
 const endSchema = type({
@@ -138,6 +131,11 @@ const workflowStepSchema = type({
 
 export const workflowDefinitionSchema = type({
 	initialStepId: "string",
+	"inputSchema?": [
+		"object",
+		"@",
+		"an optional JSON Schema object defining the inputs required to run the workflow; the executor validates provided inputs against this schema, and the validated inputs become available in JMESPath scope via the root identifier 'input' (e.g. input.fieldName)",
+	],
 	"outputSchema?": [
 		"object",
 		"@",

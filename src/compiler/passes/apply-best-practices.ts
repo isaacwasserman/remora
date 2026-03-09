@@ -65,9 +65,6 @@ function addMissingStartStep(
 		name: "Start",
 		description: "Auto-generated start step",
 		type: "start",
-		params: {
-			inputSchema: {},
-		},
 		nextStepId: oldInitialStepId,
 	};
 

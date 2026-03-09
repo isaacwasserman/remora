@@ -36,7 +36,7 @@ export function validateJmespath(
 		}
 
 		// Scope/reference validation
-		validateExpressionScope(expr, graph, diagnostics);
+		validateExpressionScope(expr, graph, !!workflow.inputSchema, diagnostics);
 	}
 
 	return diagnostics;
@@ -147,6 +147,7 @@ function collectExpressions(workflow: WorkflowDefinition): {
 function validateExpressionScope(
 	expr: ExpressionInfo,
 	graph: ExecutionGraph,
+	hasInputSchema: boolean,
 	diagnostics: Diagnostic[],
 ): void {
 	const astRoots = extractRootIdentifiers(expr.expression);
@@ -154,6 +155,9 @@ function validateExpressionScope(
 	const predecessors = graph.predecessors.get(expr.stepId);
 
 	for (const root of astRoots) {
+		// Skip if it's the workflow input alias
+		if (root === "input" && hasInputSchema) continue;
+
 		// Skip if it's a loop variable in scope
 		if (loopVars?.has(root)) continue;
 

@@ -41,25 +41,28 @@ export async function compileWorkflow(
 		diagnostics.push(d);
 	}
 
-	// Pass 3+: Only proceed with graph-dependent passes if we have a valid graph
-	if (graphResult.graph) {
-		diagnostics.push(...validateControlFlow(workflow, graphResult.graph));
-
-		diagnostics.push(...validateJmespath(workflow, graphResult.graph));
-	}
-
-	// Pass 5: Tool validation + constrained schema generation (doesn't require graph)
+	// Pass 3: Extract tool schemas (needed by control flow and for-each validation)
 	let constrainedToolSchemas: ConstrainedToolSchemaMap | null = null;
+	let toolSchemas: ToolDefinitionMap | null = null;
 	if (options?.tools) {
-		const toolSchemas = await extractToolSchemas(options.tools);
+		toolSchemas = await extractToolSchemas(options.tools);
 		diagnostics.push(...validateTools(workflow, toolSchemas));
 		constrainedToolSchemas = generateConstrainedToolSchemas(
 			workflow,
 			toolSchemas,
 		);
+	}
 
-		// Pass 6: Validate for-each targets resolve to array types
-		if (graphResult.graph) {
+	// Pass 4+: Only proceed with graph-dependent passes if we have a valid graph
+	if (graphResult.graph) {
+		diagnostics.push(
+			...validateControlFlow(workflow, graphResult.graph, toolSchemas),
+		);
+
+		diagnostics.push(...validateJmespath(workflow, graphResult.graph));
+
+		// Validate for-each targets resolve to array types
+		if (toolSchemas) {
 			diagnostics.push(
 				...validateForeachTarget(workflow, graphResult.graph, toolSchemas),
 			);

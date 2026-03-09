@@ -140,15 +140,6 @@ function StepParams({ step }: { step: WorkflowStep }) {
 			);
 
 		case "start":
-			return (
-				<div className="space-y-2">
-					<div>
-						<Label>Input Schema</Label>
-						<Code>{JSON.stringify(step.params.inputSchema, null, 2)}</Code>
-					</div>
-				</div>
-			);
-
 		case "end":
 			return null;
 	}

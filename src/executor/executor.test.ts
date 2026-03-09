@@ -1571,21 +1571,19 @@ describe("integration: example tasks", () => {
 // ─── Start Step ─────────────────────────────────────────────────
 
 describe("start step", () => {
-	test("outputs provided inputs to scope", async () => {
+	test("inputs available via 'input' alias in scope", async () => {
 		const workflow = {
 			initialStepId: "entry",
+			inputSchema: {
+				type: "object",
+				properties: { name: { type: "string" } },
+			},
 			steps: [
 				{
 					id: "entry",
 					name: "Entry",
 					description: "Entry point",
 					type: "start",
-					params: {
-						inputSchema: {
-							type: "object",
-							properties: { name: { type: "string" } },
-						},
-					},
 					nextStepId: "greet_step",
 				},
 				{
@@ -1598,7 +1596,7 @@ describe("start step", () => {
 						toolInput: {
 							name: {
 								type: "jmespath",
-								expression: "entry.name",
+								expression: "input.name",
 							},
 						},
 					},
@@ -1611,7 +1609,7 @@ describe("start step", () => {
 			inputs: { name: "World" },
 		});
 		expect(result.success).toBe(true);
-		expect(result.stepOutputs.entry).toEqual({ name: "World" });
+		expect(result.stepOutputs.input).toEqual({ name: "World" });
 		expect(result.stepOutputs.greet_step).toEqual({
 			greeting: "Hello, World!",
 		});
@@ -1626,7 +1624,6 @@ describe("start step", () => {
 					name: "Entry",
 					description: "Entry point",
 					type: "start",
-					params: { inputSchema: {} },
 					nextStepId: "do_work",
 				},
 				{
@@ -1641,25 +1638,23 @@ describe("start step", () => {
 
 		const result = await executeWorkflow(workflow, { tools: testTools });
 		expect(result.success).toBe(true);
-		expect(result.stepOutputs.entry).toEqual({});
+		expect(result.stepOutputs.input).toEqual({});
 	});
 
 	test("validates inputs against schema and fails on mismatch", async () => {
 		const workflow = {
 			initialStepId: "entry",
+			inputSchema: {
+				type: "object",
+				properties: { name: { type: "string" } },
+				required: ["name"],
+			},
 			steps: [
 				{
 					id: "entry",
 					name: "Entry",
 					description: "Entry point",
 					type: "start",
-					params: {
-						inputSchema: {
-							type: "object",
-							properties: { name: { type: "string" } },
-							required: ["name"],
-						},
-					},
 				},
 			],
 		} as WorkflowDefinition;
@@ -1669,7 +1664,7 @@ describe("start step", () => {
 			inputs: {},
 		});
 		expect(result.success).toBe(false);
-		expect(result.error?.stepId).toBe("entry");
+		expect(result.error?.stepId).toBe("input");
 		expect(result.error?.message).toContain("input validation failed");
 	});
 });
