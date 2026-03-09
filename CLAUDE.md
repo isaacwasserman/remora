@@ -104,3 +104,16 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+## Changesets
+
+Every PR must include a changeset describing the changes. This is required for the automated release process.
+
+- Run `bunx changeset` to create a new changeset.
+- Select the appropriate semver bump type:
+  - `patch` for bug fixes and minor tweaks
+  - `minor` for new features and non-breaking additions
+  - `major` for breaking changes
+- Write a concise summary of the change aimed at package consumers.
+- Commit the generated `.changeset/*.md` file with the rest of the PR.
+- PRs without a changeset will not trigger a canary release and will not be included in the next stable release.
