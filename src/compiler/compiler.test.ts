@@ -3222,7 +3222,7 @@ describe("workflow output", () => {
 		expect(errors(result.diagnostics)).toHaveLength(0);
 	});
 
-	test("END_STEP_MISSING_OUTPUT warning when outputSchema defined", async () => {
+	test("END_STEP_MISSING_OUTPUT error when outputSchema defined", async () => {
 		const workflow = {
 			initialStepId: "fetch",
 			outputSchema: { type: "object" },
@@ -3255,7 +3255,7 @@ describe("workflow output", () => {
 			result.diagnostics,
 			"END_STEP_MISSING_OUTPUT",
 		);
-		expect(diag.severity).toBe("warning");
+		expect(diag.severity).toBe("error");
 		expect(diag.location.stepId).toBe("done");
 	});
 
@@ -3366,6 +3366,387 @@ describe("workflow output", () => {
 		expect(
 			hasDiagnostic(result.diagnostics, "END_STEP_UNEXPECTED_OUTPUT"),
 		).toBe(false);
+	});
+	test("PATH_MISSING_END_STEP error when terminal step is not an end step", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					// no nextStepId — terminal non-end step
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "PATH_MISSING_END_STEP")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"PATH_MISSING_END_STEP",
+		);
+		expect(diag.severity).toBe("error");
+		expect(diag.location.stepId).toBe("fetch");
+	});
+
+	test("no PATH_MISSING_END_STEP when no outputSchema", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "PATH_MISSING_END_STEP")).toBe(
+			false,
+		);
+	});
+
+	test("PATH_MISSING_END_STEP in switch-case branch when terminal", async () => {
+		const workflow = {
+			initialStepId: "branch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "branch",
+					name: "Branch",
+					description: "Branch",
+					type: "switch-case",
+					params: {
+						switchOn: { type: "literal", value: "a" },
+						cases: [
+							{
+								value: { type: "literal", value: "a" },
+								branchBodyStepId: "case_a",
+							},
+							{
+								value: { type: "literal", value: "b" },
+								branchBodyStepId: "case_b",
+							},
+						],
+					},
+					// no nextStepId — terminal switch-case
+				},
+				{
+					id: "case_a",
+					name: "Case A",
+					description: "A",
+					type: "end",
+					params: {
+						output: { type: "literal", value: { result: "a" } },
+					},
+				},
+				{
+					id: "case_b",
+					name: "Case B",
+					description: "B",
+					type: "tool-call",
+					params: {
+						toolName: "some-tool",
+						toolInput: {},
+					},
+					// no nextStepId — terminal non-end step in branch
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "PATH_MISSING_END_STEP")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"PATH_MISSING_END_STEP",
+		);
+		expect(diag.location.stepId).toBe("case_b");
+	});
+
+	test("PATH_MISSING_END_STEP in for-each loop body when terminal", async () => {
+		const workflow = {
+			initialStepId: "loop",
+			outputSchema: { type: "array" },
+			steps: [
+				{
+					id: "loop",
+					name: "Loop",
+					description: "Loop",
+					type: "for-each",
+					params: {
+						target: { type: "literal", value: [1, 2, 3] },
+						itemName: "item",
+						loopBodyStepId: "process",
+					},
+					// no nextStepId — terminal for-each
+				},
+				{
+					id: "process",
+					name: "Process",
+					description: "Process",
+					type: "tool-call",
+					params: {
+						toolName: "some-tool",
+						toolInput: {},
+					},
+					// no nextStepId — terminal non-end step in loop body
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "PATH_MISSING_END_STEP")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"PATH_MISSING_END_STEP",
+		);
+		expect(diag.location.stepId).toBe("process");
+	});
+
+	test("LITERAL_OUTPUT_SHAPE_MISMATCH when literal type mismatches outputSchema", async () => {
+		const workflow = {
+			initialStepId: "done",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "literal", value: "not an object" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.severity).toBe("error");
+		expect(diag.message).toContain("string");
+		expect(diag.message).toContain("object");
+	});
+
+	test("LITERAL_OUTPUT_SHAPE_MISMATCH for missing required fields", async () => {
+		const workflow = {
+			initialStepId: "done",
+			outputSchema: {
+				type: "object",
+				required: ["name", "email"],
+				properties: {
+					name: { type: "string" },
+					email: { type: "string" },
+				},
+			},
+			steps: [
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "literal",
+							value: { name: "Alice" },
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.message).toContain("email");
+	});
+
+	test("LITERAL_OUTPUT_SHAPE_MISMATCH for wrong property type", async () => {
+		const workflow = {
+			initialStepId: "done",
+			outputSchema: {
+				type: "object",
+				properties: {
+					count: { type: "number" },
+				},
+			},
+			steps: [
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "literal",
+							value: { count: "not a number" },
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(true);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"LITERAL_OUTPUT_SHAPE_MISMATCH",
+		);
+		expect(diag.message).toContain("count");
+		expect(diag.message).toContain("string");
+		expect(diag.message).toContain("number");
+	});
+
+	test("no LITERAL_OUTPUT_SHAPE_MISMATCH when literal matches schema", async () => {
+		const workflow = {
+			initialStepId: "done",
+			outputSchema: {
+				type: "object",
+				required: ["name"],
+				properties: {
+					name: { type: "string" },
+					count: { type: "number" },
+				},
+			},
+			steps: [
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: {
+							type: "literal",
+							value: { name: "Alice", count: 42 },
+						},
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("no LITERAL_OUTPUT_SHAPE_MISMATCH for jmespath expressions", async () => {
+		const workflow = {
+			initialStepId: "fetch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "fetch",
+					name: "Fetch",
+					description: "Fetch data",
+					type: "tool-call",
+					params: {
+						toolName: "get-data",
+						toolInput: {},
+					},
+					nextStepId: "done",
+				},
+				{
+					id: "done",
+					name: "Done",
+					description: "End",
+					type: "end",
+					params: {
+						output: { type: "jmespath", expression: "fetch" },
+					},
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(
+			hasDiagnostic(result.diagnostics, "LITERAL_OUTPUT_SHAPE_MISMATCH"),
+		).toBe(false);
+	});
+
+	test("END_STEP_MISSING_OUTPUT in switch-case branch end steps when terminal", async () => {
+		const workflow = {
+			initialStepId: "branch",
+			outputSchema: { type: "object" },
+			steps: [
+				{
+					id: "branch",
+					name: "Branch",
+					description: "Branch",
+					type: "switch-case",
+					params: {
+						switchOn: { type: "literal", value: "a" },
+						cases: [
+							{
+								value: { type: "literal", value: "a" },
+								branchBodyStepId: "case_a_end",
+							},
+							{
+								value: { type: "literal", value: "b" },
+								branchBodyStepId: "case_b_end",
+							},
+						],
+					},
+				},
+				{
+					id: "case_a_end",
+					name: "Case A End",
+					description: "End A",
+					type: "end",
+					params: {
+						output: { type: "literal", value: { result: "a" } },
+					},
+				},
+				{
+					id: "case_b_end",
+					name: "Case B End",
+					description: "End B",
+					type: "end",
+					// no output expression
+				},
+			],
+		} as WorkflowDefinition;
+
+		const result = await compileWorkflow(workflow);
+		expect(hasDiagnostic(result.diagnostics, "END_STEP_MISSING_OUTPUT")).toBe(
+			true,
+		);
+		const diag = getFirstDiagnostic(
+			result.diagnostics,
+			"END_STEP_MISSING_OUTPUT",
+		);
+		expect(diag.location.stepId).toBe("case_b_end");
 	});
 });
 

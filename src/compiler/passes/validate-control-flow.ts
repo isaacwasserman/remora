@@ -72,14 +72,40 @@ export function validateControlFlow(
 
 	// Output consistency checks
 	if (workflow.outputSchema) {
-		for (const step of workflow.steps) {
-			if (step.type === "end" && !step.params?.output) {
+		// Check that all execution paths reach an end step with a valid output expression
+		const outputPoints = findWorkflowOutputPoints(
+			workflow.initialStepId,
+			graph,
+		);
+		for (const point of outputPoints) {
+			if (point.type === "missing_end") {
 				diagnostics.push({
-					severity: "warning",
-					location: { stepId: step.id, field: "params" },
-					message: `End step '${step.id}' has no output expression, but the workflow declares an outputSchema`,
+					severity: "error",
+					location: { stepId: point.stepId, field: "nextStepId" },
+					message: `Step '${point.stepId}' is a terminal step but is not an end step; all execution paths must terminate at an end step when outputSchema is declared`,
+					code: "PATH_MISSING_END_STEP",
+				});
+			} else if (point.type === "end_without_output") {
+				diagnostics.push({
+					severity: "error",
+					location: { stepId: point.stepId, field: "params" },
+					message: `End step '${point.stepId}' has no output expression, but the workflow declares an outputSchema`,
 					code: "END_STEP_MISSING_OUTPUT",
 				});
+			} else if (point.type === "end_with_output") {
+				// Validate literal output shapes against outputSchema at compile time
+				const step = graph.stepIndex.get(point.stepId);
+				if (step?.type === "end" && step.params?.output) {
+					const expr = step.params.output;
+					if (expr.type === "literal") {
+						const shapeDiags = validateLiteralOutputShape(
+							expr.value,
+							workflow.outputSchema as Record<string, unknown>,
+							point.stepId,
+						);
+						diagnostics.push(...shapeDiags);
+					}
+				}
 			}
 		}
 	} else {
@@ -139,4 +165,156 @@ function checkBodyEscapes(
 	}
 
 	return null;
+}
+
+type OutputPoint =
+	| { type: "end_with_output"; stepId: string }
+	| { type: "end_without_output"; stepId: string }
+	| { type: "missing_end"; stepId: string };
+
+/**
+ * Find all workflow output points — the terminal positions where execution
+ * stops and produces the workflow's final output. This walks the main chain
+ * and recurses into branch/loop bodies when they are terminal (the parent
+ * step has no nextStepId).
+ */
+function findWorkflowOutputPoints(
+	startId: string,
+	graph: ExecutionGraph,
+): OutputPoint[] {
+	return collectOutputPoints(startId, graph, new Set());
+}
+
+function collectOutputPoints(
+	startId: string,
+	graph: ExecutionGraph,
+	visited: Set<string>,
+): OutputPoint[] {
+	const points: OutputPoint[] = [];
+	let currentId: string | undefined = startId;
+
+	while (currentId) {
+		if (visited.has(currentId)) break;
+		visited.add(currentId);
+
+		const step = graph.stepIndex.get(currentId);
+		if (!step) break;
+
+		if (!step.nextStepId) {
+			// This is a terminal step on this chain
+			if (step.type === "end") {
+				points.push({
+					type: step.params?.output
+						? "end_with_output"
+						: "end_without_output",
+					stepId: step.id,
+				});
+			} else if (step.type === "switch-case") {
+				// Terminal switch-case: each branch is an output point
+				for (const c of step.params.cases) {
+					points.push(
+						...collectOutputPoints(c.branchBodyStepId, graph, visited),
+					);
+				}
+			} else if (step.type === "for-each") {
+				// Terminal for-each: loop body determines output shape
+				points.push(
+					...collectOutputPoints(
+						step.params.loopBodyStepId,
+						graph,
+						visited,
+					),
+				);
+			} else {
+				// Non-end, non-branching terminal step — path doesn't reach an end step
+				points.push({ type: "missing_end", stepId: step.id });
+			}
+			break;
+		}
+
+		currentId = step.nextStepId;
+	}
+
+	return points;
+}
+
+/**
+ * Validate a literal output value against the outputSchema at compile time.
+ * Returns diagnostics for shape mismatches.
+ */
+function validateLiteralOutputShape(
+	value: unknown,
+	schema: Record<string, unknown>,
+	stepId: string,
+): Diagnostic[] {
+	const diagnostics: Diagnostic[] = [];
+	const expectedType = schema.type;
+
+	if (typeof expectedType !== "string") return diagnostics;
+
+	const actualType = getValueType(value);
+	if (expectedType !== actualType) {
+		diagnostics.push({
+			severity: "error",
+			location: { stepId, field: "params.output" },
+			message: `End step '${stepId}' output literal has type '${actualType}' but outputSchema expects '${expectedType}'`,
+			code: "LITERAL_OUTPUT_SHAPE_MISMATCH",
+		});
+		return diagnostics;
+	}
+
+	// For objects, validate required fields and property types
+	if (
+		expectedType === "object" &&
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value)
+	) {
+		const obj = value as Record<string, unknown>;
+		const required = schema.required;
+		if (Array.isArray(required)) {
+			const missing = required.filter(
+				(key: unknown) => typeof key === "string" && !(key as string in obj),
+			);
+			if (missing.length > 0) {
+				diagnostics.push({
+					severity: "error",
+					location: { stepId, field: "params.output" },
+					message: `End step '${stepId}' output literal is missing required field(s): ${missing.join(", ")}`,
+					code: "LITERAL_OUTPUT_SHAPE_MISMATCH",
+				});
+			}
+		}
+
+		const properties = schema.properties;
+		if (properties && typeof properties === "object") {
+			for (const [key, val] of Object.entries(obj)) {
+				const propSchema = (properties as Record<string, unknown>)[key];
+				if (
+					propSchema &&
+					typeof propSchema === "object" &&
+					"type" in propSchema
+				) {
+					const propExpected = (propSchema as { type: string }).type;
+					const propActual = getValueType(val);
+					if (propExpected !== propActual) {
+						diagnostics.push({
+							severity: "error",
+							location: { stepId, field: "params.output" },
+							message: `End step '${stepId}' output literal field '${key}' has type '${propActual}' but schema expects '${propExpected}'`,
+							code: "LITERAL_OUTPUT_SHAPE_MISMATCH",
+						});
+					}
+				}
+			}
+		}
+	}
+
+	return diagnostics;
+}
+
+function getValueType(value: unknown): string {
+	if (value === null) return "null";
+	if (Array.isArray(value)) return "array";
+	return typeof value;
 }
