@@ -48,7 +48,9 @@ jobs:
 
       - name: Publish canary to npm
         if: steps.version.outputs.is_snapshot == 'true'
-        run: npm publish --tag canary --provenance --access public --no-git-checks
+        run: npm publish --tag canary --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release:
     runs-on: ubuntu-latest
@@ -81,3 +83,4 @@ jobs:
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
