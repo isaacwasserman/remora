@@ -23,8 +23,9 @@ export function buildWorkflowGenerationPrompt(serializedTools: string): string {
 
 A workflow has:
 - \`initialStepId\`: the id of the first step to execute
-- \`steps\`: an array of step objects (order does not matter — execution flow is determined by nextStepId links)
+- \`inputSchema\` (optional): a JSON Schema object defining the inputs required to run the workflow. When present, provided inputs are validated against this schema and become available in JMESPath expressions via the root identifier \`input\` (e.g. \`input.fieldName\`).
 - \`outputSchema\` (optional): a JSON Schema object declaring the shape of the workflow's output. When present, every \`end\` step should have an \`output\` expression that evaluates to a value matching this schema.
+- \`steps\`: an array of step objects (order does not matter — execution flow is determined by nextStepId links)
 
 ## Step Common Fields
 
@@ -38,13 +39,10 @@ Every step has:
 ## Step Types
 
 ### start
-Entry point that declares and validates workflow inputs. Its output (the validated inputs) is accessible by subsequent steps via its step id.
+A no-op marker that indicates the entry point of a workflow. It takes no parameters. Workflow inputs are declared via \`inputSchema\` on the workflow definition itself, not on the start step.
 \`\`\`json
 {
-  "type": "start",
-  "params": {
-    "inputSchema": { "type": "object", "properties": { ... }, "required": [...] }
-  }
+  "type": "start"
 }
 \`\`\`
 
@@ -121,6 +119,41 @@ Iterates over a list and executes a chain of steps for each item. The loop body 
 }
 \`\`\`
 
+### sleep
+Pauses workflow execution for a fixed duration. Use when you need to wait between operations (e.g., rate limiting, propagation delays).
+\`\`\`json
+{
+  "type": "sleep",
+  "params": {
+    "durationMs": { "type": "literal", "value": 5000 }
+  }
+}
+\`\`\`
+
+### wait-for-condition
+Repeatedly executes a condition-check chain and evaluates a condition expression until it returns a truthy value. Use when you need to poll for a state change (e.g., waiting for a job to complete, a resource to become available).
+
+The \`conditionStepId\` points to the first step of a sub-chain that will be executed on each polling attempt. After the chain runs, the \`condition\` expression is evaluated against the current scope (including all outputs from the condition chain). If the result is truthy, the wait-for-condition step completes with that value as its output. Otherwise, it waits and retries.
+
+Optional parameters control polling behavior:
+- \`maxAttempts\`: maximum number of polling attempts (default: 10)
+- \`intervalMs\`: milliseconds between attempts (default: 1000)
+- \`backoffMultiplier\`: multiply interval by this after each attempt (default: 1, i.e. no backoff; use 2 for exponential)
+- \`timeoutMs\`: hard timeout in milliseconds (optional)
+\`\`\`json
+{
+  "type": "wait-for-condition",
+  "params": {
+    "conditionStepId": "poll_status",
+    "condition": { "type": "jmespath", "expression": "poll_status.status == 'complete'" },
+    "maxAttempts": { "type": "literal", "value": 30 },
+    "intervalMs": { "type": "literal", "value": 2000 },
+    "backoffMultiplier": { "type": "literal", "value": 1.5 },
+    "timeoutMs": { "type": "literal", "value": 120000 }
+  }
+}
+\`\`\`
+
 ### end
 Marks the end of a branch or the workflow. Must NOT have a nextStepId. Optionally, specify an output expression whose value becomes the workflow's return value.
 \`\`\`json
@@ -146,9 +179,9 @@ Every dynamic value must be an expression object:
 1. **Literal** — for static values known at design time:
    \`{ "type": "literal", "value": <any value> }\`
 
-2. **JMESPath** — for referencing data from previous steps or loop variables:
+2. **JMESPath** — for referencing data from previous steps, workflow inputs, or loop variables:
    \`{ "type": "jmespath", "expression": "<expression>" }\`
-   The root of a JMESPath expression must be either a step id (e.g. \`get_orders.orders\`) or a loop variable name (e.g. \`item.id\` within a for-each body).
+   The root of a JMESPath expression must be one of: the \`input\` alias (e.g. \`input.orderId\`) for workflow inputs, a step id (e.g. \`get_orders.orders\`) for previous step outputs, or a loop variable name (e.g. \`item.id\` within a for-each body).
 
 3. **Template strings** (llm-prompt only) — embed JMESPath in the prompt string using \${...}:
    \`"Summarize: \${fetch_data.content}"\`
@@ -158,7 +191,7 @@ Every dynamic value must be an expression object:
 
 1. Step IDs must be unique and match /^[a-zA-Z_][a-zA-Z0-9_]+$/.
 2. Steps link via nextStepId. Omitting nextStepId ends the chain.
-3. Branch body chains (switch-case) and loop body chains (for-each) must terminate — their last step must NOT have a nextStepId. Do NOT point them back to the parent or outside the body.
+3. Branch body chains (switch-case), loop body chains (for-each), and condition body chains (wait-for-condition) must terminate — their last step must NOT have a nextStepId. Do NOT point them back to the parent or outside the body.
 4. Only reference step IDs of steps that will have executed before the current step (no forward references).
 5. Do not create cycles (for-each handles iteration — you do not need to loop manually).
 6. end steps must NOT have a nextStepId.
@@ -179,7 +212,7 @@ ${serializedTools}
 
 3. Branch/loop body chains must terminate (last step has no nextStepId). Do NOT point them outside their scope.
 
-4. JMESPath expressions reference step outputs by step ID as the root identifier. Example: \`"get_orders.orders[0].id"\` means step "get_orders" → its output → .orders[0].id
+4. JMESPath expressions reference step outputs by step ID as the root identifier (e.g. \`"get_orders.orders[0].id"\`), and workflow inputs via the \`input\` alias (e.g. \`"input.orderId"\`).
 
 5. For-each itemName is a scoped variable accessible ONLY within the loop body steps.
 
@@ -189,7 +222,9 @@ ${serializedTools}
    WRONG: \`"target": { "type": "jmespath", "expression": "get_orders" }\` (when get_orders returns an object with an \`orders\` array property)
    RIGHT: \`"target": { "type": "jmespath", "expression": "get_orders.orders" }\`
 
-8. If the workflow needs to return structured data, declare an \`outputSchema\` on the workflow and give every \`end\` step an \`output\` expression that evaluates to a value matching it.`;
+8. If the workflow needs to return structured data, declare an \`outputSchema\` on the workflow and give every \`end\` step an \`output\` expression that evaluates to a value matching it.
+
+9. wait-for-condition requires both \`conditionStepId\` (the chain to execute on each polling attempt) AND \`condition\` (the expression to evaluate after the chain runs). The condition expression is evaluated AFTER the chain runs, using the updated scope with all step outputs from the condition chain.`;
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {

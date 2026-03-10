@@ -40,7 +40,16 @@ export type DiagnosticCode =
 	| "MISSING_START_STEP"
 	| "END_STEP_MISSING_OUTPUT"
 	| "END_STEP_UNEXPECTED_OUTPUT"
-	| "FOREACH_TARGET_NOT_ARRAY";
+	| "PATH_MISSING_END_STEP"
+	| "LITERAL_OUTPUT_SHAPE_MISMATCH"
+	| "FOREACH_TARGET_NOT_ARRAY"
+	| "MISSING_CONDITION_BODY_STEP"
+	| "CONDITION_BODY_ESCAPES"
+	| "SLEEP_DURATION_EXCEEDS_LIMIT"
+	| "WAIT_ATTEMPTS_EXCEEDS_LIMIT"
+	| "WAIT_INTERVAL_EXCEEDS_LIMIT"
+	| "BACKOFF_MULTIPLIER_OUT_OF_RANGE"
+	| "WAIT_TIMEOUT_EXCEEDS_LIMIT";
 
 /**
  * A structured compiler diagnostic with a severity, location, human-readable message,
@@ -108,6 +117,19 @@ export interface ConstrainedToolSchema {
 
 /** Maps tool names to their constrained schemas. */
 export type ConstrainedToolSchemaMap = Record<string, ConstrainedToolSchema>;
+
+export interface CompilerLimits {
+	/** Upper bound for wait-for-condition maxAttempts. Default: Infinity (unbounded). */
+	maxAttempts?: number;
+	/** Upper bound for sleep durationMs and wait intervalMs in ms. Default: 300_000 (5 min). */
+	maxSleepMs?: number;
+	/** Upper bound for backoffMultiplier. Default: 2. */
+	maxBackoffMultiplier?: number;
+	/** Lower bound for backoffMultiplier. Default: 1. */
+	minBackoffMultiplier?: number;
+	/** Upper bound for wait-for-condition timeoutMs in ms. Default: 600_000 (10 min). */
+	maxTimeoutMs?: number;
+}
 
 /** The result of compiling a workflow definition. */
 export interface CompilerResult {

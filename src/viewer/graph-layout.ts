@@ -42,6 +42,10 @@ function stepNodeType(step: WorkflowStep): string {
 			return "startStep";
 		case "end":
 			return "end";
+		case "sleep":
+			return "sleep";
+		case "wait-for-condition":
+			return "waitForCondition";
 	}
 }
 

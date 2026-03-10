@@ -1,7 +1,10 @@
 {
-	"name": "remora",
-	"version": "0.1.0",
+	"name": "@isaacwasserman/remora",
+	"version": "0.2.0",
 	"description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
+	"publishConfig": {
+		"access": "public"
+	},
 	"license": "GPL-3.0",
 	"type": "module",
 	"exports": {
@@ -31,7 +34,9 @@
 		"docs:api": "bunx typedoc",
 		"docs:dev": "bun run docs:api && bunx vitepress dev docs",
 		"docs:build": "bun run docs:api && bunx vitepress build docs",
-		"docs:preview": "bunx vitepress preview docs"
+		"docs:preview": "bunx vitepress preview docs",
+		"changeset": "changeset",
+		"version-packages": "changeset version"
 	},
 	"dependencies": {
 		"arktype": "^2.1.29",
@@ -66,6 +71,7 @@
 		"@ai-sdk/anthropic": "^3.0.50",
 		"@ai-sdk/openai": "^3.0.37",
 		"@biomejs/biome": "2.4.4",
+		"@changesets/cli": "^2.30.0",
 		"@types/bun": "latest",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",

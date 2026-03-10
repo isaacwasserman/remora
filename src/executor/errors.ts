@@ -42,7 +42,14 @@ export type ErrorCode =
 	| "JMESPATH_EVALUATION_ERROR"
 	| "TEMPLATE_INTERPOLATION_ERROR"
 	// output-quality — LLM produced unparseable/unusable output
-	| "LLM_OUTPUT_PARSE_ERROR";
+	| "LLM_OUTPUT_PARSE_ERROR"
+	// wait — wait/sleep step errors
+	| "SLEEP_INVALID_DURATION"
+	| "WAIT_CONDITION_TIMEOUT"
+	| "WAIT_CONDITION_MAX_ATTEMPTS"
+	// execution limits — aggregate time bounds
+	| "EXECUTION_TOTAL_TIMEOUT"
+	| "EXECUTION_ACTIVE_TIMEOUT";
 
 // ─── Base Error Class ───────────────────────────────────────────
 
