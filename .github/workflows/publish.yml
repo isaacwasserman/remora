@@ -35,7 +35,7 @@ jobs:
         if: steps.check.outputs.changeset_count != '0'
         id: version
         run: |
-          bunx changeset version --snapshot canary
+          npx changeset version --snapshot canary
           version=$(node -p "require('./package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if echo "$version" | grep -q "canary"; then
