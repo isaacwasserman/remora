@@ -3,7 +3,8 @@
 	"version": "0.2.1",
 	"description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"registry": "https://npm.pkg.github.com"
 	},
 	"repository": {
 		"type": "git",
