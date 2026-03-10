@@ -32,7 +32,8 @@
 		"viewer": "bun src/viewer/demo/server.ts",
 		"typecheck": "tsgo --noEmit",
 		"changeset": "changeset",
-		"version-packages": "changeset version"
+		"version-packages": "changeset version",
+		"ci:release": "bun run build && npm publish --provenance --access public"
 	},
 	"dependencies": {
 		"arktype": "^2.1.29",
