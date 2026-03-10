@@ -69,6 +69,16 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - name: Remove empty changesets
+        run: |
+          for f in .changeset/*.md; do
+            [ "$(basename "$f")" = "README.md" ] && continue
+            if ! grep -q '": ' "$f" 2>/dev/null; then
+              echo "Removing empty changeset: $f"
+              rm "$f"
+            fi
+          done
+
       - name: Create Release PR or Publish
         id: changesets
         uses: changesets/action@v1
