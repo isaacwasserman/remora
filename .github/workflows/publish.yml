@@ -28,7 +28,7 @@ jobs:
       - name: Check for pending changesets
         id: check
         run: |
-          count=$(find .changeset -name '*.md' ! -name 'README.md' | wc -l)
+          count=$(find .changeset -name '*.md' ! -name 'README.md' -exec grep -l '": ' {} \; | wc -l)
           echo "changeset_count=$count" >> "$GITHUB_OUTPUT"
 
       - name: Version canary snapshot
