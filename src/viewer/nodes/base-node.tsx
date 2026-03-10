@@ -14,6 +14,7 @@ interface BaseNodeProps {
 	children?: ReactNode;
 	selected?: boolean;
 	hasSourceEdge?: boolean;
+	hasTargetEdge?: boolean;
 }
 
 export function BaseNode({
@@ -27,6 +28,7 @@ export function BaseNode({
 	children,
 	selected,
 	hasSourceEdge = true,
+	hasTargetEdge = true,
 }: BaseNodeProps) {
 	const { dark } = useViewerTheme();
 	const hasErrors = diagnostics.some((d) => d.severity === "error");
@@ -47,11 +49,13 @@ export function BaseNode({
 			} ${hasRing ? ringClass : dark ? "hover:ring-2 hover:ring-gray-600" : "hover:ring-2 hover:ring-gray-300"}`}
 			style={{ borderLeftColor: accent }}
 		>
-			<Handle
-				type="target"
-				position={Position.Top}
-				className={`!w-2 !h-2 ${dark ? "!bg-gray-500" : "!bg-gray-400"}`}
-			/>
+			{hasTargetEdge && (
+				<Handle
+					type="target"
+					position={Position.Top}
+					className={`!w-2 !h-2 ${dark ? "!bg-gray-500" : "!bg-gray-400"}`}
+				/>
+			)}
 			<div className="px-3 py-2.5">
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2 min-w-0">

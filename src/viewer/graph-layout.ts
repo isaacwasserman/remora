@@ -7,6 +7,8 @@ export interface StepNodeData {
 	step: WorkflowStep;
 	diagnostics: Diagnostic[];
 	hasSourceEdge?: boolean;
+	inputSchema?: object;
+	outputSchema?: object;
 }
 
 const NODE_WIDTH = 300;
@@ -60,10 +62,14 @@ function renderExpression(
 	return expr.expression;
 }
 
-function nodeSize(step: WorkflowStep): { w: number; h: number } {
-	return step.type === "end"
-		? { w: END_NODE_SIZE, h: END_NODE_SIZE }
-		: { w: NODE_WIDTH, h: NODE_HEIGHT };
+function nodeSize(
+	step: WorkflowStep,
+	workflow?: WorkflowDefinition,
+): { w: number; h: number } {
+	if (step.type === "end" && !step.params?.output && !workflow?.outputSchema) {
+		return { w: END_NODE_SIZE, h: END_NODE_SIZE };
+	}
+	return { w: NODE_WIDTH, h: NODE_HEIGHT };
 }
 
 function collectChildSteps(
@@ -80,6 +86,8 @@ function collectChildSteps(
 		for (const c of step.params.cases) {
 			seeds.push(c.branchBodyStepId);
 		}
+	} else if (step.type === "wait-for-condition") {
+		seeds.push(step.params.conditionStepId);
 	} else {
 		return children;
 	}
@@ -99,6 +107,9 @@ function collectChildSteps(
 		if (s.type === "for-each") {
 			queue.push(s.params.loopBodyStepId);
 		}
+		if (s.type === "wait-for-condition") {
+			queue.push(s.params.conditionStepId);
+		}
 	}
 	return children;
 }
@@ -111,7 +122,11 @@ function buildParentMap(
 	const allGroupChildren = new Map<string, Set<string>>();
 
 	for (const step of workflow.steps) {
-		if (step.type === "for-each" || step.type === "switch-case") {
+		if (
+			step.type === "for-each" ||
+			step.type === "switch-case" ||
+			step.type === "wait-for-condition"
+		) {
 			allGroupChildren.set(step.id, collectChildSteps(step, stepMap));
 		}
 	}
@@ -177,11 +192,12 @@ function getNodeDimensions(
 	groupIds: Set<string>,
 	computedSizes: Map<string, { w: number; h: number }>,
 	stepMap: Map<string, WorkflowStep>,
+	workflow?: WorkflowDefinition,
 ): { w: number; h: number } {
 	if (groupIds.has(nodeId)) {
 		return getOrThrow(computedSizes, nodeId);
 	}
-	return nodeSize(getOrThrow(stepMap, nodeId));
+	return nodeSize(getOrThrow(stepMap, nodeId), workflow);
 }
 
 export function buildLayout(
@@ -208,7 +224,11 @@ export function buildLayout(
 	// --- Step 2: Identify groups ---
 	const groupIds = new Set<string>();
 	for (const step of workflow.steps) {
-		if (step.type === "for-each" || step.type === "switch-case") {
+		if (
+			step.type === "for-each" ||
+			step.type === "switch-case" ||
+			step.type === "wait-for-condition"
+		) {
 			const hasChildren = [...parentMap.values()].some(
 				(pid) => pid === step.id,
 			);
@@ -250,6 +270,7 @@ export function buildLayout(
 				groupIds,
 				computedSizes,
 				stepMap,
+				workflow,
 			);
 			subG.setNode(childId, { width: w, height: h });
 		}
@@ -264,6 +285,10 @@ export function buildLayout(
 		} else if (groupStep.type === "for-each") {
 			if (directChildren.has(groupStep.params.loopBodyStepId)) {
 				subG.setEdge(headerId, groupStep.params.loopBodyStepId);
+			}
+		} else if (groupStep.type === "wait-for-condition") {
+			if (directChildren.has(groupStep.params.conditionStepId)) {
+				subG.setEdge(headerId, groupStep.params.conditionStepId);
 			}
 		}
 
@@ -283,6 +308,11 @@ export function buildLayout(
 			if (step.type === "for-each") {
 				if (directChildren.has(step.params.loopBodyStepId)) {
 					subG.setEdge(childId, step.params.loopBodyStepId);
+				}
+			}
+			if (step.type === "wait-for-condition") {
+				if (directChildren.has(step.params.conditionStepId)) {
+					subG.setEdge(childId, step.params.conditionStepId);
 				}
 			}
 		}
@@ -311,6 +341,7 @@ export function buildLayout(
 					groupIds,
 					computedSizes,
 					stepMap,
+					workflow,
 				);
 				w = dims.w;
 				h = dims.h;
@@ -346,11 +377,16 @@ export function buildLayout(
 	topG.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 60 });
 	topG.setDefaultEdgeLabel(() => ({}));
 
-	// Start node
-	topG.setNode(START_NODE_ID, {
-		width: START_NODE_SIZE,
-		height: START_NODE_SIZE,
-	});
+	// Start node — skip pseudo-node when initialStepId is a "start" step
+	const initialStep = stepMap.get(workflow.initialStepId);
+	const hasStartStep = initialStep?.type === "start";
+
+	if (!hasStartStep) {
+		topG.setNode(START_NODE_ID, {
+			width: START_NODE_SIZE,
+			height: START_NODE_SIZE,
+		});
+	}
 
 	const topLevelStepIds: string[] = [];
 	for (const step of workflow.steps) {
@@ -361,13 +397,16 @@ export function buildLayout(
 				groupIds,
 				computedSizes,
 				stepMap,
+				workflow,
 			);
 			topG.setNode(step.id, { width: w, height: h });
 		}
 	}
 
 	// Start → initial step
-	topG.setEdge(START_NODE_ID, workflow.initialStepId);
+	if (!hasStartStep) {
+		topG.setEdge(START_NODE_ID, workflow.initialStepId);
+	}
 
 	const topLevelSet = new Set(topLevelStepIds);
 	for (const stepId of topLevelStepIds) {
@@ -387,17 +426,24 @@ export function buildLayout(
 				topG.setEdge(stepId, step.params.loopBodyStepId);
 			}
 		}
+		if (step.type === "wait-for-condition") {
+			if (topLevelSet.has(step.params.conditionStepId)) {
+				topG.setEdge(stepId, step.params.conditionStepId);
+			}
+		}
 	}
 
 	dagre.layout(topG);
 
 	const topLevelPositions = new Map<string, { x: number; y: number }>();
 
-	const startPos = topG.node(START_NODE_ID);
-	topLevelPositions.set(START_NODE_ID, {
-		x: startPos.x - START_NODE_SIZE / 2,
-		y: startPos.y - START_NODE_SIZE / 2,
-	});
+	if (!hasStartStep) {
+		const startPos = topG.node(START_NODE_ID);
+		topLevelPositions.set(START_NODE_ID, {
+			x: startPos.x - START_NODE_SIZE / 2,
+			y: startPos.y - START_NODE_SIZE / 2,
+		});
+	}
 
 	for (const stepId of topLevelStepIds) {
 		const pos = topG.node(stepId);
@@ -406,6 +452,7 @@ export function buildLayout(
 			groupIds,
 			computedSizes,
 			stepMap,
+			workflow,
 		);
 		topLevelPositions.set(stepId, {
 			x: pos.x - w / 2,
@@ -416,15 +463,17 @@ export function buildLayout(
 	// --- Step 5: Build React Flow nodes ---
 	const nodes: Node[] = [];
 
-	// Start node
-	const startNodePos = getOrThrow(topLevelPositions, START_NODE_ID);
-	nodes.push({
-		id: START_NODE_ID,
-		type: "start",
-		position: startNodePos,
-		data: {},
-		selectable: false,
-	});
+	// Start pseudo-node (only when no explicit start step exists)
+	if (!hasStartStep) {
+		const startNodePos = getOrThrow(topLevelPositions, START_NODE_ID);
+		nodes.push({
+			id: START_NODE_ID,
+			type: "start",
+			position: startNodePos,
+			data: {},
+			selectable: false,
+		});
+	}
 
 	function addNodesForContext(
 		nodeIds: Iterable<string>,
@@ -503,6 +552,18 @@ export function buildLayout(
 					},
 					...(parentId ? { parentId, extent: "parent" as const } : {}),
 				});
+			} else if (step.type === "wait-for-condition") {
+				nodes.push({
+					id,
+					type: "groupHeader",
+					position: pos,
+					data: {
+						variant: "condition",
+						description: step.description,
+						condition: renderExpression(step.params.condition),
+					},
+					...(parentId ? { parentId, extent: "parent" as const } : {}),
+				});
 			}
 		}
 
@@ -510,15 +571,23 @@ export function buildLayout(
 			const step = getOrThrow(stepMap, id);
 			const pos = getPosition(id);
 
+			const nodeData: Record<string, unknown> = {
+				step,
+				diagnostics: diagnosticsByStep.get(id) ?? [],
+				hasSourceEdge: !!step.nextStepId,
+			};
+			if (step.type === "start" && workflow.inputSchema) {
+				nodeData.inputSchema = workflow.inputSchema;
+			}
+			if (step.type === "end" && workflow.outputSchema) {
+				nodeData.outputSchema = workflow.outputSchema;
+			}
+
 			nodes.push({
 				id,
 				type: stepNodeType(step),
 				position: pos,
-				data: {
-					step,
-					diagnostics: diagnosticsByStep.get(id) ?? [],
-					hasSourceEdge: !!step.nextStepId,
-				},
+				data: nodeData,
 				...(parentId ? { parentId, extent: "parent" as const } : {}),
 			});
 		}
@@ -531,14 +600,16 @@ export function buildLayout(
 	// --- Step 6: Build edges ---
 	const edges: Edge[] = [];
 
-	// Start → initial step
-	edges.push({
-		id: `${START_NODE_ID}->${workflow.initialStepId}`,
-		source: START_NODE_ID,
-		target: workflow.initialStepId,
-		type: "workflow",
-		data: { edgeKind: "sequential" },
-	});
+	// Start → initial step (only when no explicit start step exists)
+	if (!hasStartStep) {
+		edges.push({
+			id: `${START_NODE_ID}->${workflow.initialStepId}`,
+			source: START_NODE_ID,
+			target: workflow.initialStepId,
+			type: "workflow",
+			data: { edgeKind: "sequential" },
+		});
+	}
 
 	for (const step of workflow.steps) {
 		if (step.type === "switch-case") {
@@ -573,6 +644,26 @@ export function buildLayout(
 					id: `${headerId}->${step.params.loopBodyStepId}`,
 					source: headerId,
 					target: step.params.loopBodyStepId,
+					type: "workflow",
+					data: { edgeKind: "sequential" },
+				});
+			}
+			if (step.nextStepId) {
+				edges.push({
+					id: `${step.id}->${step.nextStepId}`,
+					source: step.id,
+					target: step.nextStepId,
+					type: "workflow",
+					data: { edgeKind: "sequential" },
+				});
+			}
+		} else if (step.type === "wait-for-condition") {
+			if (groupIds.has(step.id)) {
+				const headerId = groupHeaderId(step.id);
+				edges.push({
+					id: `${headerId}->${step.params.conditionStepId}`,
+					source: headerId,
+					target: step.params.conditionStepId,
 					type: "workflow",
 					data: { edgeKind: "sequential" },
 				});
