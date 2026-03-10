@@ -141,9 +141,7 @@ export function WorkflowViewer({
 						border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
 						backgroundColor: dark ? "#1f2937" : undefined,
 					}}
-					nodeColor={
-						dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
-					}
+					nodeColor={dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"}
 				/>
 			</ReactFlow>
 		</ViewerThemeProvider>
