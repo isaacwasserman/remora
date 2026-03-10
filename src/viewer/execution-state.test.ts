@@ -45,7 +45,7 @@ describe("deriveStepSummaries", () => {
 		expect(s?.latestDurationMs).toBe(100);
 	});
 
-	test("multiple executions of same step (for-each)", () => {
+	test("filters to latest iteration for loop-body steps", () => {
 		const result = deriveStepSummaries(
 			makeState({
 				stepRecords: [
@@ -68,23 +68,6 @@ describe("deriveStepSummaries", () => {
 					},
 					{
 						stepId: "s1",
-						status: "completed",
-						startedAt: "t3",
-						completedAt: "t4",
-						durationMs: 20,
-						output: "second",
-						retries: [],
-						path: [
-							{
-								type: "for-each",
-								stepId: "loop",
-								iterationIndex: 1,
-								itemValue: "b",
-							},
-						],
-					},
-					{
-						stepId: "s1",
 						status: "failed",
 						startedAt: "t5",
 						completedAt: "t6",
@@ -99,8 +82,8 @@ describe("deriveStepSummaries", () => {
 							{
 								type: "for-each",
 								stepId: "loop",
-								iterationIndex: 2,
-								itemValue: "c",
+								iterationIndex: 1,
+								itemValue: "b",
 							},
 						],
 					},
@@ -109,12 +92,63 @@ describe("deriveStepSummaries", () => {
 		);
 
 		const s = result.get("s1");
-		expect(s?.executionCount).toBe(3);
-		expect(s?.completedCount).toBe(2);
+		// Only latest iteration (1) is shown
+		expect(s?.executionCount).toBe(1);
+		expect(s?.completedCount).toBe(0);
 		expect(s?.failedCount).toBe(1);
-		// Worst status wins: failed > completed
 		expect(s?.status).toBe("failed");
 		expect(s?.latestError?.code).toBe("ERR");
+	});
+
+	test("excludes steps that only ran in previous iterations", () => {
+		// Simulates a switch-case inside a for-each:
+		// iteration 0: branch_a runs, branch_b does not
+		// iteration 1: branch_b runs, branch_a does not
+		const result = deriveStepSummaries(
+			makeState({
+				stepRecords: [
+					{
+						stepId: "branch_a",
+						status: "completed",
+						startedAt: "t1",
+						completedAt: "t2",
+						durationMs: 10,
+						output: "done-a",
+						retries: [],
+						path: [
+							{
+								type: "for-each",
+								stepId: "loop",
+								iterationIndex: 0,
+								itemValue: "x",
+							},
+						],
+					},
+					{
+						stepId: "branch_b",
+						status: "completed",
+						startedAt: "t3",
+						completedAt: "t4",
+						durationMs: 10,
+						output: "done-b",
+						retries: [],
+						path: [
+							{
+								type: "for-each",
+								stepId: "loop",
+								iterationIndex: 1,
+								itemValue: "y",
+							},
+						],
+					},
+				],
+			}),
+		);
+
+		// branch_a only ran in iteration 0 (not latest) → excluded
+		expect(result.has("branch_a")).toBe(false);
+		// branch_b ran in iteration 1 (latest) → included
+		expect(result.get("branch_b")?.status).toBe("completed");
 	});
 
 	test("retries are aggregated across executions", () => {
@@ -154,7 +188,7 @@ describe("deriveStepSummaries", () => {
 		expect(s?.totalRetries).toBe(2);
 	});
 
-	test("status priority: running > completed", () => {
+	test("latest iteration shows running while previous is filtered out", () => {
 		const result = deriveStepSummaries(
 			makeState({
 				stepRecords: [
@@ -191,7 +225,9 @@ describe("deriveStepSummaries", () => {
 				],
 			}),
 		);
+		// Only latest iteration (1) is shown
 		expect(result.get("s1")?.status).toBe("running");
+		expect(result.get("s1")?.executionCount).toBe(1);
 	});
 
 	test("multiple distinct steps", () => {

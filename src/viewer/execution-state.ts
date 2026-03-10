@@ -36,15 +36,54 @@ function worstStatus(a: StepStatus, b: StepStatus): StepStatus {
 }
 
 /**
+ * Filter step records to only the latest iteration of each for-each loop.
+ * This ensures the viewer shows only the current/most-recent iteration's
+ * execution path, clearing previous iterations' branch states.
+ */
+function filterToLatestIteration(
+	records: StepExecutionRecord[],
+): StepExecutionRecord[] {
+	// Find the latest iteration index for each for-each step
+	const latestIteration = new Map<string, number>();
+	for (const record of records) {
+		for (const seg of record.path) {
+			if (seg.type === "for-each") {
+				const prev = latestIteration.get(seg.stepId) ?? -1;
+				if (seg.iterationIndex > prev) {
+					latestIteration.set(seg.stepId, seg.iterationIndex);
+				}
+			}
+		}
+	}
+
+	if (latestIteration.size === 0) return records;
+
+	return records.filter((record) => {
+		for (const seg of record.path) {
+			if (seg.type === "for-each") {
+				const latest = latestIteration.get(seg.stepId);
+				if (latest !== undefined && seg.iterationIndex !== latest) {
+					return false;
+				}
+			}
+		}
+		return true;
+	});
+}
+
+/**
  * Derives a per-step summary map from the full execution state.
  * Groups step records by stepId and computes an aggregate status.
+ * For steps inside for-each loops, only the latest iteration is shown.
  * Priority: failed > running > completed > skipped > pending.
  */
 export function deriveStepSummaries(
 	state: ExecutionState,
 ): Map<string, StepExecutionSummary> {
+	const filtered = filterToLatestIteration(state.stepRecords);
+
 	const grouped = new Map<string, StepExecutionRecord[]>();
-	for (const record of state.stepRecords) {
+	for (const record of filtered) {
 		const existing = grouped.get(record.stepId);
 		if (existing) {
 			existing.push(record);
