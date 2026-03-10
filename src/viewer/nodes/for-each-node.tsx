@@ -33,7 +33,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 transition-colors duration-150 hover:bg-emerald-50/60 hover:border-emerald-500 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle

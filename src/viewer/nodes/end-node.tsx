@@ -10,9 +10,11 @@ export function EndNode({ data, selected }: NodeProps) {
 	if (hasErrors) ringClass = "ring-2 ring-red-500";
 	else if (selected) ringClass = "ring-2 ring-blue-400";
 
+	const hasRing = hasErrors || selected;
+
 	return (
 		<div
-			className={`bg-gray-100 rounded-full w-[60px] h-[60px] flex items-center justify-center shadow-sm border border-gray-300 ${ringClass}`}
+			className={`bg-gray-100 rounded-full w-[60px] h-[60px] flex items-center justify-center shadow-sm border border-gray-300 transition-all duration-150 hover:bg-gray-200 ${hasRing ? ringClass : "hover:ring-2 hover:ring-gray-300"}`}
 		>
 			<Handle
 				type="target"

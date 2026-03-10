@@ -52,7 +52,7 @@ export function WorkflowEdge({
 							pointerEvents: "all",
 							zIndex: 10,
 						}}
-						className="bg-white px-1.5 py-0.5 rounded text-[10px] text-gray-700 font-medium border border-gray-200 shadow whitespace-nowrap"
+						className="bg-white px-1.5 py-0.5 rounded text-[10px] text-gray-700 font-medium border-2 border-gray-200 shadow whitespace-nowrap transition-colors duration-150 hover:border-gray-500"
 					>
 						{label}
 					</div>

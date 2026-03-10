@@ -33,7 +33,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/30 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/30 transition-colors duration-150 hover:bg-amber-50/60 hover:border-amber-500 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
