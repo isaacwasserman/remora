@@ -4698,3 +4698,94 @@ describe("compiler limits", () => {
 		).toBe(true);
 	});
 });
+
+// ─── Agent Loop ──────────────────────────────────────────────────
+
+describe("agent-loop", () => {
+	test("valid agent-loop step compiles without errors", async () => {
+		const workflow = makeWorkflow({
+			initialStepId: "start_step",
+			steps: [
+				{
+					id: "start_step",
+					name: "Start",
+					description: "Start",
+					type: "start",
+					nextStepId: "agent_step",
+				},
+				{
+					id: "agent_step",
+					name: "Agent",
+					description: "Run agent",
+					type: "agent-loop",
+					params: {
+						instructions: "Do something with the tool.",
+						tools: ["do-thing"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+					nextStepId: "end_step",
+				},
+				{
+					id: "end_step",
+					name: "End",
+					description: "End",
+					type: "end",
+				},
+			] as WorkflowDefinition["steps"],
+		});
+
+		const result = await compileWorkflow(workflow, { tools: testTools });
+		expect(errors(result.diagnostics)).toHaveLength(0);
+	});
+
+	test("agent-loop with unknown tool produces UNKNOWN_TOOL diagnostic", async () => {
+		const workflow = makeWorkflow({
+			initialStepId: "agent_step",
+			steps: [
+				{
+					id: "agent_step",
+					name: "Agent",
+					description: "Run agent",
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["nonexistent_tool"],
+						outputFormat: { type: "object" },
+					},
+				},
+			] as WorkflowDefinition["steps"],
+		});
+
+		const result = await compileWorkflow(workflow, { tools: testTools });
+		expect(hasDiagnostic(result.diagnostics, "UNKNOWN_TOOL")).toBe(true);
+		const diag = getFirstDiagnostic(result.diagnostics, "UNKNOWN_TOOL");
+		expect(diag.location.stepId).toBe("agent_step");
+	});
+
+	test("agent-loop template expressions are validated", async () => {
+		const workflow = makeWorkflow({
+			initialStepId: "agent_step",
+			steps: [
+				{
+					id: "agent_step",
+					name: "Agent",
+					description: "Run agent",
+					type: "agent-loop",
+					params: {
+						instructions: "Process ${nonexistent_step.data}",
+						tools: ["do-thing"],
+						outputFormat: { type: "object" },
+					},
+				},
+			] as WorkflowDefinition["steps"],
+		});
+
+		const result = await compileWorkflow(workflow, { tools: testTools });
+		expect(
+			hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+		).toBe(true);
+	});
+});

@@ -71,6 +71,7 @@ export function getStepOutputSchema(
 		}
 		case "llm-prompt":
 		case "extract-data":
+		case "agent-loop":
 			return (step.params.outputFormat as Record<string, unknown>) ?? null;
 		case "for-each": {
 			// for-each produces an array whose items have the shape of the loop body's last output

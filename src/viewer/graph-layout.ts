@@ -46,6 +46,8 @@ function stepNodeType(step: WorkflowStep): string {
 			return "sleep";
 		case "wait-for-condition":
 			return "waitForCondition";
+		case "agent-loop":
+			return "agentLoop";
 	}
 }
 

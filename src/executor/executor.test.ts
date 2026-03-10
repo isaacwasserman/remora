@@ -2800,3 +2800,189 @@ describe("executor limits", () => {
 		expect(result.success).toBe(true);
 	});
 });
+
+// ─── Agent Loop ──────────────────────────────────────────────────
+
+describe("agent-loop", () => {
+	test("basic agent-loop execution with mock model", async () => {
+		const mockModel = createMockModel([
+			{ summary: "Test summary", confidence: 0.95 },
+		]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "start_step",
+			steps: [
+				step("start_step", { type: "start", nextStepId: "agent_step" }),
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Analyze the data and produce a summary.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: {
+								summary: { type: "string" },
+								confidence: { type: "number" },
+							},
+							required: ["summary", "confidence"],
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.agent_step).toEqual({
+			summary: "Test summary",
+			confidence: 0.95,
+		});
+	});
+
+	test("agent-loop with template interpolation in instructions", async () => {
+		const mockModel = createMockModel([{ result: "processed" }]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "start_step",
+			steps: [
+				step("start_step", {
+					type: "start",
+					nextStepId: "get_data",
+				}),
+				step("get_data", {
+					type: "tool-call",
+					nextStepId: "agent_step",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: { type: "literal", value: "World" },
+						},
+					},
+				}),
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Process the greeting: ${get_data.greeting}",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+							required: ["result"],
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.agent_step).toEqual({ result: "processed" });
+	});
+
+	test("agent-loop with maxSteps expression", async () => {
+		const mockModel = createMockModel([{ done: true }]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: { done: { type: "boolean" } },
+						},
+						maxSteps: { type: "literal", value: 5 },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+	});
+
+	test("fails when no agent provided", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["echo"],
+						outputFormat: { type: "object" },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("AGENT_NOT_PROVIDED");
+	});
+
+	test("works when agent is pre-configured Agent (tools list ignored)", async () => {
+		const mockAgent = createMockAgent([{ result: "from agent" }]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockAgent,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.agent_step).toEqual({ result: "from agent" });
+	});
+
+	test("fails when agent-loop references unknown tool", async () => {
+		const mockModel = createMockModel([]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["nonexistent_tool"],
+						outputFormat: { type: "object" },
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("TOOL_NOT_FOUND");
+	});
+});
