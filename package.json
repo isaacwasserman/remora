@@ -5,6 +5,10 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/isaacwasserman/remora"
+	},
 	"license": "GPL-3.0",
 	"type": "module",
 	"exports": {
