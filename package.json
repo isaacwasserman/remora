@@ -2,6 +2,10 @@
 	"name": "@isaacwasserman/remora",
 	"version": "0.1.0",
 	"description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/isaacwasserman/remora"
+	},
 	"publishConfig": {
 		"access": "public"
 	},
