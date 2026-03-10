@@ -3,12 +3,26 @@ import { Handle, Position } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
 
 export function EndNode({ data, selected }: NodeProps) {
-	const { diagnostics } = data as unknown as StepNodeData;
+	const { diagnostics, executionSummary } = data as unknown as StepNodeData;
 	const hasErrors = diagnostics.some((d) => d.severity === "error");
 
 	let ringClass = "";
-	if (hasErrors) ringClass = "ring-2 ring-red-500";
-	else if (selected) ringClass = "ring-2 ring-blue-400";
+	if (executionSummary) {
+		switch (executionSummary.status) {
+			case "running":
+				ringClass = "ring-2 ring-blue-400 animate-pulse";
+				break;
+			case "completed":
+				ringClass = "ring-2 ring-green-400";
+				break;
+			case "failed":
+				ringClass = "ring-2 ring-red-500";
+				break;
+		}
+	} else {
+		if (hasErrors) ringClass = "ring-2 ring-red-500";
+		else if (selected) ringClass = "ring-2 ring-blue-400";
+	}
 
 	return (
 		<div

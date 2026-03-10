@@ -11,8 +11,10 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Diagnostic } from "../compiler/types";
+import type { ExecutionState } from "../executor/state";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { WorkflowEdge } from "./edges/workflow-edge";
+import type { StepExecutionSummary } from "./execution-state";
 import { buildLayout, type StepNodeData } from "./graph-layout";
 import { EndNode } from "./nodes/end-node";
 import { ExtractDataNode } from "./nodes/extract-data-node";
@@ -51,6 +53,8 @@ export interface WorkflowViewerProps {
 	diagnostics?: Diagnostic[];
 	/** Called when a step node is clicked (with its ID) or when the selection is cleared (with `null`). */
 	onStepSelect?: (stepId: string | null) => void;
+	/** Execution state to visualize on the workflow DAG. */
+	executionState?: ExecutionState;
 }
 
 /**
@@ -66,6 +70,7 @@ export interface WorkflowViewerProps {
  * <WorkflowViewer
  *   workflow={myWorkflow}
  *   diagnostics={compileResult.diagnostics}
+ *   executionState={executionState}
  *   onStepSelect={(id) => console.log("Selected:", id)}
  * />
  * ```
@@ -74,10 +79,11 @@ export function WorkflowViewer({
 	workflow,
 	diagnostics = EMPTY_DIAGNOSTICS,
 	onStepSelect,
+	executionState,
 }: WorkflowViewerProps) {
 	const layout = useMemo(
-		() => buildLayout(workflow, diagnostics),
-		[workflow, diagnostics],
+		() => buildLayout(workflow, diagnostics, executionState),
+		[workflow, diagnostics, executionState],
 	);
 
 	const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
@@ -85,6 +91,9 @@ export function WorkflowViewer({
 	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
 	const [selectedDiagnostics, setSelectedDiagnostics] =
 		useState<Diagnostic[]>(EMPTY_DIAGNOSTICS);
+	const [selectedExecutionSummary, setSelectedExecutionSummary] = useState<
+		StepExecutionSummary | undefined
+	>();
 
 	useEffect(() => {
 		setNodes(layout.nodes);
@@ -98,6 +107,7 @@ export function WorkflowViewer({
 			if (!data.step) return;
 			setSelectedStep(data.step);
 			setSelectedDiagnostics(data.diagnostics);
+			setSelectedExecutionSummary(data.executionSummary);
 			onStepSelect?.(data.step.id);
 		},
 		[onStepSelect],
@@ -106,6 +116,7 @@ export function WorkflowViewer({
 	const onPaneClick = useCallback(() => {
 		setSelectedStep(null);
 		setSelectedDiagnostics([]);
+		setSelectedExecutionSummary(undefined);
 		onStepSelect?.(null);
 	}, [onStepSelect]);
 
@@ -144,9 +155,11 @@ export function WorkflowViewer({
 				<StepDetailPanel
 					step={selectedStep}
 					diagnostics={selectedDiagnostics}
+					executionSummary={selectedExecutionSummary}
 					onClose={() => {
 						setSelectedStep(null);
 						setSelectedDiagnostics([]);
+						setSelectedExecutionSummary(undefined);
 						onStepSelect?.(null);
 					}}
 				/>

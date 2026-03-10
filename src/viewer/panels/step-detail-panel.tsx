@@ -1,10 +1,12 @@
 import type React from "react";
 import type { Diagnostic } from "../../compiler/types";
 import type { WorkflowStep } from "../../types";
+import type { StepExecutionSummary } from "../execution-state";
 
 interface StepDetailPanelProps {
 	step: WorkflowStep;
 	diagnostics: Diagnostic[];
+	executionSummary?: StepExecutionSummary;
 	onClose: () => void;
 }
 
@@ -32,6 +34,23 @@ function TypeBadge({ type }: { type: string }) {
 			className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colors[type] ?? "bg-gray-100 text-gray-600"}`}
 		>
 			{type}
+		</span>
+	);
+}
+
+function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
+	const colors: Record<string, string> = {
+		pending: "bg-gray-100 text-gray-600",
+		running: "bg-blue-100 text-blue-700",
+		completed: "bg-green-100 text-green-700",
+		failed: "bg-red-100 text-red-700",
+		skipped: "bg-gray-100 text-gray-500",
+	};
+	return (
+		<span
+			className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colors[summary.status]}`}
+		>
+			{summary.status}
 		</span>
 	);
 }
@@ -164,6 +183,7 @@ function Code({ children }: { children: React.ReactNode }) {
 export function StepDetailPanel({
 	step,
 	diagnostics,
+	executionSummary,
 	onClose,
 }: StepDetailPanelProps) {
 	return (
@@ -210,6 +230,58 @@ export function StepDetailPanel({
 						<StepParams step={step} />
 					</div>
 				</div>
+
+				{executionSummary && (
+					<div className="border-t border-gray-100 pt-3">
+						<Label>Execution</Label>
+						<div className="mt-1 space-y-2">
+							<div className="flex items-center gap-2">
+								<StatusBadge summary={executionSummary} />
+								{executionSummary.latestDurationMs !== undefined && (
+									<span className="text-[11px] text-gray-400">
+										{executionSummary.latestDurationMs}ms
+									</span>
+								)}
+								{executionSummary.executionCount > 1 && (
+									<span className="text-[11px] text-gray-400">
+										({executionSummary.completedCount}/
+										{executionSummary.executionCount} iterations)
+									</span>
+								)}
+							</div>
+
+							{executionSummary.latestOutput !== undefined && (
+								<div>
+									<Label>Output</Label>
+									<Code>
+										{typeof executionSummary.latestOutput === "string"
+											? executionSummary.latestOutput
+											: JSON.stringify(executionSummary.latestOutput, null, 2)}
+									</Code>
+								</div>
+							)}
+
+							{executionSummary.latestError && (
+								<div className="text-xs p-2 rounded bg-red-50 text-red-700 border border-red-200">
+									<div className="font-medium font-mono">
+										{executionSummary.latestError.code}
+									</div>
+									<div className="mt-0.5">
+										{executionSummary.latestError.message}
+									</div>
+								</div>
+							)}
+
+							{executionSummary.totalRetries > 0 && (
+								<div className="text-[11px] text-amber-600">
+									{executionSummary.totalRetries}{" "}
+									{executionSummary.totalRetries === 1 ? "retry" : "retries"}{" "}
+									attempted
+								</div>
+							)}
+						</div>
+					</div>
+				)}
 
 				{diagnostics.length > 0 && (
 					<div className="border-t border-gray-100 pt-3">

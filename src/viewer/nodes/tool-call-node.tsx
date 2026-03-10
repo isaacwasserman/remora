@@ -12,7 +12,8 @@ function renderExpr(
 }
 
 export function ToolCallNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
+	const { step, diagnostics, hasSourceEdge, executionSummary } =
+		data as unknown as StepNodeData;
 	if (step.type !== "tool-call") return null;
 
 	const entries = Object.entries(step.params.toolInput);
@@ -28,6 +29,7 @@ export function ToolCallNode({ data, selected }: NodeProps) {
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		>
 			<div className="text-xs font-mono text-gray-700 font-medium">
 				{step.params.toolName}

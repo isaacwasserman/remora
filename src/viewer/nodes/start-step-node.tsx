@@ -3,7 +3,8 @@ import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
 export function StartStepNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
+	const { step, diagnostics, hasSourceEdge, executionSummary } =
+		data as unknown as StepNodeData;
 	if (step.type !== "start") return null;
 
 	return (
@@ -17,6 +18,7 @@ export function StartStepNode({ data, selected }: NodeProps) {
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		/>
 	);
 }

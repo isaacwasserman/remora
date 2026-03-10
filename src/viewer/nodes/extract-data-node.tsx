@@ -12,7 +12,8 @@ function renderExpr(
 }
 
 export function ExtractDataNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
+	const { step, diagnostics, hasSourceEdge, executionSummary } =
+		data as unknown as StepNodeData;
 	if (step.type !== "extract-data") return null;
 
 	const outputFormat = step.params.outputFormat as
@@ -33,6 +34,7 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">source:</span>
