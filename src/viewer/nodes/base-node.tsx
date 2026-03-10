@@ -36,9 +36,11 @@ export function BaseNode({
 	else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
 	else if (selected) ringClass = "ring-2 ring-blue-400";
 
+	const hasRing = hasErrors || hasWarnings || selected;
+
 	return (
 		<div
-			className={`bg-white rounded-lg shadow-md border-l-4 w-[300px] ${ringClass}`}
+			className={`bg-white rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 ${hasRing ? ringClass : "hover:ring-2 hover:ring-gray-300"}`}
 			style={{ borderLeftColor: accent }}
 		>
 			<Handle

@@ -15,6 +15,7 @@ const styles = {
 	switch: {
 		bg: "bg-amber-50",
 		border: "border-amber-300",
+		hoverBorder: "hover:border-amber-500",
 		label: "text-amber-600",
 		mono: "text-amber-800",
 		desc: "text-amber-700/70",
@@ -24,6 +25,7 @@ const styles = {
 	loop: {
 		bg: "bg-emerald-50",
 		border: "border-emerald-300",
+		hoverBorder: "hover:border-emerald-500",
 		label: "text-emerald-600",
 		mono: "text-emerald-800",
 		desc: "text-emerald-700/70",
@@ -39,7 +41,7 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 
 	return (
 		<div
-			className={`${s.bg} border-2 ${s.border} rounded-lg w-[280px] shadow-sm ${
+			className={`${s.bg} border-2 ${s.border} rounded-lg w-[280px] shadow-sm transition-colors duration-150 ${s.hoverBorder} ${
 				selected ? `ring-2 ${s.ring}` : ""
 			}`}
 		>
