@@ -2,9 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ExecutionState } from "../executor/state";
 import { deriveStepSummaries } from "./execution-state";
 
-function makeState(
-	overrides: Partial<ExecutionState> = {},
-): ExecutionState {
+function makeState(overrides: Partial<ExecutionState> = {}): ExecutionState {
 	return {
 		runId: "run-1",
 		status: "completed",

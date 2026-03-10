@@ -295,9 +295,7 @@ describe("applyDelta", () => {
 
 		expect(state.status).toBe("completed");
 		expect(state.stepRecords).toHaveLength(3); // s1 once, s2 twice
-		expect(
-			state.stepRecords.filter((r) => r.stepId === "s2"),
-		).toHaveLength(2);
+		expect(state.stepRecords.filter((r) => r.stepId === "s2")).toHaveLength(2);
 	});
 
 	test("is pure — does not mutate input state", () => {
