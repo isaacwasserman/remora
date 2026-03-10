@@ -1,22 +1,72 @@
 {
-	"initialStepId": "get_students",
+	"initialStepId": "start",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"semester": {
+				"type": "string",
+				"description": "The semester to assign courses for"
+			},
+			"department": {
+				"type": "string",
+				"description": "The department to process"
+			}
+		},
+		"required": ["semester", "department"]
+	},
+	"outputSchema": {
+		"type": "object",
+		"properties": {
+			"enrolledCount": { "type": "number" },
+			"summary": { "type": "string" }
+		},
+		"required": ["enrolledCount", "summary"]
+	},
 	"steps": [
+		{
+			"id": "start",
+			"name": "Start",
+			"description": "Begin course assignment workflow",
+			"type": "start",
+			"nextStepId": "get_students"
+		},
 		{
 			"id": "get_students",
 			"name": "Get Students",
 			"description": "Fetch all students needing course assignment",
 			"type": "tool-call",
-			"params": { "toolName": "get-students", "toolInput": {} },
+			"params": {
+				"toolName": "get-students",
+				"toolInput": {
+					"department": {
+						"type": "jmespath",
+						"expression": "input.department"
+					},
+					"semester": {
+						"type": "jmespath",
+						"expression": "input.semester"
+					}
+				}
+			},
 			"nextStepId": "get_courses"
 		},
 		{
 			"id": "get_courses",
 			"name": "Get Courses",
-			"description": "Fetch all available courses",
+			"description": "Fetch all available courses for the department",
 			"type": "tool-call",
 			"params": {
 				"toolName": "get-available-courses",
-				"toolInput": {}
+				"toolInput": {
+					"department": {
+						"type": "jmespath",
+						"expression": "input.department"
+					},
+					"semester": {
+						"type": "jmespath",
+						"expression": "input.semester"
+					}
+				}
 			},
 			"nextStepId": "assign_students"
 		},
@@ -31,26 +81,61 @@
 					"expression": "get_students.students"
 				},
 				"itemName": "student",
-				"loopBodyStepId": "pick_courses"
+				"loopBodyStepId": "extract_preferences"
 			},
-			"nextStepId": "assignment_done"
+			"nextStepId": "generate_summary"
+		},
+		{
+			"id": "extract_preferences",
+			"name": "Extract Preferences",
+			"description": "Extract course preferences and academic history from student record",
+			"type": "extract-data",
+			"params": {
+				"sourceData": {
+					"type": "jmespath",
+					"expression": "student.academicRecord"
+				},
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"gpa": { "type": "number" },
+						"completedCourses": {
+							"type": "array",
+							"items": { "type": "string" }
+						},
+						"preferredSubjects": {
+							"type": "array",
+							"items": { "type": "string" }
+						},
+						"requiredCredits": { "type": "number" }
+					},
+					"required": [
+						"gpa",
+						"completedCourses",
+						"preferredSubjects",
+						"requiredCredits"
+					]
+				}
+			},
+			"nextStepId": "pick_courses"
 		},
 		{
 			"id": "pick_courses",
 			"name": "Pick Courses",
-			"description": "Use LLM to select courses for a student",
+			"description": "Use LLM to select courses based on student preferences and requirements",
 			"type": "llm-prompt",
 			"params": {
-				"prompt": "Select appropriate courses for student ${student.name} (grade: ${student.grade}). Available courses: ${get_courses.courses}. Return the IDs of selected courses.",
+				"prompt": "Select appropriate courses for student ${student.name} (GPA: ${extract_preferences.gpa}). They need ${extract_preferences.requiredCredits} credits. Preferred subjects: ${extract_preferences.preferredSubjects}. Completed: ${extract_preferences.completedCourses}. Available courses: ${get_courses.courses}. Return selected course IDs, avoiding prerequisites they haven't completed.",
 				"outputFormat": {
 					"type": "object",
 					"properties": {
 						"selectedCourseIds": {
 							"type": "array",
 							"items": { "type": "string" }
-						}
+						},
+						"reasoning": { "type": "string" }
 					},
-					"required": ["selectedCourseIds"]
+					"required": ["selectedCourseIds", "reasoning"]
 				}
 			},
 			"nextStepId": "enroll_each"
@@ -92,7 +177,7 @@
 		{
 			"id": "send_student_schedule",
 			"name": "Send Schedule",
-			"description": "Send the student their course schedule",
+			"description": "Send the student their course schedule with reasoning",
 			"type": "tool-call",
 			"params": {
 				"toolName": "send-schedule",
@@ -101,18 +186,46 @@
 						"type": "jmespath",
 						"expression": "student.id"
 					},
-					"courseSummary": {
-						"type": "literal",
-						"value": "Your course enrollment is confirmed."
+					"courseIds": {
+						"type": "jmespath",
+						"expression": "pick_courses.selectedCourseIds"
+					},
+					"reasoning": {
+						"type": "jmespath",
+						"expression": "pick_courses.reasoning"
 					}
 				}
 			}
 		},
 		{
+			"id": "generate_summary",
+			"name": "Generate Summary",
+			"description": "Generate a course assignment summary",
+			"type": "llm-prompt",
+			"params": {
+				"prompt": "Generate a course assignment summary for the ${input.department} department, ${input.semester} semester. ${length(assign_students)} students were processed.",
+				"outputFormat": {
+					"type": "object",
+					"properties": {
+						"enrolledCount": { "type": "number" },
+						"summary": { "type": "string" }
+					},
+					"required": ["enrolledCount", "summary"]
+				}
+			},
+			"nextStepId": "assignment_done"
+		},
+		{
 			"id": "assignment_done",
 			"name": "Done",
-			"description": "End of workflow",
-			"type": "end"
+			"description": "End of course assignment workflow",
+			"type": "end",
+			"params": {
+				"output": {
+					"type": "jmespath",
+					"expression": "generate_summary"
+				}
+			}
 		}
 	]
 }

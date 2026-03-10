@@ -14,15 +14,18 @@ import type { Diagnostic } from "../compiler/types";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { WorkflowEdge } from "./edges/workflow-edge";
 import { buildLayout, type StepNodeData } from "./graph-layout";
+import { AgentLoopNode } from "./nodes/agent-loop-node";
 import { EndNode } from "./nodes/end-node";
 import { ExtractDataNode } from "./nodes/extract-data-node";
 import { ForEachNode } from "./nodes/for-each-node";
 import { GroupHeaderNode } from "./nodes/group-header-node";
 import { LlmPromptNode } from "./nodes/llm-prompt-node";
+import { SleepNode } from "./nodes/sleep-node";
 import { StartNode } from "./nodes/start-node";
 import { StartStepNode } from "./nodes/start-step-node";
 import { SwitchCaseNode } from "./nodes/switch-case-node";
 import { ToolCallNode } from "./nodes/tool-call-node";
+import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
 import { ViewerThemeProvider } from "./theme";
 
@@ -36,6 +39,9 @@ const nodeTypes: NodeTypes = {
 	end: EndNode,
 	start: StartNode,
 	startStep: StartStepNode,
+	sleep: SleepNode,
+	waitForCondition: WaitForConditionNode,
+	agentLoop: AgentLoopNode,
 };
 
 const edgeTypes: EdgeTypes = {

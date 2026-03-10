@@ -3,13 +3,15 @@ import { Handle, Position } from "@xyflow/react";
 import { useViewerTheme } from "../theme";
 
 interface GroupHeaderData {
-	variant: "switch" | "loop";
+	variant: "switch" | "loop" | "condition";
 	description: string;
 	// switch
 	expression?: string;
 	// loop
 	target?: string;
 	itemName?: string;
+	// condition
+	condition?: string;
 }
 
 const lightStyles = {
@@ -32,6 +34,16 @@ const lightStyles = {
 		desc: "text-emerald-700/70",
 		handle: "!bg-emerald-500",
 		ring: "ring-emerald-400",
+	},
+	condition: {
+		bg: "bg-orange-50",
+		border: "border-orange-300",
+		hoverBorder: "hover:border-orange-500",
+		label: "text-orange-600",
+		mono: "text-orange-800",
+		desc: "text-orange-700/70",
+		handle: "!bg-orange-500",
+		ring: "ring-orange-400",
 	},
 };
 
@@ -56,11 +68,21 @@ const darkStyles = {
 		handle: "!bg-emerald-500",
 		ring: "ring-emerald-400",
 	},
+	condition: {
+		bg: "bg-orange-950/50",
+		border: "border-orange-700",
+		hoverBorder: "hover:border-orange-500",
+		label: "text-orange-400",
+		mono: "text-orange-300",
+		desc: "text-orange-400/60",
+		handle: "!bg-orange-500",
+		ring: "ring-orange-400",
+	},
 };
 
 export function GroupHeaderNode({ data, selected }: NodeProps) {
 	const { dark } = useViewerTheme();
-	const { variant, description, expression, target, itemName } =
+	const { variant, description, expression, target, itemName, condition } =
 		data as unknown as GroupHeaderData;
 	const s = dark ? darkStyles[variant] : lightStyles[variant];
 
@@ -101,6 +123,20 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 							className={`text-xs font-mono font-medium ${s.mono} truncate`}
 						>
 							{target}
+						</span>
+					</div>
+				)}
+				{variant === "condition" && (
+					<div className="flex items-baseline gap-1.5">
+						<span
+							className={`text-[10px] font-bold uppercase tracking-wide ${s.label} shrink-0`}
+						>
+							wait until
+						</span>
+						<span
+							className={`text-xs font-mono font-medium ${s.mono} truncate`}
+						>
+							{condition}
 						</span>
 					</div>
 				)}
