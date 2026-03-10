@@ -1,6 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
+import { useViewerTheme } from "../theme";
 import { BaseNode } from "./base-node";
 
 function renderExpr(
@@ -13,6 +14,7 @@ function renderExpr(
 }
 
 export function ForEachNode({ data, selected }: NodeProps) {
+	const { dark } = useViewerTheme();
 	const { step, diagnostics, isGroup, groupWidth, groupHeight, hasSourceEdge } =
 		data as unknown as StepNodeData & {
 			isGroup?: boolean;
@@ -33,7 +35,11 @@ export function ForEachNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 transition-colors duration-150 hover:bg-emerald-50/60 hover:border-emerald-500 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${
+					dark
+						? "border-emerald-700 bg-emerald-950/30 hover:bg-emerald-950/50 hover:border-emerald-500"
+						: "border-emerald-300 bg-emerald-50/30 hover:bg-emerald-50/60 hover:border-emerald-500"
+				} ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
@@ -45,7 +51,9 @@ export function ForEachNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
 						Loop
 					</span>
-					<span className="text-sm font-medium text-gray-800 truncate">
+					<span
+						className={`text-sm font-medium truncate ${dark ? "text-gray-200" : "text-gray-800"}`}
+					>
 						{step.name}
 					</span>
 				</div>
@@ -75,13 +83,19 @@ export function ForEachNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">target:</span>
-				<span className="font-mono text-gray-600 truncate">
+				<span
+					className={`font-mono truncate ${dark ? "text-gray-400" : "text-gray-600"}`}
+				>
 					{renderExpr(step.params.target)}
 				</span>
 			</div>
 			<div className="mt-0.5 flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">as:</span>
-				<span className="font-mono text-gray-600">{step.params.itemName}</span>
+				<span
+					className={`font-mono ${dark ? "text-gray-400" : "text-gray-600"}`}
+				>
+					{step.params.itemName}
+				</span>
 			</div>
 		</BaseNode>
 	);

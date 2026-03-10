@@ -7,6 +7,7 @@ function App() {
 	const [names, setNames] = useState<string[]>([]);
 	const [selected, setSelected] = useState(0);
 	const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
+	const [dark, setDark] = useState(false);
 
 	useEffect(() => {
 		fetch("/api/workflows")
@@ -45,10 +46,28 @@ function App() {
 						</button>
 					))}
 				</div>
+				<label className="ml-auto flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+					<span>Dark</span>
+					<button
+						type="button"
+						role="switch"
+						aria-checked={dark}
+						onClick={() => setDark((d) => !d)}
+						className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+							dark ? "bg-blue-600" : "bg-gray-300"
+						}`}
+					>
+						<span
+							className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+								dark ? "translate-x-[18px]" : "translate-x-[3px]"
+							}`}
+						/>
+					</button>
+				</label>
 			</header>
 			<div className="flex-1">
 				{workflow ? (
-					<WorkflowViewer workflow={workflow} />
+					<WorkflowViewer workflow={workflow} dark={dark} />
 				) : (
 					<div className="flex items-center justify-center h-full text-gray-400 text-sm">
 						Loading...

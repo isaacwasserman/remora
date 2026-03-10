@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
+import { useViewerTheme } from "../theme";
 import { BaseNode } from "./base-node";
 
 function renderExpr(
@@ -12,6 +13,7 @@ function renderExpr(
 }
 
 export function ExtractDataNode({ data, selected }: NodeProps) {
+	const { dark } = useViewerTheme();
 	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
 	if (step.type !== "extract-data") return null;
 
@@ -36,14 +38,18 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">source:</span>
-				<span className="font-mono text-gray-600 truncate">
+				<span
+					className={`font-mono truncate ${dark ? "text-gray-400" : "text-gray-600"}`}
+				>
 					{renderExpr(step.params.sourceData)}
 				</span>
 			</div>
 			{outputKeys.length > 0 && (
 				<div className="mt-1 flex gap-1.5 text-[11px]">
 					<span className="text-gray-400 shrink-0">output:</span>
-					<span className="font-mono text-gray-500">
+					<span
+						className={`font-mono ${dark ? "text-gray-400" : "text-gray-500"}`}
+					>
 						{outputKeys.join(", ")}
 					</span>
 				</div>
