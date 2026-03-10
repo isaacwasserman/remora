@@ -76,7 +76,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: bunx changeset version
-          publish: bun run build && npm publish --provenance --access public
+          publish: bun run ci:release
           title: "chore: version packages"
           commit: "chore: version packages"
         env:
