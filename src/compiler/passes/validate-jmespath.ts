@@ -138,6 +138,37 @@ function collectExpressions(workflow: WorkflowDefinition): {
 				}
 				break;
 			}
+
+			case "agent-loop": {
+				const { expressions: templateExprs, unclosed } =
+					extractTemplateExpressions(step.params.instructions);
+				for (const te of templateExprs) {
+					expressions.push({
+						expression: te.expression,
+						stepId: step.id,
+						field: `params.instructions[${te.start}:${te.end}]`,
+					});
+				}
+				for (const pos of unclosed) {
+					templateDiagnostics.push({
+						severity: "error",
+						location: {
+							stepId: step.id,
+							field: `params.instructions[${pos}]`,
+						},
+						message: `Unclosed template expression at position ${pos} in instructions`,
+						code: "UNCLOSED_TEMPLATE_EXPRESSION",
+					});
+				}
+				if (step.params.maxSteps && step.params.maxSteps.type === "jmespath") {
+					expressions.push({
+						expression: step.params.maxSteps.expression,
+						stepId: step.id,
+						field: "params.maxSteps.expression",
+					});
+				}
+				break;
+			}
 		}
 	}
 

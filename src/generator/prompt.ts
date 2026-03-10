@@ -154,6 +154,29 @@ Optional parameters control polling behavior:
 }
 \`\`\`
 
+### agent-loop
+**USE SPARINGLY.** Delegates work to an autonomous agent with its own tool-calling loop. This step sacrifices the determinism that is the core value of the workflow DSL. Only use when the task genuinely cannot be decomposed into predictable tool-call, llm-prompt, and control flow steps (e.g., open-ended research tasks, complex multi-step reasoning that depends on intermediate results in unpredictable ways).
+
+The agent receives the interpolated \`instructions\` as a prompt, has access to the listed \`tools\`, and must produce output matching \`outputFormat\`. The \`maxSteps\` parameter bounds the number of tool-calling iterations (default: 10).
+\`\`\`json
+{
+  "type": "agent-loop",
+  "params": {
+    "instructions": "Research \${input.topic} using the available search tools and compile a summary with at least 3 sources.",
+    "tools": ["web_search", "fetch_page"],
+    "outputFormat": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "sources": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["summary", "sources"]
+    },
+    "maxSteps": { "type": "literal", "value": 15 }
+  }
+}
+\`\`\`
+
 ### end
 Marks the end of a branch or the workflow. Must NOT have a nextStepId. Optionally, specify an output expression whose value becomes the workflow's return value.
 \`\`\`json
@@ -224,7 +247,9 @@ ${serializedTools}
 
 8. If the workflow needs to return structured data, declare an \`outputSchema\` on the workflow and give every \`end\` step an \`output\` expression that evaluates to a value matching it.
 
-9. wait-for-condition requires both \`conditionStepId\` (the chain to execute on each polling attempt) AND \`condition\` (the expression to evaluate after the chain runs). The condition expression is evaluated AFTER the chain runs, using the updated scope with all step outputs from the condition chain.`;
+9. wait-for-condition requires both \`conditionStepId\` (the chain to execute on each polling attempt) AND \`condition\` (the expression to evaluate after the chain runs). The condition expression is evaluated AFTER the chain runs, using the updated scope with all step outputs from the condition chain.
+
+10. Prefer explicit tool-call, llm-prompt, switch-case, and for-each steps over agent-loop. Only use agent-loop when the task is genuinely open-ended and cannot be decomposed into deterministic steps.`;
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {

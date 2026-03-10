@@ -173,5 +173,35 @@ export function generateConstrainedToolSchemas(
 		result[toolName] = constrained;
 	}
 
+	// Agent-loop tools are used dynamically — the agent decides what inputs
+	// to pass at runtime. Mark them as not fully static and add call sites.
+	for (const step of workflow.steps) {
+		if (step.type !== "agent-loop") continue;
+		for (const toolName of step.params.tools) {
+			if (result[toolName]) {
+				result[toolName].fullyStatic = false;
+				if (!result[toolName].callSites.includes(step.id)) {
+					result[toolName].callSites.push(step.id);
+					result[toolName].callSites.sort();
+				}
+			} else if (tools[toolName]) {
+				// Tool is only used by agent-loop, not by any tool-call step
+				const toolDef = tools[toolName];
+				const constrained: ConstrainedToolSchema = {
+					inputSchema: {
+						required: [],
+						properties: {},
+					},
+					fullyStatic: false,
+					callSites: [step.id],
+				};
+				if (toolDef.outputSchema) {
+					constrained.outputSchema = toolDef.outputSchema;
+				}
+				result[toolName] = constrained;
+			}
+		}
+	}
+
 	return result;
 }

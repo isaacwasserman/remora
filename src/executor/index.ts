@@ -461,6 +461,17 @@ function validateWorkflowOutput(
 	}
 }
 
+// ─── Internal Types ──────────────────────────────────────────────
+
+/**
+ * Internal resolved options. Extends the public `ExecuteWorkflowOptions`
+ * with fields needed by the executor internals but not exposed to consumers.
+ */
+interface ResolvedExecuteWorkflowOptions extends ExecuteWorkflowOptions {
+	/** The raw LanguageModel before wrapping in ToolLoopAgent. Needed by agent-loop steps. */
+	_rawModel?: LanguageModel | null;
+}
+
 // ─── Step Handlers ───────────────────────────────────────────────
 
 async function executeToolCall(
@@ -579,13 +590,103 @@ async function executeExtractData(
 	}
 }
 
+async function executeAgentLoop(
+	step: WorkflowStep & { type: "agent-loop" },
+	scope: Record<string, unknown>,
+	options: ResolvedExecuteWorkflowOptions,
+): Promise<unknown> {
+	if (!options.agent) {
+		throw new ConfigurationError(
+			step.id,
+			"AGENT_NOT_PROVIDED",
+			"agent-loop steps require an agent or LanguageModel to be provided",
+		);
+	}
+
+	const interpolatedInstructions = interpolateTemplate(
+		step.params.instructions,
+		scope,
+		step.id,
+	);
+
+	// If a LanguageModel was provided, create a ToolLoopAgent with the
+	// specified tool subset. If a pre-configured Agent was provided, use
+	// it directly (the tools list in the step is ignored — the Agent is
+	// assumed to already have the tools it needs).
+	let agent: Agent;
+	if (options._rawModel) {
+		// Subset tools to only those listed in step.params.tools
+		const subsetTools: ToolSet = {};
+		for (const toolName of step.params.tools) {
+			const toolDef = options.tools[toolName];
+			if (!toolDef) {
+				throw new ConfigurationError(
+					step.id,
+					"TOOL_NOT_FOUND",
+					`agent-loop step references tool '${toolName}' which is not in the provided tool set`,
+				);
+			}
+			if (!toolDef.execute) {
+				throw new ConfigurationError(
+					step.id,
+					"TOOL_MISSING_EXECUTE",
+					`agent-loop step references tool '${toolName}' which has no execute function`,
+				);
+			}
+			subsetTools[toolName] = toolDef;
+		}
+
+		// Evaluate maxSteps (default: 10)
+		const maxSteps = step.params.maxSteps
+			? evaluateExpression(step.params.maxSteps as Expression, scope, step.id)
+			: 10;
+		if (typeof maxSteps !== "number" || maxSteps < 1) {
+			throw new ValidationError(
+				step.id,
+				"TOOL_INPUT_VALIDATION_FAILED",
+				`agent-loop maxSteps must be a positive number, got ${typeof maxSteps === "number" ? maxSteps : typeof maxSteps}`,
+				maxSteps,
+			);
+		}
+
+		agent = new ToolLoopAgent({
+			model: options._rawModel,
+			tools: subsetTools,
+			stopWhen: stepCountIs(Math.floor(maxSteps)),
+		});
+	} else {
+		// Pre-configured Agent — use it directly, ignoring the step's tools list
+		agent = options.agent as Agent;
+	}
+
+	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
+	const prompt = `${interpolatedInstructions}\n\nWhen you have completed the task, respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object as your final answer, no other text.`;
+
+	try {
+		const result = await agent.generate({ prompt });
+		return JSON.parse(stripCodeFence(result.text));
+	} catch (e) {
+		if (e instanceof StepExecutionError) throw e;
+		if (e instanceof SyntaxError) {
+			throw new OutputQualityError(
+				step.id,
+				"LLM_OUTPUT_PARSE_ERROR",
+				`agent-loop output is not valid JSON: ${e.message}`,
+				undefined,
+				e,
+			);
+		}
+		throw classifyLlmError(step.id, e);
+	}
+}
+
 async function executeSwitchCase(
 	step: WorkflowStep & { type: "switch-case" },
 	scope: Record<string, unknown>,
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 ): Promise<unknown> {
 	const switchValue = evaluateExpression(
@@ -634,7 +735,7 @@ async function executeForEach(
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 ): Promise<unknown[]> {
 	const target = evaluateExpression(
@@ -699,7 +800,7 @@ async function executeWaitForCondition(
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer: ExecutionTimer,
 ): Promise<unknown> {
@@ -782,7 +883,7 @@ async function executeStep(
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer: ExecutionTimer,
 ): Promise<unknown> {
@@ -807,6 +908,8 @@ async function executeStep(
 				);
 			return executeExtractData(step, scope, options.agent as Agent);
 		}
+		case "agent-loop":
+			return executeAgentLoop(step, scope, options);
 		case "switch-case":
 			return executeSwitchCase(
 				step,
@@ -866,7 +969,7 @@ async function retryStep(
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	originalError: StepExecutionError,
 	context: DurableContext,
 	timer: ExecutionTimer,
@@ -903,7 +1006,7 @@ async function recoverFromError(
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer: ExecutionTimer,
 ): Promise<unknown> {
@@ -955,7 +1058,7 @@ async function executeChain(
 	stepIndex: Map<string, WorkflowStep>,
 	stepOutputs: Record<string, unknown>,
 	loopVars: Record<string, unknown>,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer?: ExecutionTimer,
 ): Promise<unknown> {
@@ -1021,38 +1124,64 @@ async function executeChain(
 
 function validateWorkflowConfig(
 	workflow: WorkflowDefinition,
-	options: ExecuteWorkflowOptions,
+	options: ResolvedExecuteWorkflowOptions,
 ): void {
 	const needsAgent = workflow.steps.some(
-		(s) => s.type === "llm-prompt" || s.type === "extract-data",
+		(s) =>
+			s.type === "llm-prompt" ||
+			s.type === "extract-data" ||
+			s.type === "agent-loop",
 	);
 	if (needsAgent && !options.agent) {
 		const llmStep = workflow.steps.find(
-			(s) => s.type === "llm-prompt" || s.type === "extract-data",
+			(s) =>
+				s.type === "llm-prompt" ||
+				s.type === "extract-data" ||
+				s.type === "agent-loop",
 		);
 		throw new ConfigurationError(
 			llmStep?.id ?? "unknown",
 			"AGENT_NOT_PROVIDED",
-			"Workflow contains LLM steps but no agent was provided",
+			"Workflow contains LLM/agent steps but no agent was provided",
 		);
 	}
 
 	for (const step of workflow.steps) {
-		if (step.type !== "tool-call") continue;
-		const toolDef = options.tools[step.params.toolName];
-		if (!toolDef) {
-			throw new ConfigurationError(
-				step.id,
-				"TOOL_NOT_FOUND",
-				`Tool '${step.params.toolName}' not found`,
-			);
+		if (step.type === "tool-call") {
+			const toolDef = options.tools[step.params.toolName];
+			if (!toolDef) {
+				throw new ConfigurationError(
+					step.id,
+					"TOOL_NOT_FOUND",
+					`Tool '${step.params.toolName}' not found`,
+				);
+			}
+			if (!toolDef.execute) {
+				throw new ConfigurationError(
+					step.id,
+					"TOOL_MISSING_EXECUTE",
+					`Tool '${step.params.toolName}' has no execute function`,
+				);
+			}
 		}
-		if (!toolDef.execute) {
-			throw new ConfigurationError(
-				step.id,
-				"TOOL_MISSING_EXECUTE",
-				`Tool '${step.params.toolName}' has no execute function`,
-			);
+		if (step.type === "agent-loop") {
+			for (const toolName of step.params.tools) {
+				const toolDef = options.tools[toolName];
+				if (!toolDef) {
+					throw new ConfigurationError(
+						step.id,
+						"TOOL_NOT_FOUND",
+						`Tool '${toolName}' referenced in agent-loop step not found`,
+					);
+				}
+				if (!toolDef.execute) {
+					throw new ConfigurationError(
+						step.id,
+						"TOOL_MISSING_EXECUTE",
+						`Tool '${toolName}' referenced in agent-loop step has no execute function`,
+					);
+				}
+			}
 		}
 	}
 }
@@ -1081,6 +1210,11 @@ export async function executeWorkflow(
 
 	const stepOutputs: Record<string, unknown> = {};
 
+	// Preserve the raw LanguageModel for agent-loop steps that need to create
+	// their own ToolLoopAgent with a different tool subset and step limit.
+	const rawModel =
+		options.agent && !isAgent(options.agent) ? options.agent : null;
+
 	const resolvedAgent = options.agent
 		? isAgent(options.agent)
 			? options.agent
@@ -1089,7 +1223,11 @@ export async function executeWorkflow(
 					stopWhen: stepCountIs(1),
 				})
 		: undefined;
-	const resolvedOptions = { ...options, agent: resolvedAgent };
+	const resolvedOptions: ResolvedExecuteWorkflowOptions = {
+		...options,
+		agent: resolvedAgent,
+		_rawModel: rawModel,
+	};
 	const resolvedContext = options.context ?? createDefaultDurableContext();
 	const timer = new ExecutionTimer(options.limits);
 

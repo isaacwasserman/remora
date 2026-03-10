@@ -146,6 +146,34 @@ const waitForConditionParamsSchema = type({
 	"a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression",
 );
 
+const agentLoopParamsSchema = type({
+	type: "'agent-loop'",
+	params: {
+		instructions: [
+			"string",
+			"@",
+			"a template string with task instructions for the agent; JMESPath expressions can be embedded using ${...} syntax (e.g. 'Research ${input.topic} and summarize findings'). All data from previous steps is available via their step ids, and loop variables are available within for-each loop bodies",
+		],
+		tools: [
+			["string", "[]"],
+			"@",
+			"names of tools from the workflow's tool set that the agent is allowed to use",
+		],
+		outputFormat: [
+			"object",
+			"@",
+			"JSON schema specifying the structured output format expected from the agent",
+		],
+		"maxSteps?": [
+			expressionSchema,
+			"@",
+			"maximum number of tool-calling steps the agent may take (default: 10)",
+		],
+	},
+}).describe(
+	"a step that delegates work to an autonomous agent with its own tool-calling loop; USE SPARINGLY — this sacrifices the determinism that is the core value of the workflow DSL. Prefer explicit tool-call, llm-prompt, and control flow steps whenever the task can be decomposed into predictable operations",
+);
+
 const startParamsSchema = type({
 	type: "'start'",
 }).describe(
@@ -174,6 +202,7 @@ const workflowStepSchema = type({
 		.or(forEachParamsSchema)
 		.or(sleepParamsSchema)
 		.or(waitForConditionParamsSchema)
+		.or(agentLoopParamsSchema)
 		.or(startParamsSchema)
 		.or(endSchema),
 );
@@ -209,6 +238,7 @@ export const workflowDefinitionSchema = type({
  * - `extract-data` — uses an LLM to extract structured data from unstructured source
  * - `switch-case` — branches to different step chains based on an expression value
  * - `for-each` — iterates over an array, executing a chain of steps per item
+ * - `agent-loop` — delegates work to an autonomous agent with its own tool-calling loop (use sparingly)
  * - `end` — terminates a branch, optionally producing workflow output
  */
 export type WorkflowStep = typeof workflowStepSchema.infer;
