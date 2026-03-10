@@ -483,6 +483,8 @@ export function buildLayout(
 						variant: "switch",
 						description: step.description,
 						expression: renderExpression(step.params.switchOn),
+						step,
+						diagnostics: diagnosticsByStep.get(gid) ?? [],
 					},
 					...(parentId ? { parentId, extent: "parent" as const } : {}),
 				});
@@ -496,6 +498,8 @@ export function buildLayout(
 						description: step.description,
 						target: renderExpression(step.params.target),
 						itemName: step.params.itemName,
+						step,
+						diagnostics: diagnosticsByStep.get(gid) ?? [],
 					},
 					...(parentId ? { parentId, extent: "parent" as const } : {}),
 				});
