@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
 
+/* Ensure edge labels render above edge paths (which get elevated z-index inside groups) */
+.react-flow__edgelabel-renderer {
+	z-index: 1001;
+}
+
 html,
 body,
 #root {
