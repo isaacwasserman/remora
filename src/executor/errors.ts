@@ -1,11 +1,20 @@
 // ─── Recovery & Classification Types ────────────────────────────
 
+/** Strategy for recovering from a step execution error. */
 export type RecoveryStrategy =
 	| "none"
 	| "retry"
 	| "llm-transform"
 	| "llm-reprompt";
 
+/**
+ * High-level category of a step execution error.
+ * - `configuration` — the workflow is misconfigured (missing tools, no agent)
+ * - `validation` — input or output data doesn't match the expected schema
+ * - `external-service` — a tool or LLM call failed
+ * - `expression` — a JMESPath or template expression failed to evaluate
+ * - `output-quality` — the LLM produced output that couldn't be parsed
+ */
 export type ErrorCategory =
 	| "configuration"
 	| "validation"
@@ -13,6 +22,7 @@ export type ErrorCategory =
 	| "expression"
 	| "output-quality";
 
+/** Machine-readable error code identifying the specific failure. */
 export type ErrorCode =
 	// configuration — workflow is misconfigured
 	| "TOOL_NOT_FOUND"
@@ -36,6 +46,11 @@ export type ErrorCode =
 
 // ─── Base Error Class ───────────────────────────────────────────
 
+/**
+ * Base error class for all step execution failures. Contains the step ID,
+ * error code, error category, and optional cause. All executor error classes
+ * extend this.
+ */
 export class StepExecutionError extends Error {
 	override readonly name = "StepExecutionError";
 
@@ -52,12 +67,14 @@ export class StepExecutionError extends Error {
 
 // ─── Category Subclasses ────────────────────────────────────────
 
+/** Thrown when the workflow is misconfigured (missing tools, missing agent, missing execute function). Not retryable. */
 export class ConfigurationError extends StepExecutionError {
 	constructor(stepId: string, code: ErrorCode, message: string) {
 		super(stepId, code, "configuration", message);
 	}
 }
 
+/** Thrown when input or output data doesn't match the expected schema. Not retryable. */
 export class ValidationError extends StepExecutionError {
 	constructor(
 		stepId: string,
@@ -70,6 +87,7 @@ export class ValidationError extends StepExecutionError {
 	}
 }
 
+/** Thrown when a tool execution or LLM API call fails. May be retryable (check {@link isRetryable}). */
 export class ExternalServiceError extends StepExecutionError {
 	constructor(
 		stepId: string,
@@ -83,6 +101,7 @@ export class ExternalServiceError extends StepExecutionError {
 	}
 }
 
+/** Thrown when a JMESPath expression or template interpolation fails to evaluate. Not retryable. */
 export class ExpressionError extends StepExecutionError {
 	constructor(
 		stepId: string,
@@ -95,6 +114,7 @@ export class ExpressionError extends StepExecutionError {
 	}
 }
 
+/** Thrown when an LLM produces output that can't be parsed as valid JSON. Retryable via automatic retry. */
 export class OutputQualityError extends StepExecutionError {
 	constructor(
 		stepId: string,

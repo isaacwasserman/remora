@@ -31,20 +31,33 @@ function stripCodeFence(text: string): string {
 
 // ─── Types ───────────────────────────────────────────────────────
 
+/** The result of executing a workflow. */
 export interface ExecutionResult {
+	/** Whether the workflow completed without errors. */
 	success: boolean;
+	/** Map of step ID to that step's output value. */
 	stepOutputs: Record<string, unknown>;
+	/** The workflow's final output (from the `end` step's output expression), if any. */
 	output?: unknown;
+	/** The error that caused execution to fail, if `success` is `false`. */
 	error?: StepExecutionError;
 }
 
+/** Options for {@link executeWorkflow}. */
 export interface ExecuteWorkflowOptions {
+	/** Tool definitions. Every tool referenced by a `tool-call` step must be present with an `execute` function. */
 	tools: ToolSet;
+	/** An AI SDK `Agent` or `LanguageModel` for `llm-prompt` and `extract-data` steps. Required if the workflow contains LLM steps. */
 	agent?: Agent | LanguageModel;
+	/** Input values passed to the workflow's `start` step. Validated against the start step's `inputSchema`. */
 	inputs?: Record<string, unknown>;
+	/** Maximum number of retries for recoverable errors (rate limits, network errors, parse failures). Defaults to 3. */
 	maxRetries?: number;
+	/** Base delay in milliseconds for exponential backoff between retries. Defaults to 1000. */
 	retryDelayMs?: number;
+	/** Called when a step begins execution. */
 	onStepStart?: (stepId: string, step: WorkflowStep) => void;
+	/** Called when a step completes successfully. */
 	onStepComplete?: (stepId: string, output: unknown) => void;
 }
 
@@ -800,6 +813,17 @@ function validateWorkflowConfig(
 
 // ─── Public API ──────────────────────────────────────────────────
 
+/**
+ * Executes a compiled workflow by walking its step graph from `initialStepId`.
+ *
+ * Handles all step types (tool calls, LLM prompts, data extraction, branching,
+ * loops) and supports automatic retry with exponential backoff for recoverable
+ * errors (rate limits, network failures, LLM parse errors).
+ *
+ * @param workflow - The workflow definition to execute (should be compiled first via {@link compileWorkflow}).
+ * @param options - Execution options including tools, agent, inputs, and callbacks.
+ * @returns An {@link ExecutionResult} with success status, all step outputs, and the final workflow output.
+ */
 export async function executeWorkflow(
 	workflow: WorkflowDefinition,
 	options: ExecuteWorkflowOptions,

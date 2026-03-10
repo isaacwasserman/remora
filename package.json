@@ -27,7 +27,11 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix --unsafe .",
 		"viewer": "bun src/viewer/demo/server.ts",
-		"typecheck": "tsgo --noEmit"
+		"typecheck": "tsgo --noEmit",
+		"docs:api": "bunx typedoc",
+		"docs:dev": "bun run docs:api && bunx vitepress dev docs",
+		"docs:build": "bun run docs:api && bunx vitepress build docs",
+		"docs:preview": "bunx vitepress preview docs"
 	},
 	"dependencies": {
 		"arktype": "^2.1.29",
@@ -72,6 +76,9 @@
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"tailwindcss": "^4.2.1",
-		"typescript": "^5.8.0"
+		"typedoc": "^0.28.17",
+		"typedoc-plugin-markdown": "^4.10.0",
+		"typescript": "^5.8.0",
+		"vitepress": "^1.6.4"
 	}
 }

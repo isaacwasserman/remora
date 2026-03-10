@@ -43,12 +43,33 @@ const edgeTypes: EdgeTypes = {
 
 const EMPTY_DIAGNOSTICS: Diagnostic[] = [];
 
+/** Props for the {@link WorkflowViewer} component. */
 export interface WorkflowViewerProps {
+	/** The workflow definition to visualize. */
 	workflow: WorkflowDefinition;
+	/** Compiler diagnostics to display on affected nodes. */
 	diagnostics?: Diagnostic[];
+	/** Called when a step node is clicked (with its ID) or when the selection is cleared (with `null`). */
 	onStepSelect?: (stepId: string | null) => void;
 }
 
+/**
+ * React component that renders a workflow as an interactive DAG using React Flow.
+ * Supports step selection with a detail panel, minimap, and zoom controls.
+ *
+ * Requires `@xyflow/react` as a peer dependency.
+ *
+ * @example
+ * ```tsx
+ * import { WorkflowViewer } from "remora/viewer";
+ *
+ * <WorkflowViewer
+ *   workflow={myWorkflow}
+ *   diagnostics={compileResult.diagnostics}
+ *   onStepSelect={(id) => console.log("Selected:", id)}
+ * />
+ * ```
+ */
 export function WorkflowViewer({
 	workflow,
 	diagnostics = EMPTY_DIAGNOSTICS,
