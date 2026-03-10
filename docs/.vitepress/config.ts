@@ -1,9 +1,14 @@
 import { defineConfig } from "vitepress";
+import llmstxt from "vitepress-plugin-llms";
 
 export default defineConfig({
 	title: "Remora",
 	description: "A workflow DSL for AI agents",
 	base: "/remora/",
+
+	vite: {
+		plugins: [llmstxt()],
+	},
 
 	themeConfig: {
 		nav: [
