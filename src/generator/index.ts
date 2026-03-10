@@ -23,6 +23,8 @@ export interface GenerateWorkflowOptions {
 	task: string;
 	/** Maximum number of generation attempts if the LLM produces invalid workflows. Defaults to 3. */
 	maxRetries?: number;
+	/** Additional instructions appended to the system prompt to guide workflow generation. */
+	additionalInstructions?: string;
 }
 
 /** The result of generating a workflow via LLM. */
@@ -43,6 +45,8 @@ export interface WorkflowGeneratorToolOptions {
 	tools?: ToolSet;
 	/** Maximum number of generation attempts. Defaults to 3. */
 	maxRetries?: number;
+	/** Additional instructions appended to the system prompt to guide workflow generation. */
+	additionalInstructions?: string;
 }
 
 // ─── generateWorkflow ────────────────────────────────────────────
@@ -60,7 +64,13 @@ export interface WorkflowGeneratorToolOptions {
 export async function generateWorkflow(
 	options: GenerateWorkflowOptions,
 ): Promise<GenerateWorkflowResult> {
-	const { model, tools, task, maxRetries = 3 } = options;
+	const {
+		model,
+		tools,
+		task,
+		maxRetries = 3,
+		additionalInstructions,
+	} = options;
 
 	const missingOutputSchema = Object.entries(tools)
 		.filter(([_, t]) => !t.outputSchema)
@@ -72,7 +82,10 @@ export async function generateWorkflow(
 	}
 
 	const serializedTools = await serializeToolsForPrompt(tools);
-	const systemPrompt = buildWorkflowGenerationPrompt(serializedTools);
+	const systemPrompt = buildWorkflowGenerationPrompt(
+		serializedTools,
+		additionalInstructions,
+	);
 
 	let successWorkflow: WorkflowDefinition | null = null;
 	let lastDiagnostics: Diagnostic[] = [];
@@ -128,7 +141,12 @@ export async function generateWorkflow(
 export function createWorkflowGeneratorTool(
 	options: WorkflowGeneratorToolOptions,
 ) {
-	const { model, tools: baseTools, maxRetries } = options;
+	const {
+		model,
+		tools: baseTools,
+		maxRetries,
+		additionalInstructions,
+	} = options;
 
 	return tool({
 		description:
@@ -140,6 +158,7 @@ export function createWorkflowGeneratorTool(
 				tools: baseTools ?? {},
 				task,
 				maxRetries,
+				additionalInstructions,
 			});
 		},
 	});

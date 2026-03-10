@@ -265,4 +265,20 @@ describe("buildWorkflowGenerationPrompt", () => {
 		expect(prompt).toContain("myTool");
 		expect(prompt).toContain("does things");
 	});
+
+	test("appends additional instructions when provided", () => {
+		const prompt = buildWorkflowGenerationPrompt(
+			"[]",
+			"Always use the greet tool before the echo tool.",
+		);
+
+		expect(prompt).toContain("## Additional Instructions");
+		expect(prompt).toContain("Always use the greet tool before the echo tool.");
+	});
+
+	test("omits additional instructions section when not provided", () => {
+		const prompt = buildWorkflowGenerationPrompt("[]");
+
+		expect(prompt).not.toContain("## Additional Instructions");
+	});
 });
