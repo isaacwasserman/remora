@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
+import { useViewerTheme } from "../theme";
 
 interface GroupHeaderData {
 	variant: "switch" | "loop";
@@ -11,7 +12,7 @@ interface GroupHeaderData {
 	itemName?: string;
 }
 
-const styles = {
+const lightStyles = {
 	switch: {
 		bg: "bg-amber-50",
 		border: "border-amber-300",
@@ -34,10 +35,34 @@ const styles = {
 	},
 };
 
+const darkStyles = {
+	switch: {
+		bg: "bg-amber-950/50",
+		border: "border-amber-700",
+		hoverBorder: "hover:border-amber-500",
+		label: "text-amber-400",
+		mono: "text-amber-300",
+		desc: "text-amber-400/60",
+		handle: "!bg-amber-500",
+		ring: "ring-amber-400",
+	},
+	loop: {
+		bg: "bg-emerald-950/50",
+		border: "border-emerald-700",
+		hoverBorder: "hover:border-emerald-500",
+		label: "text-emerald-400",
+		mono: "text-emerald-300",
+		desc: "text-emerald-400/60",
+		handle: "!bg-emerald-500",
+		ring: "ring-emerald-400",
+	},
+};
+
 export function GroupHeaderNode({ data, selected }: NodeProps) {
+	const { dark } = useViewerTheme();
 	const { variant, description, expression, target, itemName } =
 		data as unknown as GroupHeaderData;
-	const s = styles[variant];
+	const s = dark ? darkStyles[variant] : lightStyles[variant];
 
 	return (
 		<div

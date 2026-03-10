@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
+import { useViewerTheme } from "../theme";
 import { BaseNode } from "./base-node";
 
 function renderExpr(
@@ -12,6 +13,7 @@ function renderExpr(
 }
 
 export function ToolCallNode({ data, selected }: NodeProps) {
+	const { dark } = useViewerTheme();
 	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
 	if (step.type !== "tool-call") return null;
 
@@ -29,7 +31,9 @@ export function ToolCallNode({ data, selected }: NodeProps) {
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
 		>
-			<div className="text-xs font-mono text-gray-700 font-medium">
+			<div
+				className={`text-xs font-mono font-medium ${dark ? "text-gray-300" : "text-gray-700"}`}
+			>
 				{step.params.toolName}
 			</div>
 			{entries.length > 0 && (
@@ -37,7 +41,9 @@ export function ToolCallNode({ data, selected }: NodeProps) {
 					{entries.map(([key, val]) => (
 						<div key={key} className="flex gap-1.5 text-[11px]">
 							<span className="text-gray-400 shrink-0">{key}:</span>
-							<span className="font-mono text-gray-600 truncate">
+							<span
+								className={`font-mono truncate ${dark ? "text-gray-400" : "text-gray-600"}`}
+							>
 								{renderExpr(val)}
 							</span>
 						</div>
