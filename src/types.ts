@@ -178,6 +178,10 @@ const workflowStepSchema = type({
 		.or(endSchema),
 );
 
+/**
+ * ArkType schema for validating workflow definitions. Use this to validate
+ * workflow JSON before passing it to {@link compileWorkflow}.
+ */
 export const workflowDefinitionSchema = type({
 	initialStepId: "string",
 	"inputSchema?": [
@@ -197,5 +201,21 @@ export const workflowDefinitionSchema = type({
 	],
 });
 
+/**
+ * A single step in a workflow. Each step has a type that determines its behavior:
+ * - `start` — entry point, declares input schema
+ * - `tool-call` — calls a tool with literal or expression-based arguments
+ * - `llm-prompt` — prompts an LLM with template string interpolation
+ * - `extract-data` — uses an LLM to extract structured data from unstructured source
+ * - `switch-case` — branches to different step chains based on an expression value
+ * - `for-each` — iterates over an array, executing a chain of steps per item
+ * - `end` — terminates a branch, optionally producing workflow output
+ */
 export type WorkflowStep = typeof workflowStepSchema.infer;
+
+/**
+ * A complete workflow definition. Contains an initial step ID and an ordered list of steps.
+ * Execution flow is determined by each step's `nextStepId` and branching/looping logic,
+ * not by the order of steps in the array.
+ */
 export type WorkflowDefinition = typeof workflowDefinitionSchema.infer;

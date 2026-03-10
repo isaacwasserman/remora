@@ -18,6 +18,22 @@ import type {
 	ToolDefinitionMap,
 } from "./types";
 
+/**
+ * Compiles a workflow definition through a multi-pass validation pipeline,
+ * producing an execution graph and structured diagnostics.
+ *
+ * Passes: graph construction, reference validation, control flow validation,
+ * JMESPath validation, tool validation, for-each target validation, and
+ * best-practice transformations.
+ *
+ * @param workflow - The workflow definition to compile.
+ * @param options - Optional configuration.
+ * @param options.tools - Tool definitions to validate tool-call steps against.
+ *   When provided, enables tool input validation and constrained schema generation.
+ * @returns A {@link CompilerResult} containing diagnostics, the execution graph
+ *   (if structurally valid), an optimized workflow (if error-free), and
+ *   constrained tool schemas (if tools were provided).
+ */
 export async function compileWorkflow(
 	workflow: WorkflowDefinition,
 	options?: {
