@@ -3,5 +3,6 @@
 	"plugin": ["typedoc-plugin-markdown"],
 	"out": "docs/api",
 	"readme": "none",
-	"githubPages": false
+	"githubPages": false,
+	"entryFileName": "index"
 }
