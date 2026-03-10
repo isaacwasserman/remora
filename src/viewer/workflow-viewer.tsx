@@ -9,7 +9,7 @@ import {
 	useNodesState,
 } from "@xyflow/react";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { Diagnostic } from "../compiler/types";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { WorkflowEdge } from "./edges/workflow-edge";
@@ -26,7 +26,6 @@ import { StartStepNode } from "./nodes/start-step-node";
 import { SwitchCaseNode } from "./nodes/switch-case-node";
 import { ToolCallNode } from "./nodes/tool-call-node";
 import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
-import { StepDetailPanel } from "./panels/step-detail-panel";
 import { ViewerThemeProvider } from "./theme";
 
 const nodeTypes: NodeTypes = {
@@ -56,15 +55,15 @@ export interface WorkflowViewerProps {
 	workflow: WorkflowDefinition;
 	/** Compiler diagnostics to display on affected nodes. */
 	diagnostics?: Diagnostic[];
-	/** Called when a step node is clicked (with its ID) or when the selection is cleared (with `null`). */
-	onStepSelect?: (stepId: string | null) => void;
+	/** Called when a step node is clicked (with the step and its diagnostics) or when the selection is cleared (with `null`). */
+	onStepSelect?: (step: WorkflowStep | null, diagnostics: Diagnostic[]) => void;
 	/** Enable dark mode styling. Defaults to `false`. */
 	dark?: boolean;
 }
 
 /**
  * React component that renders a workflow as an interactive DAG using React Flow.
- * Supports step selection with a detail panel, minimap, and zoom controls.
+ * Supports step selection via callback, minimap, and zoom controls.
  *
  * Requires `@xyflow/react` as a peer dependency.
  *
@@ -75,7 +74,7 @@ export interface WorkflowViewerProps {
  * <WorkflowViewer
  *   workflow={myWorkflow}
  *   diagnostics={compileResult.diagnostics}
- *   onStepSelect={(id) => console.log("Selected:", id)}
+ *   onStepSelect={(step, diagnostics) => console.log("Selected:", step?.id)}
  * />
  * ```
  */
@@ -93,83 +92,60 @@ export function WorkflowViewer({
 
 	const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
 	const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
-	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
-	const [selectedDiagnostics, setSelectedDiagnostics] =
-		useState<Diagnostic[]>(EMPTY_DIAGNOSTICS);
 
 	useEffect(() => {
 		setNodes(layout.nodes);
 		setEdges(layout.edges);
-		setSelectedStep(null);
 	}, [layout, setNodes, setEdges]);
 
 	const onNodeClick = useCallback(
 		(_: React.MouseEvent, node: { id: string; data: unknown }) => {
 			const data = node.data as StepNodeData;
 			if (!data.step) return;
-			setSelectedStep(data.step);
-			setSelectedDiagnostics(data.diagnostics);
-			onStepSelect?.(data.step.id);
+			onStepSelect?.(data.step, data.diagnostics);
 		},
 		[onStepSelect],
 	);
 
 	const onPaneClick = useCallback(() => {
-		setSelectedStep(null);
-		setSelectedDiagnostics([]);
-		onStepSelect?.(null);
+		onStepSelect?.(null, []);
 	}, [onStepSelect]);
 
 	return (
 		<ViewerThemeProvider value={theme}>
-			<div className={`flex h-full w-full ${dark ? "bg-gray-900" : ""}`}>
-				<div className="flex-1 relative">
-					<ReactFlow
-						nodes={nodes}
-						edges={edges}
-						onNodesChange={onNodesChange}
-						onEdgesChange={onEdgesChange}
-						onNodeClick={onNodeClick}
-						onPaneClick={onPaneClick}
-						nodeTypes={nodeTypes}
-						edgeTypes={edgeTypes}
-						fitView
-						fitViewOptions={{ padding: 0.2 }}
-						nodesDraggable={false}
-						defaultEdgeOptions={{
-							type: "workflow",
-						}}
-						proOptions={{ hideAttribution: true }}
-						colorMode={dark ? "dark" : "light"}
-					>
-						<Background color={dark ? "#4b5563" : "#e5e7eb"} gap={16} />
-						<Controls showInteractive={false} />
-						<MiniMap
-							nodeStrokeWidth={2}
-							pannable
-							zoomable
-							style={{
-								border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
-								backgroundColor: dark ? "#1f2937" : undefined,
-							}}
-							nodeColor={
-								dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
-							}
-						/>
-					</ReactFlow>
-				</div>
-				{selectedStep && (
-					<StepDetailPanel
-						step={selectedStep}
-						diagnostics={selectedDiagnostics}
-						onClose={() => {
-							setSelectedStep(null);
-							setSelectedDiagnostics([]);
-							onStepSelect?.(null);
-						}}
-					/>
-				)}
-			</div>
+			<ReactFlow
+				nodes={nodes}
+				edges={edges}
+				onNodesChange={onNodesChange}
+				onEdgesChange={onEdgesChange}
+				onNodeClick={onNodeClick}
+				onPaneClick={onPaneClick}
+				nodeTypes={nodeTypes}
+				edgeTypes={edgeTypes}
+				fitView
+				fitViewOptions={{ padding: 0.2 }}
+				nodesDraggable={false}
+				defaultEdgeOptions={{
+					type: "workflow",
+				}}
+				proOptions={{ hideAttribution: true }}
+				colorMode={dark ? "dark" : "light"}
+			>
+				<Background color={dark ? "#4b5563" : "#e5e7eb"} gap={16} />
+				<Controls showInteractive={false} />
+				<MiniMap
+					nodeStrokeWidth={2}
+					pannable
+					zoomable
+					style={{
+						border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
+						backgroundColor: dark ? "#1f2937" : undefined,
+					}}
+					nodeColor={
+						dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
+					}
+				/>
+			</ReactFlow>
 		</ViewerThemeProvider>
 	);
 }

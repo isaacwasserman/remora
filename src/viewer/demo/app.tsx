@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { WorkflowDefinition } from "../../types";
+import type { Diagnostic } from "../../compiler/types";
+import type { WorkflowDefinition, WorkflowStep } from "../../types";
+import { StepDetailPanel } from "../panels/step-detail-panel";
+import { ViewerThemeProvider } from "../theme";
 import { WorkflowViewer } from "../workflow-viewer";
 
 function App() {
@@ -8,6 +11,10 @@ function App() {
 	const [selected, setSelected] = useState(0);
 	const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
 	const [dark, setDark] = useState(false);
+	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+	const [selectedDiagnostics, setSelectedDiagnostics] = useState<Diagnostic[]>(
+		[],
+	);
 
 	useEffect(() => {
 		fetch("/api/workflows")
@@ -19,10 +26,20 @@ function App() {
 		const name = names[selected];
 		if (!name) return;
 		setWorkflow(null);
+		setSelectedStep(null);
+		setSelectedDiagnostics([]);
 		fetch(`/api/workflows/${name}`)
 			.then((r) => r.json())
 			.then((data: WorkflowDefinition) => setWorkflow(data));
 	}, [names, selected]);
+
+	const onStepSelect = useCallback(
+		(step: WorkflowStep | null, diagnostics: Diagnostic[]) => {
+			setSelectedStep(step);
+			setSelectedDiagnostics(diagnostics);
+		},
+		[],
+	);
 
 	if (!names.length) return null;
 
@@ -65,13 +82,31 @@ function App() {
 					</button>
 				</label>
 			</header>
-			<div className="flex-1">
-				{workflow ? (
-					<WorkflowViewer workflow={workflow} dark={dark} />
-				) : (
-					<div className="flex items-center justify-center h-full text-gray-400 text-sm">
-						Loading...
-					</div>
+			<div className="flex-1 flex">
+				<div className="flex-1">
+					{workflow ? (
+						<WorkflowViewer
+							workflow={workflow}
+							dark={dark}
+							onStepSelect={onStepSelect}
+						/>
+					) : (
+						<div className="flex items-center justify-center h-full text-gray-400 text-sm">
+							Loading...
+						</div>
+					)}
+				</div>
+				{selectedStep && (
+					<ViewerThemeProvider value={{ dark }}>
+						<StepDetailPanel
+							step={selectedStep}
+							diagnostics={selectedDiagnostics}
+							onClose={() => {
+								setSelectedStep(null);
+								setSelectedDiagnostics([]);
+							}}
+						/>
+					</ViewerThemeProvider>
 				)}
 			</div>
 		</div>

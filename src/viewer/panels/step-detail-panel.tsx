@@ -3,7 +3,7 @@ import type { Diagnostic } from "../../compiler/types";
 import type { WorkflowStep } from "../../types";
 import { useViewerTheme } from "../theme";
 
-interface StepDetailPanelProps {
+export interface StepDetailPanelProps {
 	step: WorkflowStep;
 	diagnostics: Diagnostic[];
 	onClose: () => void;
