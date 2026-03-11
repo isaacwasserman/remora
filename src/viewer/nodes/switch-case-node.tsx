@@ -1,7 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
-import { useViewerTheme } from "../theme";
 import { BaseNode } from "./base-node";
 
 function renderExpr(
@@ -14,7 +13,6 @@ function renderExpr(
 }
 
 export function SwitchCaseNode({ data, selected }: NodeProps) {
-	const { dark } = useViewerTheme();
 	const { step, diagnostics, isGroup, groupWidth, groupHeight, hasSourceEdge } =
 		data as unknown as StepNodeData & {
 			isGroup?: boolean;
@@ -35,11 +33,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${
-					dark
-						? "border-amber-700 bg-amber-950/30 hover:bg-amber-950/50 hover:border-amber-500"
-						: "border-amber-300 bg-amber-50/30 hover:bg-amber-50/60 hover:border-amber-500"
-				} ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 border-amber-300 bg-amber-50/30 hover:bg-amber-50/60 hover:border-amber-500 dark:border-amber-700 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 dark:hover:border-amber-500 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
@@ -51,9 +45,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-amber-500">
 						Branch
 					</span>
-					<span
-						className={`text-sm font-medium truncate ${dark ? "text-gray-200" : "text-gray-800"}`}
-					>
+					<span className="text-sm font-medium truncate text-gray-800 dark:text-gray-200">
 						{step.name}
 					</span>
 				</div>
@@ -83,9 +75,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">on:</span>
-				<span
-					className={`font-mono truncate ${dark ? "text-gray-400" : "text-gray-600"}`}
-				>
+				<span className="font-mono truncate text-gray-600 dark:text-gray-400">
 					{renderExpr(step.params.switchOn)}
 				</span>
 			</div>
@@ -95,17 +85,11 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 						key={c.branchBodyStepId}
 						className="flex items-center gap-1.5 text-[11px]"
 					>
-						<span
-							className={`font-mono ${dark ? "text-gray-400" : "text-gray-500"}`}
-						>
+						<span className="font-mono text-gray-500 dark:text-gray-400">
 							{c.value.type === "default" ? "default" : renderExpr(c.value)}
 						</span>
-						<span className={dark ? "text-gray-600" : "text-gray-300"}>
-							&rarr;
-						</span>
-						<span
-							className={`font-mono ${dark ? "text-gray-400" : "text-gray-600"}`}
-						>
+						<span className="text-gray-300 dark:text-gray-600">&rarr;</span>
+						<span className="font-mono text-gray-600 dark:text-gray-400">
 							{c.branchBodyStepId}
 						</span>
 					</div>

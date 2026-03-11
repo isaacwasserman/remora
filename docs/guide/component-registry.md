@@ -51,6 +51,10 @@ pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-d
 - A project with [shadcn/ui](https://ui.shadcn.com) configured (for the `@/` path alias and Tailwind CSS)
 - Import `@xyflow/react/dist/style.css` somewhere in your app (required for the viewer)
 
+## Dark Mode
+
+Both components follow the shadcn convention for dark mode — they use Tailwind's `dark:` variant classes and detect the `dark` class on `<html>`. No props needed; just toggle `class="dark"` on your document element as you normally would with shadcn/ui.
+
 ## Usage
 
 The two components are independent — you can use either one alone or compose them together:

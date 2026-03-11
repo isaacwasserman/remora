@@ -1,7 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import type { StepNodeData } from "../graph-layout";
-import { useViewerTheme } from "../theme";
 import { BaseNode } from "./base-node";
 
 function renderExpr(
@@ -14,7 +13,6 @@ function renderExpr(
 }
 
 export function EndNode({ data, selected }: NodeProps) {
-	const { dark } = useViewerTheme();
 	const { step, diagnostics, outputSchema } = data as unknown as StepNodeData;
 
 	const schema = outputSchema as
@@ -43,7 +41,7 @@ export function EndNode({ data, selected }: NodeProps) {
 				{step.params?.output && (
 					<div className="flex gap-1.5 text-[11px]">
 						<span className="text-gray-400 shrink-0">output:</span>
-						<span className="font-mono text-gray-600 truncate">
+						<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
 							{renderExpr(step.params.output)}
 						</span>
 					</div>
@@ -77,20 +75,14 @@ export function EndNode({ data, selected }: NodeProps) {
 
 	return (
 		<div
-			className={`rounded-full w-[60px] h-[60px] flex items-center justify-center shadow-sm border transition-all duration-150 ${
-				dark
-					? "bg-gray-700 border-gray-600 hover:bg-gray-600"
-					: "bg-gray-100 border-gray-300 hover:bg-gray-200"
-			} ${hasRing ? ringClass : dark ? "hover:ring-2 hover:ring-gray-600" : "hover:ring-2 hover:ring-gray-300"}`}
+			className={`rounded-full w-[60px] h-[60px] flex items-center justify-center shadow-sm border transition-all duration-150 bg-gray-100 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600 ${hasRing ? ringClass : "hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"}`}
 		>
 			<Handle
 				type="target"
 				position={Position.Top}
-				className={`!w-2 !h-2 ${dark ? "!bg-gray-500" : "!bg-gray-400"}`}
+				className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
 			/>
-			<span
-				className={`text-xs font-medium ${dark ? "text-gray-400" : "text-gray-500"}`}
-			>
+			<span className="text-xs font-medium text-gray-500 dark:text-gray-400">
 				End
 			</span>
 		</div>

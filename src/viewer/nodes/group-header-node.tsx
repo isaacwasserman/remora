@@ -1,6 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
-import { useViewerTheme } from "../theme";
 
 interface GroupHeaderData {
 	variant: "switch" | "loop" | "condition";
@@ -14,81 +13,44 @@ interface GroupHeaderData {
 	condition?: string;
 }
 
-const lightStyles = {
+const variantStyles = {
 	switch: {
-		bg: "bg-amber-50",
-		border: "border-amber-300",
-		hoverBorder: "hover:border-amber-500",
-		label: "text-amber-600",
-		mono: "text-amber-800",
-		desc: "text-amber-700/70",
+		container:
+			"bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 hover:border-amber-500",
+		label: "text-amber-600 dark:text-amber-400",
+		mono: "text-amber-800 dark:text-amber-300",
+		desc: "text-amber-700/70 dark:text-amber-400/60",
 		handle: "!bg-amber-500",
 		ring: "ring-amber-400",
 	},
 	loop: {
-		bg: "bg-emerald-50",
-		border: "border-emerald-300",
-		hoverBorder: "hover:border-emerald-500",
-		label: "text-emerald-600",
-		mono: "text-emerald-800",
-		desc: "text-emerald-700/70",
+		container:
+			"bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 hover:border-emerald-500",
+		label: "text-emerald-600 dark:text-emerald-400",
+		mono: "text-emerald-800 dark:text-emerald-300",
+		desc: "text-emerald-700/70 dark:text-emerald-400/60",
 		handle: "!bg-emerald-500",
 		ring: "ring-emerald-400",
 	},
 	condition: {
-		bg: "bg-orange-50",
-		border: "border-orange-300",
-		hoverBorder: "hover:border-orange-500",
-		label: "text-orange-600",
-		mono: "text-orange-800",
-		desc: "text-orange-700/70",
-		handle: "!bg-orange-500",
-		ring: "ring-orange-400",
-	},
-};
-
-const darkStyles = {
-	switch: {
-		bg: "bg-amber-950/50",
-		border: "border-amber-700",
-		hoverBorder: "hover:border-amber-500",
-		label: "text-amber-400",
-		mono: "text-amber-300",
-		desc: "text-amber-400/60",
-		handle: "!bg-amber-500",
-		ring: "ring-amber-400",
-	},
-	loop: {
-		bg: "bg-emerald-950/50",
-		border: "border-emerald-700",
-		hoverBorder: "hover:border-emerald-500",
-		label: "text-emerald-400",
-		mono: "text-emerald-300",
-		desc: "text-emerald-400/60",
-		handle: "!bg-emerald-500",
-		ring: "ring-emerald-400",
-	},
-	condition: {
-		bg: "bg-orange-950/50",
-		border: "border-orange-700",
-		hoverBorder: "hover:border-orange-500",
-		label: "text-orange-400",
-		mono: "text-orange-300",
-		desc: "text-orange-400/60",
+		container:
+			"bg-orange-50 dark:bg-orange-950/50 border-orange-300 dark:border-orange-700 hover:border-orange-500",
+		label: "text-orange-600 dark:text-orange-400",
+		mono: "text-orange-800 dark:text-orange-300",
+		desc: "text-orange-700/70 dark:text-orange-400/60",
 		handle: "!bg-orange-500",
 		ring: "ring-orange-400",
 	},
 };
 
 export function GroupHeaderNode({ data, selected }: NodeProps) {
-	const { dark } = useViewerTheme();
 	const { variant, description, expression, target, itemName, condition } =
 		data as unknown as GroupHeaderData;
-	const s = dark ? darkStyles[variant] : lightStyles[variant];
+	const s = variantStyles[variant];
 
 	return (
 		<div
-			className={`${s.bg} border-2 ${s.border} rounded-lg w-[280px] shadow-sm transition-colors duration-150 ${s.hoverBorder} ${
+			className={`border-2 rounded-lg w-[280px] shadow-sm transition-colors duration-150 ${s.container} ${
 				selected ? `ring-2 ${s.ring}` : ""
 			}`}
 		>

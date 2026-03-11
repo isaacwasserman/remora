@@ -33,7 +33,6 @@ const VIEWER_FILES: FileEntry[] = [
 ];
 
 const PANEL_FILES: FileEntry[] = [
-	{ relPath: "theme.tsx", type: "registry:lib" },
 	{ relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
 ];
 

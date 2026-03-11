@@ -29,7 +29,7 @@ export function SleepNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">duration:</span>
-				<span className="font-mono text-gray-600 truncate">
+				<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
 					{renderExpr(step.params.durationMs)}ms
 				</span>
 			</div>
