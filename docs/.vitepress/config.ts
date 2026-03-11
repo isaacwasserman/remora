@@ -1,10 +1,17 @@
 import { defineConfig } from "vitepress";
 import llmstxt from "vitepress-plugin-llms";
+import { tabsMarkdownPlugin } from "vitepress-plugin-tabs";
 
 export default defineConfig({
 	title: "Remora",
 	description: "A workflow DSL for AI agents",
 	base: "/remora/",
+
+	markdown: {
+		config(md) {
+			md.use(tabsMarkdownPlugin);
+		},
+	},
 
 	vite: {
 		plugins: [llmstxt()],
@@ -24,6 +31,10 @@ export default defineConfig({
 						{ text: "What is Remora?", link: "/guide/what-is-remora" },
 						{ text: "Getting Started", link: "/guide/getting-started" },
 						{ text: "Workflow DSL", link: "/guide/workflow-dsl" },
+						{
+							text: "Component Registry",
+							link: "/guide/component-registry",
+						},
 					],
 				},
 			],

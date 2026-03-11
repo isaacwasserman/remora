@@ -1,7 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
 import type { Diagnostic } from "../../compiler/types";
-import { useViewerTheme } from "../theme";
 
 interface BaseNodeProps {
 	id: string;
@@ -30,7 +29,6 @@ export function BaseNode({
 	hasSourceEdge = true,
 	hasTargetEdge = true,
 }: BaseNodeProps) {
-	const { dark } = useViewerTheme();
 	const hasErrors = diagnostics.some((d) => d.severity === "error");
 	const hasWarnings =
 		!hasErrors && diagnostics.some((d) => d.severity === "warning");
@@ -44,16 +42,14 @@ export function BaseNode({
 
 	return (
 		<div
-			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 ${
-				dark ? "bg-gray-800" : "bg-white"
-			} ${hasRing ? ringClass : dark ? "hover:ring-2 hover:ring-gray-600" : "hover:ring-2 hover:ring-gray-300"}`}
+			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 bg-white dark:bg-gray-800 ${hasRing ? ringClass : "hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"}`}
 			style={{ borderLeftColor: accent }}
 		>
 			{hasTargetEdge && (
 				<Handle
 					type="target"
 					position={Position.Top}
-					className={`!w-2 !h-2 ${dark ? "!bg-gray-500" : "!bg-gray-400"}`}
+					className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
 				/>
 			)}
 			<div className="px-3 py-2.5">
@@ -64,9 +60,7 @@ export function BaseNode({
 						>
 							{typeLabel}
 						</span>
-						<div
-							className={`font-medium text-sm truncate ${dark ? "text-gray-100" : "text-gray-900"}`}
-						>
+						<div className="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
 							{name}
 						</div>
 					</div>
@@ -74,32 +68,22 @@ export function BaseNode({
 						<span
 							className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
 								hasErrors
-									? dark
-										? "bg-red-900/50 text-red-400"
-										: "bg-red-100 text-red-700"
-									: dark
-										? "bg-amber-900/50 text-amber-400"
-										: "bg-amber-100 text-amber-700"
+									? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400"
+									: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
 							}`}
 						>
 							{diagnostics.length}
 						</span>
 					)}
 				</div>
-				<div
-					className={`text-[11px] font-mono ${dark ? "text-gray-500" : "text-gray-400"}`}
-				>
+				<div className="text-[11px] font-mono text-gray-400 dark:text-gray-500">
 					{id}
 				</div>
-				<div
-					className={`text-[11px] mt-1 ${dark ? "text-gray-400" : "text-gray-500"}`}
-				>
+				<div className="text-[11px] mt-1 text-gray-500 dark:text-gray-400">
 					{description}
 				</div>
 				{children && (
-					<div
-						className={`mt-2 border-t pt-2 ${dark ? "border-gray-700" : "border-gray-100"}`}
-					>
+					<div className="mt-2 border-t pt-2 border-gray-100 dark:border-gray-700">
 						{children}
 					</div>
 				)}
@@ -108,7 +92,7 @@ export function BaseNode({
 				<Handle
 					type="source"
 					position={Position.Bottom}
-					className={`!w-2 !h-2 ${dark ? "!bg-gray-500" : "!bg-gray-400"}`}
+					className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
 				/>
 			)}
 		</div>

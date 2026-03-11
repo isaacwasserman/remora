@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { WorkflowDefinition } from "../../types";
+import type { Diagnostic } from "../../compiler/types";
+import type { WorkflowDefinition, WorkflowStep } from "../../types";
+import { StepDetailPanel } from "../panels/step-detail-panel";
 import { WorkflowViewer } from "../workflow-viewer";
 
 function App() {
@@ -8,6 +10,14 @@ function App() {
 	const [selected, setSelected] = useState(0);
 	const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
 	const [dark, setDark] = useState(false);
+	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+	const [selectedDiagnostics, setSelectedDiagnostics] = useState<Diagnostic[]>(
+		[],
+	);
+
+	useEffect(() => {
+		document.documentElement.classList.toggle("dark", dark);
+	}, [dark]);
 
 	useEffect(() => {
 		fetch("/api/workflows")
@@ -19,17 +29,29 @@ function App() {
 		const name = names[selected];
 		if (!name) return;
 		setWorkflow(null);
+		setSelectedStep(null);
+		setSelectedDiagnostics([]);
 		fetch(`/api/workflows/${name}`)
 			.then((r) => r.json())
 			.then((data: WorkflowDefinition) => setWorkflow(data));
 	}, [names, selected]);
 
+	const onStepSelect = useCallback(
+		(step: WorkflowStep | null, diagnostics: Diagnostic[]) => {
+			setSelectedStep(step);
+			setSelectedDiagnostics(diagnostics);
+		},
+		[],
+	);
+
 	if (!names.length) return null;
 
 	return (
 		<div className="h-full flex flex-col">
-			<header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 shrink-0">
-				<h1 className="text-sm font-semibold text-gray-900">Workflow Viewer</h1>
+			<header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-4 shrink-0">
+				<h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+					Workflow Viewer
+				</h1>
 				<div className="flex gap-1">
 					{names.map((name, i) => (
 						<button
@@ -38,15 +60,15 @@ function App() {
 							onClick={() => setSelected(i)}
 							className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
 								i === selected
-									? "bg-gray-900 text-white"
-									: "bg-gray-100 text-gray-600 hover:bg-gray-200"
+									? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+									: "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
 							}`}
 						>
 							{name}
 						</button>
 					))}
 				</div>
-				<label className="ml-auto flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+				<label className="ml-auto flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
 					<span>Dark</span>
 					<button
 						type="button"
@@ -65,13 +87,25 @@ function App() {
 					</button>
 				</label>
 			</header>
-			<div className="flex-1">
-				{workflow ? (
-					<WorkflowViewer workflow={workflow} dark={dark} />
-				) : (
-					<div className="flex items-center justify-center h-full text-gray-400 text-sm">
-						Loading...
-					</div>
+			<div className="flex-1 flex">
+				<div className="flex-1">
+					{workflow ? (
+						<WorkflowViewer workflow={workflow} onStepSelect={onStepSelect} />
+					) : (
+						<div className="flex items-center justify-center h-full text-gray-400 text-sm">
+							Loading...
+						</div>
+					)}
+				</div>
+				{selectedStep && (
+					<StepDetailPanel
+						step={selectedStep}
+						diagnostics={selectedDiagnostics}
+						onClose={() => {
+							setSelectedStep(null);
+							setSelectedDiagnostics([]);
+						}}
+					/>
 				)}
 			</div>
 		</div>

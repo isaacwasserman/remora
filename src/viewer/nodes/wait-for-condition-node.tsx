@@ -33,7 +33,7 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/30 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 border-orange-300 bg-orange-50/30 dark:border-orange-700 dark:bg-orange-950/30 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
@@ -45,7 +45,7 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-orange-500">
 						Wait
 					</span>
-					<span className="text-sm font-medium text-gray-800 truncate">
+					<span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
 						{step.name}
 					</span>
 				</div>
@@ -75,14 +75,14 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">until:</span>
-				<span className="font-mono text-gray-600 truncate">
+				<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
 					{renderExpr(step.params.condition)}
 				</span>
 			</div>
 			{step.params.maxAttempts && (
 				<div className="mt-0.5 flex gap-1.5 text-[11px]">
 					<span className="text-gray-400 shrink-0">max attempts:</span>
-					<span className="font-mono text-gray-600">
+					<span className="font-mono text-gray-600 dark:text-gray-400">
 						{renderExpr(step.params.maxAttempts)}
 					</span>
 				</div>

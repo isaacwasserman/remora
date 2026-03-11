@@ -38,7 +38,8 @@
 		"typecheck": "tsgo --noEmit",
 		"docs:api": "bunx typedoc",
 		"docs:dev": "bun run docs:api && bunx vitepress dev docs",
-		"docs:build": "bun run docs:api && bunx vitepress build docs",
+		"registry:build": "bun scripts/build-registry.ts",
+		"docs:build": "bun run docs:api && bun run registry:build && bunx vitepress build docs",
 		"docs:preview": "bunx vitepress preview docs",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
@@ -92,6 +93,7 @@
 		"typedoc-plugin-markdown": "^4.10.0",
 		"typescript": "^5.8.0",
 		"vitepress": "^1.6.4",
-		"vitepress-plugin-llms": "^1.11.0"
+		"vitepress-plugin-llms": "^1.11.0",
+		"vitepress-plugin-tabs": "^0.8.0"
 	}
 }
