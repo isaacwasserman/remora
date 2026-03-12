@@ -5,6 +5,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"homepage": "https://isaacwasserman.github.io/remora/",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/isaacwasserman/remora"
