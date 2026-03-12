@@ -2,6 +2,8 @@
 
 Workflows by agents, for agents.
 
+**[Documentation](https://isaacwasserman.github.io/remora/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
+
 Remora is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using Remora's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is well-defined, repeatable, and auditable.
 
 > Unlike unstructured instructions, a Remora workflow is a concrete artifact that can be inspected, versioned, and re-run deterministically.
@@ -60,6 +62,10 @@ A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) 
 npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
 npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
 ```
+
+### Component Registry
+
+The viewer components are available via a [shadcn-compatible component registry](https://isaacwasserman.github.io/remora/guide/component-registry), giving you full control over the source code and styling. See the [component registry docs](https://isaacwasserman.github.io/remora/guide/component-registry) for details.
 
 ## The DSL
 
