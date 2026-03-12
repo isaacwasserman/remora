@@ -9,7 +9,7 @@ import {
 	useNodesState,
 } from "@xyflow/react";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Diagnostic } from "../compiler/types";
 import type { ExecutionState, StepExecutionRecord } from "../executor/state";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
@@ -62,6 +62,12 @@ export interface WorkflowViewerProps {
 	onStepSelect?: (step: WorkflowStep | null, diagnostics: Diagnostic[]) => void;
 	/** Execution state to visualize on the workflow DAG. */
 	executionState?: ExecutionState;
+	/** Whether to show the minimap. @default true */
+	showMinimap?: boolean;
+	/** Width of the minimap in pixels (capped at 25% of viewer width). @default 200 */
+	minimapWidth?: number;
+	/** Height of the minimap in pixels. @default 150 */
+	minimapHeight?: number;
 }
 
 /**
@@ -90,8 +96,13 @@ export function WorkflowViewer({
 	diagnostics = EMPTY_DIAGNOSTICS,
 	onStepSelect,
 	executionState,
+	showMinimap = true,
+	minimapWidth = 200,
+	minimapHeight = 150,
 }: WorkflowViewerProps) {
 	const dark = useDarkMode();
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [containerWidth, setContainerWidth] = useState(0);
 	const layout = useMemo(
 		() => buildLayout(workflow, diagnostics, executionState),
 		[workflow, diagnostics, executionState],
@@ -113,6 +124,24 @@ export function WorkflowViewer({
 		setNodes(layout.nodes);
 		setEdges(layout.edges);
 	}, [layout, setNodes, setEdges]);
+
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el) return;
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (entry) setContainerWidth(entry.contentRect.width);
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+
+	const effectiveMinimapWidth =
+		containerWidth > 0
+			? Math.min(minimapWidth, containerWidth * 0.25)
+			: minimapWidth;
+	const effectiveMinimapHeight =
+		minimapHeight * (effectiveMinimapWidth / minimapWidth);
 
 	const onNodeClick = useCallback(
 		(_: React.MouseEvent, node: { id: string; data: unknown }) => {
@@ -139,7 +168,7 @@ export function WorkflowViewer({
 
 	return (
 		<div className="flex h-full w-full">
-			<div className="flex-1 relative">
+			<div ref={containerRef} className="flex-1 relative">
 				<ReactFlow
 					nodes={nodes}
 					edges={edges}
@@ -160,18 +189,22 @@ export function WorkflowViewer({
 				>
 					<Background color={dark ? "#4b5563" : "#e5e7eb"} gap={16} />
 					<Controls showInteractive={false} />
-					<MiniMap
-						nodeStrokeWidth={2}
-						pannable
-						zoomable
-						style={{
-							border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
-							backgroundColor: dark ? "#1f2937" : undefined,
-						}}
-						nodeColor={
-							dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
-						}
-					/>
+					{showMinimap && (
+						<MiniMap
+							nodeStrokeWidth={2}
+							pannable
+							zoomable
+							style={{
+								width: effectiveMinimapWidth,
+								height: effectiveMinimapHeight,
+								border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
+								backgroundColor: dark ? "#1f2937" : undefined,
+							}}
+							nodeColor={
+								dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
+							}
+						/>
+					)}
 				</ReactFlow>
 			</div>
 			{selectedStep && (
