@@ -63,9 +63,11 @@ function stepNodeType(step: WorkflowStep): string {
 function renderExpression(
 	expr:
 		| { type: "literal"; value: unknown }
-		| { type: "jmespath"; expression: string },
+		| { type: "jmespath"; expression: string }
+		| { type: "template"; template: string },
 ): string {
 	if (expr.type === "literal") return JSON.stringify(expr.value);
+	if (expr.type === "template") return expr.template;
 	return expr.expression;
 }
 

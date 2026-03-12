@@ -250,6 +250,136 @@ describe("basic execution", () => {
 	});
 });
 
+// ─── Template Expressions ────────────────────────────────────────
+
+describe("template expressions", () => {
+	test("template expression interpolates values from prior step", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fetch",
+			steps: [
+				step("fetch", {
+					type: "tool-call",
+					params: {
+						toolName: "getItems",
+						toolInput: {},
+					},
+					nextStepId: "greet_step",
+				}),
+				step("greet_step", {
+					type: "tool-call",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: {
+								type: "template",
+								template: "user ${fetch.items[0].name}",
+							},
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.greet_step).toEqual({
+			greeting: "Hello, user alpha!",
+		});
+	});
+
+	test("template expression with no embedded expressions returns plain string", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "greet_step",
+			steps: [
+				step("greet_step", {
+					type: "tool-call",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: {
+								type: "template",
+								template: "plain text",
+							},
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.greet_step).toEqual({
+			greeting: "Hello, plain text!",
+		});
+	});
+
+	test("template expression with multiple embedded expressions", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "fetch",
+			steps: [
+				step("fetch", {
+					type: "tool-call",
+					params: {
+						toolName: "getItems",
+						toolInput: {},
+					},
+					nextStepId: "process",
+				}),
+				step("process", {
+					type: "tool-call",
+					params: {
+						toolName: "classify",
+						toolInput: {
+							value: {
+								type: "template",
+								template: "${fetch.items[0].name}-${fetch.items[1].name}",
+							},
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, { tools: testTools });
+		expect(result.success).toBe(true);
+		// "alpha-beta" has length > 4, so label is "long"
+		expect(result.stepOutputs.process).toEqual({ label: "long" });
+	});
+
+	test("template expression with workflow input", async () => {
+		const workflow: WorkflowDefinition = {
+			initialStepId: "greet_step",
+			inputSchema: {
+				type: "object",
+				properties: { firstName: { type: "string" } },
+			},
+			steps: [
+				step("greet_step", {
+					type: "tool-call",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: {
+								type: "template",
+								template: "Dr. ${input.firstName}",
+							},
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			inputs: { firstName: "Alice" },
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.greet_step).toEqual({
+			greeting: "Hello, Dr. Alice!",
+		});
+	});
+});
+
 // ─── Switch-Case ─────────────────────────────────────────────────
 
 describe("switch-case", () => {

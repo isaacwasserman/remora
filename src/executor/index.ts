@@ -300,7 +300,8 @@ class ExecutionStateManager {
 
 type Expression =
 	| { type: "literal"; value: unknown }
-	| { type: "jmespath"; expression: string };
+	| { type: "jmespath"; expression: string }
+	| { type: "template"; template: string };
 
 function evaluateExpression(
 	expr: Expression,
@@ -309,6 +310,9 @@ function evaluateExpression(
 ): unknown {
 	if (expr.type === "literal") {
 		return expr.value;
+	}
+	if (expr.type === "template") {
+		return interpolateTemplate(expr.template, scope, stepId);
 	}
 	try {
 		return search(scope as Parameters<typeof search>[0], expr.expression);
