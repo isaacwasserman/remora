@@ -39,13 +39,7 @@ const PANEL_FILES: FileEntry[] = [
 const PACKAGE_IMPORT_RE =
 	/^\.\.\/compiler\/types$|^\.\.\/\.\.\/compiler\/types$|^\.\.\/types$|^\.\.\/\.\.\/types$/;
 
-function transformImports(
-	content: string,
-	fileRelPath: string,
-	registryPrefix: string,
-): string {
-	const fileDir = path.dirname(fileRelPath);
-
+function transformImports(content: string): string {
 	return content.replace(
 		/(from\s+["'])([^"']+)(["'])/g,
 		(match, prefix, specifier, suffix) => {
@@ -54,8 +48,9 @@ function transformImports(
 			}
 
 			if (specifier.startsWith("./") || specifier.startsWith("../")) {
-				const resolved = path.normalize(path.join(fileDir, specifier));
-				return `${prefix}@/${registryPrefix}/${resolved}${suffix}`;
+				// Keep relative imports as-is — the directory structure is
+				// preserved on install so relative paths remain valid.
+				return match;
 			}
 
 			return match;
@@ -67,7 +62,7 @@ async function processFiles(files: FileEntry[], registryPrefix: string) {
 	return Promise.all(
 		files.map(async ({ relPath, type }) => {
 			const raw = await Bun.file(path.join(VIEWER_DIR, relPath)).text();
-			const content = transformImports(raw, relPath, registryPrefix);
+			const content = transformImports(raw);
 			return { path: `${registryPrefix}/${relPath}`, content, type };
 		}),
 	);
