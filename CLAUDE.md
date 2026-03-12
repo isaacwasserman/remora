@@ -124,3 +124,7 @@ Every PR must include a changeset describing the changes. This is required for t
 - Write a concise summary of the change aimed at package consumers.
 - Commit the generated `.changeset/*.md` file with the rest of the PR.
 - PRs without a changeset will not trigger a canary release and will not be included in the next stable release.
+
+## Publishing
+
+This repo publishes to npm using **trusted publishers** (npm provenance via OIDC `id-token: write`). There is no `NPM_TOKEN` secret — authentication is handled automatically by GitHub Actions. Do not suggest adding npm tokens or secrets for publishing.
