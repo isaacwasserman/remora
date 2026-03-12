@@ -16,7 +16,10 @@ export async function serializeToolsForPrompt(tools: ToolSet): Promise<string> {
 	);
 }
 
-export function buildWorkflowGenerationPrompt(serializedTools: string): string {
+export function buildWorkflowGenerationPrompt(
+	serializedTools: string,
+	additionalInstructions?: string,
+): string {
 	return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. You MUST call the createWorkflow tool with a valid workflow definition.
 
 ## Workflow Structure
@@ -249,7 +252,7 @@ ${serializedTools}
 
 9. wait-for-condition requires both \`conditionStepId\` (the chain to execute on each polling attempt) AND \`condition\` (the expression to evaluate after the chain runs). The condition expression is evaluated AFTER the chain runs, using the updated scope with all step outputs from the condition chain.
 
-10. Prefer explicit tool-call, llm-prompt, switch-case, and for-each steps over agent-loop. Only use agent-loop when the task is genuinely open-ended and cannot be decomposed into deterministic steps.`;
+10. Prefer explicit tool-call, llm-prompt, switch-case, and for-each steps over agent-loop. Only use agent-loop when the task is genuinely open-ended and cannot be decomposed into deterministic steps.${additionalInstructions ? `\n\n## Additional Instructions\n\n${additionalInstructions}` : ""}`;
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {

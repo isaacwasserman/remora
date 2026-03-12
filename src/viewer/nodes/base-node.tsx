@@ -14,6 +14,7 @@ interface BaseNodeProps {
 	children?: ReactNode;
 	selected?: boolean;
 	hasSourceEdge?: boolean;
+	hasTargetEdge?: boolean;
 	executionSummary?: StepExecutionSummary;
 }
 
@@ -65,6 +66,7 @@ export function BaseNode({
 	children,
 	selected,
 	hasSourceEdge = true,
+	hasTargetEdge = true,
 	executionSummary,
 }: BaseNodeProps) {
 	const hasErrors = diagnostics.some((d) => d.severity === "error");
@@ -94,16 +96,20 @@ export function BaseNode({
 		else if (selected) ringClass = "ring-2 ring-blue-400";
 	}
 
+	const hasRing = hasErrors || hasWarnings || selected || !!executionSummary;
+
 	return (
 		<div
-			className={`bg-white rounded-lg shadow-md border-l-4 w-[300px] ${ringClass} ${opacityClass}`}
+			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 bg-white dark:bg-gray-800 ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"}`}
 			style={{ borderLeftColor: accent }}
 		>
-			<Handle
-				type="target"
-				position={Position.Top}
-				className="!bg-gray-400 !w-2 !h-2"
-			/>
+			{hasTargetEdge && (
+				<Handle
+					type="target"
+					position={Position.Top}
+					className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
+				/>
+			)}
 			<div className="px-3 py-2.5">
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2 min-w-0">
@@ -112,13 +118,13 @@ export function BaseNode({
 						>
 							{typeLabel}
 						</span>
-						<div className="font-medium text-sm text-gray-900 truncate">
+						<div className="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
 							{name}
 						</div>
 					</div>
 					<div className="flex items-center gap-1.5 shrink-0">
 						{executionSummary && executionSummary.totalRetries > 0 && (
-							<span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-600 font-medium">
+							<span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 font-medium">
 								{executionSummary.totalRetries}{" "}
 								{executionSummary.totalRetries === 1 ? "retry" : "retries"}
 							</span>
@@ -130,8 +136,8 @@ export function BaseNode({
 							<span
 								className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
 									hasErrors
-										? "bg-red-100 text-red-700"
-										: "bg-amber-100 text-amber-700"
+										? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400"
+										: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
 								}`}
 							>
 								{diagnostics.length}
@@ -139,17 +145,23 @@ export function BaseNode({
 						)}
 					</div>
 				</div>
-				<div className="text-[11px] text-gray-400 font-mono">{id}</div>
-				<div className="text-[11px] text-gray-500 mt-1">{description}</div>
+				<div className="text-[11px] font-mono text-gray-400 dark:text-gray-500">
+					{id}
+				</div>
+				<div className="text-[11px] mt-1 text-gray-500 dark:text-gray-400">
+					{description}
+				</div>
 				{children && (
-					<div className="mt-2 border-t border-gray-100 pt-2">{children}</div>
+					<div className="mt-2 border-t pt-2 border-gray-100 dark:border-gray-700">
+						{children}
+					</div>
 				)}
 			</div>
 			{hasSourceEdge && (
 				<Handle
 					type="source"
 					position={Position.Bottom}
-					className="!bg-gray-400 !w-2 !h-2"
+					className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
 				/>
 			)}
 		</div>

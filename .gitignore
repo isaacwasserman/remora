@@ -38,3 +38,4 @@ generated-workflows
 docs/.vitepress/dist
 docs/.vitepress/cache
 docs/api
+docs/public/r

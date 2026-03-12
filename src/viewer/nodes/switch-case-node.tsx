@@ -34,20 +34,20 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 			!hasErrors && diagnostics.some((d) => d.severity === "warning");
 
 		let ringClass = "";
-		let borderColor = "border-amber-300";
+		let borderColor = "border-amber-300 dark:border-amber-700";
 		if (executionSummary) {
 			switch (executionSummary.status) {
 				case "running":
 					ringClass = "ring-2 ring-blue-400 animate-pulse";
-					borderColor = "border-blue-300";
+					borderColor = "border-blue-300 dark:border-blue-700";
 					break;
 				case "completed":
 					ringClass = "ring-2 ring-green-400";
-					borderColor = "border-green-400";
+					borderColor = "border-green-400 dark:border-green-600";
 					break;
 				case "failed":
 					ringClass = "ring-2 ring-red-500";
-					borderColor = "border-red-300";
+					borderColor = "border-red-300 dark:border-red-700";
 					break;
 			}
 		} else {
@@ -58,7 +58,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed ${borderColor} bg-amber-50/30 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${borderColor} bg-amber-50/30 hover:bg-amber-50/60 hover:border-amber-500 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 dark:hover:border-amber-500 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
@@ -70,7 +70,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-amber-500">
 						Branch
 					</span>
-					<span className="text-sm font-medium text-gray-800 truncate">
+					<span className="text-sm font-medium truncate text-gray-800 dark:text-gray-200">
 						{step.name}
 					</span>
 				</div>
@@ -107,7 +107,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">on:</span>
 				<span
-					className={`font-mono truncate ${hasSwitchResolved ? "text-emerald-700" : "text-gray-600"}`}
+					className={`font-mono truncate ${hasSwitchResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
 					title={
 						hasSwitchResolved ? renderExpr(step.params.switchOn) : undefined
 					}
@@ -123,11 +123,11 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 						key={c.branchBodyStepId}
 						className="flex items-center gap-1.5 text-[11px]"
 					>
-						<span className="font-mono text-gray-500">
+						<span className="font-mono text-gray-500 dark:text-gray-400">
 							{c.value.type === "default" ? "default" : renderExpr(c.value)}
 						</span>
-						<span className="text-gray-300">&rarr;</span>
-						<span className="font-mono text-gray-600">
+						<span className="text-gray-300 dark:text-gray-600">&rarr;</span>
+						<span className="font-mono text-gray-600 dark:text-gray-400">
 							{c.branchBodyStepId}
 						</span>
 					</div>

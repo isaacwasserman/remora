@@ -7,7 +7,7 @@ import type {
 import type { WorkflowStep } from "../../types";
 import type { StepExecutionSummary } from "../execution-state";
 
-interface StepDetailPanelProps {
+export interface StepDetailPanelProps {
 	step: WorkflowStep;
 	diagnostics: Diagnostic[];
 	executionSummary?: StepExecutionSummary;
@@ -26,17 +26,25 @@ function renderExpression(
 
 function TypeBadge({ type }: { type: string }) {
 	const colors: Record<string, string> = {
-		"tool-call": "bg-blue-100 text-blue-700",
-		"llm-prompt": "bg-violet-100 text-violet-700",
-		"extract-data": "bg-purple-100 text-purple-700",
-		"switch-case": "bg-amber-100 text-amber-700",
-		"for-each": "bg-emerald-100 text-emerald-700",
-		start: "bg-green-100 text-green-700",
-		end: "bg-gray-100 text-gray-600",
+		"tool-call":
+			"bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+		"llm-prompt":
+			"bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-400",
+		"extract-data":
+			"bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
+		"switch-case":
+			"bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
+		"for-each":
+			"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400",
+		start:
+			"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
+		end: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
 	};
+	const fallback =
+		"bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400";
 	return (
 		<span
-			className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colors[type] ?? "bg-gray-100 text-gray-600"}`}
+			className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colors[type] ?? fallback}`}
 		>
 			{type}
 		</span>
@@ -45,11 +53,12 @@ function TypeBadge({ type }: { type: string }) {
 
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
 	const colors: Record<string, string> = {
-		pending: "bg-gray-100 text-gray-600",
-		running: "bg-blue-100 text-blue-700",
-		completed: "bg-green-100 text-green-700",
-		failed: "bg-red-100 text-red-700",
-		skipped: "bg-gray-100 text-gray-500",
+		pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+		running: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+		completed:
+			"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
+		failed: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400",
+		skipped: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
 	};
 	return (
 		<span
@@ -71,7 +80,7 @@ function ResolvedCode({
 		typeof value === "string" ? value : JSON.stringify(value, null, 2);
 	return (
 		<pre
-			className="text-xs text-emerald-700 bg-emerald-50 rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] cursor-default"
+			className="text-xs text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50 rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] cursor-default"
 			title={expression}
 		>
 			{display}
@@ -105,9 +114,11 @@ function StepParams({
 									const hasResolved = resolvedVal !== undefined;
 									return (
 										<div key={key} className="flex gap-2 text-xs">
-											<span className="font-mono text-gray-500">{key}:</span>
+											<span className="font-mono text-gray-500 dark:text-gray-400">
+												{key}:
+											</span>
 											<span
-												className={`font-mono ${hasResolved ? "text-emerald-700" : "text-gray-700"}`}
+												className={`font-mono ${hasResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"}`}
 												title={hasResolved ? renderExpression(val) : undefined}
 											>
 												{hasResolved
@@ -136,7 +147,7 @@ function StepParams({
 								expression={step.params.prompt}
 							/>
 						) : (
-							<pre className="text-xs text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap font-mono">
+							<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-700">
 								{step.params.prompt}
 							</pre>
 						)}
@@ -188,13 +199,15 @@ function StepParams({
 						<div className="space-y-1">
 							{step.params.cases.map((c) => (
 								<div key={c.branchBodyStepId} className="text-xs flex gap-2">
-									<span className="font-mono text-gray-500">
+									<span className="font-mono text-gray-500 dark:text-gray-400">
 										{c.value.type === "default"
 											? "default"
 											: renderExpression(c.value)}
 									</span>
-									<span className="text-gray-400">&rarr;</span>
-									<span className="font-mono text-gray-700">
+									<span className="text-gray-400 dark:text-gray-600">
+										&rarr;
+									</span>
+									<span className="font-mono text-gray-700 dark:text-gray-300">
 										{c.branchBodyStepId}
 									</span>
 								</div>
@@ -237,7 +250,7 @@ function StepParams({
 
 function Label({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+		<div className="text-[11px] font-medium uppercase tracking-wide mb-0.5 text-gray-400 dark:text-gray-500">
 			{children}
 		</div>
 	);
@@ -245,7 +258,7 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function Code({ children }: { children: React.ReactNode }) {
 	return (
-		<pre className="text-xs text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]">
+		<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-700">
 			{children}
 		</pre>
 	);
@@ -268,11 +281,12 @@ function formatValue(value: unknown): string {
 }
 
 const recordStatusColors: Record<string, string> = {
-	pending: "bg-gray-100 text-gray-600",
-	running: "bg-blue-100 text-blue-700",
-	completed: "bg-green-100 text-green-700",
-	failed: "bg-red-100 text-red-700",
-	skipped: "bg-gray-100 text-gray-500",
+	pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+	running: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+	completed:
+		"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
+	failed: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400",
+	skipped: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
 };
 
 function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
@@ -282,9 +296,11 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 			: null;
 
 	return (
-		<div className="border border-gray-200 rounded-md p-2 space-y-1.5">
+		<div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 space-y-1.5">
 			{pathLabel && (
-				<div className="text-[11px] font-medium text-gray-500">{pathLabel}</div>
+				<div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+					{pathLabel}
+				</div>
 			)}
 			<div className="flex items-center gap-2">
 				<span
@@ -293,12 +309,12 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 					{record.status}
 				</span>
 				{record.durationMs !== undefined && (
-					<span className="text-[11px] text-gray-400">
+					<span className="text-[11px] text-gray-400 dark:text-gray-500">
 						{record.durationMs}ms
 					</span>
 				)}
 				{record.retries.length > 0 && (
-					<span className="text-[11px] text-amber-600">
+					<span className="text-[11px] text-amber-600 dark:text-amber-400">
 						{record.retries.length}{" "}
 						{record.retries.length === 1 ? "retry" : "retries"}
 					</span>
@@ -306,7 +322,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 			</div>
 			{record.resolvedInputs !== undefined && (
 				<details className="text-xs">
-					<summary className="text-[11px] font-medium text-gray-400 uppercase tracking-wide cursor-pointer select-none">
+					<summary className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide cursor-pointer select-none">
 						Resolved Inputs
 					</summary>
 					<ResolvedCode value={record.resolvedInputs} />
@@ -314,7 +330,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 			)}
 			{record.output !== undefined && (
 				<details className="text-xs">
-					<summary className="text-[11px] font-medium text-gray-400 uppercase tracking-wide cursor-pointer select-none">
+					<summary className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide cursor-pointer select-none">
 						Output
 					</summary>
 					<Code>
@@ -325,7 +341,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 				</details>
 			)}
 			{record.error && (
-				<div className="text-xs p-2 rounded bg-red-50 text-red-700 border border-red-200">
+				<div className="text-xs p-2 rounded bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
 					<div className="font-medium font-mono">{record.error.code}</div>
 					<div className="mt-0.5">{record.error.message}</div>
 				</div>
@@ -342,18 +358,18 @@ export function StepDetailPanel({
 	onClose,
 }: StepDetailPanelProps) {
 	return (
-		<div className="w-[340px] bg-white border-l border-gray-200 h-full overflow-y-auto shadow-lg">
-			<div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+		<div className="w-[340px] border-l h-full overflow-y-auto shadow-lg bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+			<div className="sticky top-0 border-b px-4 py-3 flex items-center justify-between bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
 				<div className="flex items-center gap-2">
 					<TypeBadge type={step.type} />
-					<span className="font-medium text-sm text-gray-900 truncate">
+					<span className="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
 						{step.name}
 					</span>
 				</div>
 				<button
 					type="button"
 					onClick={onClose}
-					className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+					className="text-lg leading-none text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
 				>
 					&times;
 				</button>
@@ -362,24 +378,28 @@ export function StepDetailPanel({
 			<div className="px-4 py-3 space-y-4">
 				<div>
 					<Label>Step ID</Label>
-					<div className="text-xs font-mono text-gray-600">{step.id}</div>
+					<div className="text-xs font-mono text-gray-600 dark:text-gray-400">
+						{step.id}
+					</div>
 				</div>
 
 				<div>
 					<Label>Description</Label>
-					<div className="text-xs text-gray-600">{step.description}</div>
+					<div className="text-xs text-gray-600 dark:text-gray-400">
+						{step.description}
+					</div>
 				</div>
 
 				{step.nextStepId && (
 					<div>
 						<Label>Next Step</Label>
-						<div className="text-xs font-mono text-gray-600">
+						<div className="text-xs font-mono text-gray-600 dark:text-gray-400">
 							{step.nextStepId}
 						</div>
 					</div>
 				)}
 
-				<div className="border-t border-gray-100 pt-3">
+				<div className="border-t pt-3 border-gray-100 dark:border-gray-700">
 					<Label>Parameters</Label>
 					<div className="mt-1">
 						<StepParams
@@ -395,18 +415,18 @@ export function StepDetailPanel({
 				</div>
 
 				{executionSummary && (
-					<div className="border-t border-gray-100 pt-3">
+					<div className="border-t border-gray-100 dark:border-gray-700 pt-3">
 						<Label>Execution</Label>
 						<div className="mt-1 space-y-2">
 							<div className="flex items-center gap-2">
 								<StatusBadge summary={executionSummary} />
 								{executionSummary.latestDurationMs !== undefined && (
-									<span className="text-[11px] text-gray-400">
+									<span className="text-[11px] text-gray-400 dark:text-gray-500">
 										{executionSummary.latestDurationMs}ms
 									</span>
 								)}
 								{executionSummary.executionCount > 1 && (
-									<span className="text-[11px] text-gray-400">
+									<span className="text-[11px] text-gray-400 dark:text-gray-500">
 										({executionSummary.completedCount}/
 										{executionSummary.executionCount} iterations)
 									</span>
@@ -425,7 +445,7 @@ export function StepDetailPanel({
 							)}
 
 							{executionSummary.latestError && (
-								<div className="text-xs p-2 rounded bg-red-50 text-red-700 border border-red-200">
+								<div className="text-xs p-2 rounded bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
 									<div className="font-medium font-mono">
 										{executionSummary.latestError.code}
 									</div>
@@ -436,7 +456,7 @@ export function StepDetailPanel({
 							)}
 
 							{executionSummary.totalRetries > 0 && (
-								<div className="text-[11px] text-amber-600">
+								<div className="text-[11px] text-amber-600 dark:text-amber-400">
 									{executionSummary.totalRetries}{" "}
 									{executionSummary.totalRetries === 1 ? "retry" : "retries"}{" "}
 									attempted
@@ -447,7 +467,7 @@ export function StepDetailPanel({
 				)}
 
 				{executionRecords && executionRecords.length > 0 && (
-					<div className="border-t border-gray-100 pt-3">
+					<div className="border-t border-gray-100 dark:border-gray-700 pt-3">
 						<Label>Execution History</Label>
 						<div className="space-y-2 mt-1">
 							{executionRecords.map((record, i) => (
@@ -461,7 +481,7 @@ export function StepDetailPanel({
 				)}
 
 				{diagnostics.length > 0 && (
-					<div className="border-t border-gray-100 pt-3">
+					<div className="border-t pt-3 border-gray-100 dark:border-gray-700">
 						<Label>Diagnostics</Label>
 						<div className="space-y-2 mt-1">
 							{diagnostics.map((d) => (
@@ -469,8 +489,8 @@ export function StepDetailPanel({
 									key={`${d.code}-${d.message}`}
 									className={`text-xs p-2 rounded ${
 										d.severity === "error"
-											? "bg-red-50 text-red-700 border border-red-200"
-											: "bg-amber-50 text-amber-700 border border-amber-200"
+											? "bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800"
+											: "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800"
 									}`}
 								>
 									<div className="font-medium font-mono">{d.code}</div>

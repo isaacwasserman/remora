@@ -54,7 +54,12 @@ The executor is compatible with the [Vercel AI SDK](https://ai-sdk.dev/) and wil
 
 ### Viewer
 
-A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Currently serves as a developer tool and demo. The plan is to ship this as a set of embeddable UI components that other developers can use to display Remora workflows within their own apps.
+A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Available as an npm import (`remora/viewer`) or via the [shadcn component registry](https://isaacwasserman.github.io/remora/guide/component-registry) for full customization:
+
+```bash
+npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+```
 
 ## The DSL
 

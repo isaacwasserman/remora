@@ -2,12 +2,29 @@
 
 ## Installation
 
+:::tabs
+== bun
 ```bash
-bun add remora
+bun add @isaacwasserman/remora
 ```
+== npm
+```bash
+npm install @isaacwasserman/remora
+```
+== pnpm
+```bash
+pnpm add @isaacwasserman/remora
+```
+== yarn
+```bash
+yarn add @isaacwasserman/remora
+```
+:::
 
 Peer dependencies (install as needed):
 
+:::tabs
+== bun
 ```bash
 # For LLM steps (llm-prompt, extract-data) and workflow generation
 bun add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
@@ -15,13 +32,38 @@ bun add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
 # For the workflow viewer component
 bun add react react-dom @xyflow/react
 ```
+== npm
+```bash
+# For LLM steps (llm-prompt, extract-data) and workflow generation
+npm install ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
+
+# For the workflow viewer component
+npm install react react-dom @xyflow/react
+```
+== pnpm
+```bash
+# For LLM steps (llm-prompt, extract-data) and workflow generation
+pnpm add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
+
+# For the workflow viewer component
+pnpm add react react-dom @xyflow/react
+```
+== yarn
+```bash
+# For LLM steps (llm-prompt, extract-data) and workflow generation
+yarn add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
+
+# For the workflow viewer component
+yarn add react react-dom @xyflow/react
+```
+:::
 
 ## Compile a Workflow
 
 Use [`compileWorkflow`](/api/lib/functions/compileWorkflow) to validate a workflow definition and produce an execution graph:
 
 ```ts
-import { compileWorkflow } from "remora";
+import { compileWorkflow } from "@isaacwasserman/remora";
 
 const workflow = {
   initialStepId: "get_tickets",
@@ -62,7 +104,7 @@ if (errors.length > 0) {
 Use [`executeWorkflow`](/api/lib/functions/executeWorkflow) to run a compiled workflow:
 
 ```ts
-import { executeWorkflow } from "remora";
+import { executeWorkflow } from "@isaacwasserman/remora";
 
 const result = await executeWorkflow(workflow, {
   tools: myTools,
@@ -85,7 +127,7 @@ if (result.success) {
 Use [`generateWorkflow`](/api/lib/functions/generateWorkflow) to have an LLM create a workflow from a natural language description:
 
 ```ts
-import { generateWorkflow } from "remora";
+import { generateWorkflow } from "@isaacwasserman/remora";
 import { anthropic } from "@ai-sdk/anthropic";
 
 const result = await generateWorkflow({
@@ -103,20 +145,58 @@ if (result.workflow) {
 
 ## Visualize a Workflow
 
-Use the [`WorkflowViewer`](/api/viewer/functions/WorkflowViewer) React component to render workflows as interactive DAGs:
+Use the [`WorkflowViewer`](/api/viewer/functions/WorkflowViewer) and [`StepDetailPanel`](/api/viewer/functions/StepDetailPanel) React components to render workflows as interactive DAGs:
 
 ```tsx
-import { WorkflowViewer } from "remora/viewer";
+import { WorkflowViewer, StepDetailPanel } from "@isaacwasserman/remora/viewer";
+import type { WorkflowStep, Diagnostic } from "@isaacwasserman/remora";
+import { useState } from "react";
 
 function App() {
+  const [step, setStep] = useState<WorkflowStep | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+
   return (
-    <WorkflowViewer
-      workflow={myWorkflow}
-      diagnostics={compileResult.diagnostics}
-      onStepSelect={(id) => console.log("Selected:", id)}
-    />
+    <div style={{ display: "flex", height: "100vh" }}>
+      <div style={{ flex: 1 }}>
+        <WorkflowViewer
+          workflow={myWorkflow}
+          diagnostics={compileResult.diagnostics}
+          onStepSelect={(s, d) => { setStep(s); setDiagnostics(d); }}
+        />
+      </div>
+      {step && (
+        <StepDetailPanel
+          step={step}
+          diagnostics={diagnostics}
+          onClose={() => setStep(null)}
+        />
+      )}
+    </div>
   );
 }
 ```
 
-Requires `@xyflow/react` as a peer dependency.
+Requires `@xyflow/react` and `@xyflow/react/dist/style.css` imported in your app.
+
+### Install via shadcn
+
+The viewer components are also available as a [shadcn registry](/guide/component-registry). This copies the source directly into your project, letting you customize the components:
+
+:::tabs
+== npx
+```bash
+npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+```
+== bunx
+```bash
+bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+```
+== pnpx
+```bash
+pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+```
+:::

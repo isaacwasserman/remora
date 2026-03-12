@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import type { Diagnostic } from "../../compiler/types";
 import type { ExecutionState } from "../../executor/state";
-import type { WorkflowDefinition } from "../../types";
+import type { WorkflowDefinition, WorkflowStep } from "../../types";
+import { StepDetailPanel } from "../panels/step-detail-panel";
 import { WorkflowViewer } from "../workflow-viewer";
 
 function App() {
@@ -14,10 +16,19 @@ function App() {
 	);
 	const [isRunning, setIsRunning] = useState(false);
 	const eventSourceRef = useRef<EventSource | null>(null);
+	const [dark, setDark] = useState(false);
+	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+	const [selectedDiagnostics, setSelectedDiagnostics] = useState<Diagnostic[]>(
+		[],
+	);
 
 	// Replay state
 	const [stateHistory, setStateHistory] = useState<ExecutionState[]>([]);
 	const [replayIndex, setReplayIndex] = useState<number | null>(null);
+
+	useEffect(() => {
+		document.documentElement.classList.toggle("dark", dark);
+	}, [dark]);
 
 	useEffect(() => {
 		fetch("/api/workflows")
@@ -37,6 +48,8 @@ function App() {
 		setStateHistory([]);
 		setReplayIndex(null);
 		eventSourceRef.current?.close();
+		setSelectedStep(null);
+		setSelectedDiagnostics([]);
 		fetch(`/api/workflows/${name}`)
 			.then((r) => r.json())
 			.then((data: WorkflowDefinition) => setWorkflow(data));
@@ -111,12 +124,22 @@ function App() {
 	const showSlider = stateHistory.length > 1;
 	const currentIndex = replayIndex ?? stateHistory.length - 1;
 
+	const onStepSelect = useCallback(
+		(step: WorkflowStep | null, diagnostics: Diagnostic[]) => {
+			setSelectedStep(step);
+			setSelectedDiagnostics(diagnostics);
+		},
+		[],
+	);
+
 	if (!names.length) return null;
 
 	return (
 		<div className="h-full flex flex-col">
-			<header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 shrink-0">
-				<h1 className="text-sm font-semibold text-gray-900">Workflow Viewer</h1>
+			<header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-4 shrink-0">
+				<h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+					Workflow Viewer
+				</h1>
 				<div className="flex gap-1">
 					{names.map((name, i) => (
 						<button
@@ -125,8 +148,8 @@ function App() {
 							onClick={() => setSelected(i)}
 							className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
 								i === selected
-									? "bg-gray-900 text-white"
-									: "bg-gray-100 text-gray-600 hover:bg-gray-200"
+									? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+									: "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
 							}`}
 						>
 							{name}
@@ -134,12 +157,12 @@ function App() {
 					))}
 				</div>
 				{canExecute && (
-					<div className="flex gap-2 ml-auto">
+					<div className="flex gap-2">
 						{isDone && (
 							<button
 								type="button"
 								onClick={handleReset}
-								className="px-3 py-1.5 text-xs rounded-md font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+								className="px-3 py-1.5 text-xs rounded-md font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
 							>
 								Reset
 							</button>
@@ -150,7 +173,7 @@ function App() {
 							disabled={isRunning}
 							className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
 								isRunning
-									? "bg-blue-200 text-blue-400 cursor-not-allowed"
+									? "bg-blue-200 text-blue-400 cursor-not-allowed dark:bg-blue-900 dark:text-blue-600"
 									: "bg-blue-600 text-white hover:bg-blue-700"
 							}`}
 						>
@@ -158,22 +181,53 @@ function App() {
 						</button>
 					</div>
 				)}
+				<label className="ml-auto flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+					<span>Dark</span>
+					<button
+						type="button"
+						role="switch"
+						aria-checked={dark}
+						onClick={() => setDark((d) => !d)}
+						className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+							dark ? "bg-blue-600" : "bg-gray-300"
+						}`}
+					>
+						<span
+							className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+								dark ? "translate-x-[18px]" : "translate-x-[3px]"
+							}`}
+						/>
+					</button>
+				</label>
 			</header>
 			<div className="flex-1 flex flex-col">
-				<div className="flex-1">
-					{workflow ? (
-						<WorkflowViewer
-							workflow={workflow}
-							executionState={executionState ?? undefined}
+				<div className="flex-1 flex">
+					<div className="flex-1">
+						{workflow ? (
+							<WorkflowViewer
+								workflow={workflow}
+								executionState={executionState ?? undefined}
+								onStepSelect={onStepSelect}
+							/>
+						) : (
+							<div className="flex items-center justify-center h-full text-gray-400 text-sm">
+								Loading...
+							</div>
+						)}
+					</div>
+					{selectedStep && (
+						<StepDetailPanel
+							step={selectedStep}
+							diagnostics={selectedDiagnostics}
+							onClose={() => {
+								setSelectedStep(null);
+								setSelectedDiagnostics([]);
+							}}
 						/>
-					) : (
-						<div className="flex items-center justify-center h-full text-gray-400 text-sm">
-							Loading...
-						</div>
 					)}
 				</div>
 				{showSlider && (
-					<div className="bg-white border-t border-gray-200 px-4 py-2 flex items-center gap-3 shrink-0">
+					<div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3 shrink-0">
 						<input
 							type="range"
 							min={0}
@@ -182,7 +236,7 @@ function App() {
 							onChange={handleSliderChange}
 							className="flex-1 h-1.5 accent-blue-600"
 						/>
-						<span className="text-xs text-gray-500 tabular-nums min-w-[60px] text-right">
+						<span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums min-w-[60px] text-right">
 							{currentIndex + 1} / {stateHistory.length}
 						</span>
 						{(() => {
@@ -197,7 +251,7 @@ function App() {
 									<button
 										type="button"
 										onClick={handleLive}
-										className={`${base} bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors`}
+										className={`${base} bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-900 transition-colors`}
 									>
 										Live
 									</button>
@@ -205,7 +259,9 @@ function App() {
 							}
 							if (isRunning) {
 								return (
-									<span className={`${base} text-green-600 gap-1`}>
+									<span
+										className={`${base} text-green-600 dark:text-green-400 gap-1`}
+									>
 										<span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
 										Live
 									</span>
@@ -213,11 +269,19 @@ function App() {
 							}
 							if (latestStatus === "completed") {
 								return (
-									<span className={`${base} text-green-600`}>Complete</span>
+									<span
+										className={`${base} text-green-600 dark:text-green-400`}
+									>
+										Complete
+									</span>
 								);
 							}
 							if (latestStatus === "failed") {
-								return <span className={`${base} text-red-600`}>Failed</span>;
+								return (
+									<span className={`${base} text-red-600 dark:text-red-400`}>
+										Failed
+									</span>
+								);
 							}
 							return <span className={base} />;
 						})()}

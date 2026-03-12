@@ -34,20 +34,20 @@ export function ForEachNode({ data, selected }: NodeProps) {
 			!hasErrors && diagnostics.some((d) => d.severity === "warning");
 
 		let ringClass = "";
-		let borderColor = "border-emerald-300";
+		let borderColor = "border-emerald-300 dark:border-emerald-700";
 		if (executionSummary) {
 			switch (executionSummary.status) {
 				case "running":
 					ringClass = "ring-2 ring-blue-400 animate-pulse";
-					borderColor = "border-blue-300";
+					borderColor = "border-blue-300 dark:border-blue-700";
 					break;
 				case "completed":
 					ringClass = "ring-2 ring-green-400";
-					borderColor = "border-green-400";
+					borderColor = "border-green-400 dark:border-green-600";
 					break;
 				case "failed":
 					ringClass = "ring-2 ring-red-500";
-					borderColor = "border-red-300";
+					borderColor = "border-red-300 dark:border-red-700";
 					break;
 			}
 		} else {
@@ -58,7 +58,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed ${borderColor} bg-emerald-50/30 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${borderColor} bg-emerald-50/30 hover:bg-emerald-50/60 hover:border-emerald-500 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:hover:border-emerald-500 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
@@ -70,7 +70,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
 						Loop
 					</span>
-					<span className="text-sm font-medium text-gray-800 truncate">
+					<span className="text-sm font-medium truncate text-gray-800 dark:text-gray-200">
 						{step.name}
 					</span>
 				</div>
@@ -107,7 +107,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">target:</span>
 				<span
-					className={`font-mono truncate ${hasTargetResolved ? "text-emerald-700" : "text-gray-600"}`}
+					className={`font-mono truncate ${hasTargetResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
 					title={hasTargetResolved ? renderExpr(step.params.target) : undefined}
 				>
 					{hasTargetResolved
@@ -117,7 +117,9 @@ export function ForEachNode({ data, selected }: NodeProps) {
 			</div>
 			<div className="mt-0.5 flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">as:</span>
-				<span className="font-mono text-gray-600">{step.params.itemName}</span>
+				<span className="font-mono text-gray-600 dark:text-gray-400">
+					{step.params.itemName}
+				</span>
 			</div>
 		</BaseNode>
 	);

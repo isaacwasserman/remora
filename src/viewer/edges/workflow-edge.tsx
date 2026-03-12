@@ -4,6 +4,7 @@ import {
 	type EdgeProps,
 	getBezierPath,
 } from "@xyflow/react";
+import { useDarkMode } from "../theme";
 
 export function WorkflowEdge({
 	id,
@@ -18,6 +19,7 @@ export function WorkflowEdge({
 	markerEnd,
 	style,
 }: EdgeProps) {
+	const dark = useDarkMode();
 	const edgeKind = (data?.edgeKind as string) ?? "sequential";
 	const isContinuation = edgeKind === "continuation";
 	const isExecuted = data?.executed === true;
@@ -32,7 +34,13 @@ export function WorkflowEdge({
 		targetPosition,
 	});
 
-	let stroke = isContinuation ? "#9ca3af" : "#6b7280";
+	let stroke = dark
+		? isContinuation
+			? "#6b7280"
+			: "#9ca3af"
+		: isContinuation
+			? "#9ca3af"
+			: "#6b7280";
 	let strokeWidth = 1.5;
 	let opacity = 1;
 
@@ -68,7 +76,7 @@ export function WorkflowEdge({
 							pointerEvents: "all",
 							zIndex: 10,
 						}}
-						className="bg-white px-1.5 py-0.5 rounded text-[10px] text-gray-700 font-medium border border-gray-200 shadow whitespace-nowrap"
+						className="px-1.5 py-0.5 rounded text-[10px] font-medium border-2 shadow whitespace-nowrap transition-colors duration-150 bg-white text-gray-700 border-gray-200 hover:border-gray-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:border-gray-400"
 					>
 						{label}
 					</div>

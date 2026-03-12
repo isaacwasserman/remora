@@ -2,7 +2,7 @@ import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 
 interface GroupHeaderData {
-	variant: "switch" | "loop";
+	variant: "switch" | "loop" | "condition";
 	description: string;
 	// switch
 	expression?: string;
@@ -11,28 +11,40 @@ interface GroupHeaderData {
 	target?: string;
 	resolvedTarget?: unknown;
 	itemName?: string;
+	// condition
+	condition?: string;
 }
 
-const styles = {
+const variantStyles = {
 	switch: {
-		bg: "bg-amber-50",
-		border: "border-amber-300",
-		label: "text-amber-600",
-		mono: "text-amber-800",
-		resolved: "text-emerald-700",
-		desc: "text-amber-700/70",
+		container:
+			"bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 hover:border-amber-500",
+		label: "text-amber-600 dark:text-amber-400",
+		mono: "text-amber-800 dark:text-amber-300",
+		resolved: "text-emerald-700 dark:text-emerald-400",
+		desc: "text-amber-700/70 dark:text-amber-400/60",
 		handle: "!bg-amber-500",
 		ring: "ring-amber-400",
 	},
 	loop: {
-		bg: "bg-emerald-50",
-		border: "border-emerald-300",
-		label: "text-emerald-600",
-		mono: "text-emerald-800",
-		resolved: "text-emerald-700",
-		desc: "text-emerald-700/70",
+		container:
+			"bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 hover:border-emerald-500",
+		label: "text-emerald-600 dark:text-emerald-400",
+		mono: "text-emerald-800 dark:text-emerald-300",
+		resolved: "text-emerald-700 dark:text-emerald-400",
+		desc: "text-emerald-700/70 dark:text-emerald-400/60",
 		handle: "!bg-emerald-500",
 		ring: "ring-emerald-400",
+	},
+	condition: {
+		container:
+			"bg-orange-50 dark:bg-orange-950/50 border-orange-300 dark:border-orange-700 hover:border-orange-500",
+		label: "text-orange-600 dark:text-orange-400",
+		mono: "text-orange-800 dark:text-orange-300",
+		resolved: "text-emerald-700 dark:text-emerald-400",
+		desc: "text-orange-700/70 dark:text-orange-400/60",
+		handle: "!bg-orange-500",
+		ring: "ring-orange-400",
 	},
 };
 
@@ -50,12 +62,13 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 		target,
 		resolvedTarget,
 		itemName,
+		condition,
 	} = data as unknown as GroupHeaderData;
-	const s = styles[variant];
+	const s = variantStyles[variant];
 
 	return (
 		<div
-			className={`${s.bg} border-2 ${s.border} rounded-lg w-[280px] shadow-sm ${
+			className={`border-2 rounded-lg w-[280px] shadow-sm transition-colors duration-150 ${s.container} ${
 				selected ? `ring-2 ${s.ring}` : ""
 			}`}
 		>
@@ -100,6 +113,20 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 							{resolvedTarget !== undefined
 								? `[${Array.isArray(resolvedTarget) ? resolvedTarget.length : "?"} items]`
 								: target}
+						</span>
+					</div>
+				)}
+				{variant === "condition" && (
+					<div className="flex items-baseline gap-1.5">
+						<span
+							className={`text-[10px] font-bold uppercase tracking-wide ${s.label} shrink-0`}
+						>
+							wait until
+						</span>
+						<span
+							className={`text-xs font-mono font-medium ${s.mono} truncate`}
+						>
+							{condition}
 						</span>
 					</div>
 				)}
