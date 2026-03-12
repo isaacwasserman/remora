@@ -65,6 +65,7 @@ export const stepExecutionRecordSchema = type({
 	"durationMs?": "number",
 	"output?": "unknown",
 	"error?": errorSnapshotSchema,
+	"resolvedInputs?": "unknown",
 	retries: [retryRecordSchema, "[]"],
 	path: [executionPathSegmentSchema, "[]"],
 });
@@ -104,6 +105,7 @@ export const executionDeltaSchema = type({
 		completedAt: "string",
 		durationMs: "number",
 		output: "unknown",
+		"resolvedInputs?": "unknown",
 	})
 	.or({
 		type: "'step-failed'",
@@ -112,6 +114,7 @@ export const executionDeltaSchema = type({
 		failedAt: "string",
 		durationMs: "number",
 		error: errorSnapshotSchema,
+		"resolvedInputs?": "unknown",
 	})
 	.or({
 		type: "'step-retry'",
@@ -230,13 +233,17 @@ export function applyDelta(
 			const idx = findRecordIndex(records, delta.stepId, delta.path);
 			if (idx >= 0) {
 				const existing = records[idx] as StepExecutionRecord;
-				records[idx] = {
+				const updated: StepExecutionRecord = {
 					...existing,
 					status: "completed",
 					completedAt: delta.completedAt,
 					durationMs: delta.durationMs,
 					output: delta.output,
 				};
+				if (delta.resolvedInputs !== undefined) {
+					updated.resolvedInputs = delta.resolvedInputs;
+				}
+				records[idx] = updated;
 			}
 			return { ...state, stepRecords: records };
 		}
@@ -246,13 +253,17 @@ export function applyDelta(
 			const idx = findRecordIndex(records, delta.stepId, delta.path);
 			if (idx >= 0) {
 				const existing = records[idx] as StepExecutionRecord;
-				records[idx] = {
+				const updated: StepExecutionRecord = {
 					...existing,
 					status: "failed",
 					completedAt: delta.failedAt,
 					durationMs: delta.durationMs,
 					error: delta.error,
 				};
+				if (delta.resolvedInputs !== undefined) {
+					updated.resolvedInputs = delta.resolvedInputs;
+				}
+				records[idx] = updated;
 			}
 			return { ...state, stepRecords: records };
 		}

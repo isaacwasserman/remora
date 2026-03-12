@@ -6,8 +6,10 @@ interface GroupHeaderData {
 	description: string;
 	// switch
 	expression?: string;
+	resolvedExpression?: unknown;
 	// loop
 	target?: string;
+	resolvedTarget?: unknown;
 	itemName?: string;
 }
 
@@ -17,6 +19,7 @@ const styles = {
 		border: "border-amber-300",
 		label: "text-amber-600",
 		mono: "text-amber-800",
+		resolved: "text-emerald-700",
 		desc: "text-amber-700/70",
 		handle: "!bg-amber-500",
 		ring: "ring-amber-400",
@@ -26,15 +29,28 @@ const styles = {
 		border: "border-emerald-300",
 		label: "text-emerald-600",
 		mono: "text-emerald-800",
+		resolved: "text-emerald-700",
 		desc: "text-emerald-700/70",
 		handle: "!bg-emerald-500",
 		ring: "ring-emerald-400",
 	},
 };
 
+function formatValue(value: unknown): string {
+	if (typeof value === "string") return value;
+	return JSON.stringify(value);
+}
+
 export function GroupHeaderNode({ data, selected }: NodeProps) {
-	const { variant, description, expression, target, itemName } =
-		data as unknown as GroupHeaderData;
+	const {
+		variant,
+		description,
+		expression,
+		resolvedExpression,
+		target,
+		resolvedTarget,
+		itemName,
+	} = data as unknown as GroupHeaderData;
 	const s = styles[variant];
 
 	return (
@@ -53,9 +69,14 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 						</span>
 						<span className={`text-[11px] ${s.label}`}>on</span>
 						<span
-							className={`text-xs font-mono font-medium ${s.mono} truncate`}
+							className={`text-xs font-mono font-medium truncate ${
+								resolvedExpression !== undefined ? s.resolved : s.mono
+							}`}
+							title={resolvedExpression !== undefined ? expression : undefined}
 						>
-							{expression}
+							{resolvedExpression !== undefined
+								? formatValue(resolvedExpression)
+								: expression}
 						</span>
 					</div>
 				)}
@@ -71,9 +92,14 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 						</span>
 						<span className={`text-[11px] ${s.label}`}>in</span>
 						<span
-							className={`text-xs font-mono font-medium ${s.mono} truncate`}
+							className={`text-xs font-mono font-medium truncate ${
+								resolvedTarget !== undefined ? s.resolved : s.mono
+							}`}
+							title={resolvedTarget !== undefined ? target : undefined}
 						>
-							{target}
+							{resolvedTarget !== undefined
+								? `[${Array.isArray(resolvedTarget) ? resolvedTarget.length : "?"} items]`
+								: target}
 						</span>
 					</div>
 				)}

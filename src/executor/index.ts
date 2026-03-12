@@ -215,6 +215,7 @@ class ExecutionStateManager {
 		path: ExecutionPathSegment[],
 		output: unknown,
 		durationMs: number,
+		resolvedInputs?: unknown,
 	): void {
 		this.emit({
 			type: "step-completed",
@@ -223,6 +224,7 @@ class ExecutionStateManager {
 			completedAt: new Date().toISOString(),
 			durationMs,
 			output,
+			resolvedInputs,
 		});
 	}
 
@@ -231,6 +233,7 @@ class ExecutionStateManager {
 		path: ExecutionPathSegment[],
 		error: StepExecutionError,
 		durationMs: number,
+		resolvedInputs?: unknown,
 	): void {
 		this.emit({
 			type: "step-failed",
@@ -239,6 +242,7 @@ class ExecutionStateManager {
 			failedAt: new Date().toISOString(),
 			durationMs,
 			error: snapshotError(error),
+			resolvedInputs,
 		});
 	}
 
@@ -1049,6 +1053,94 @@ async function executeWaitForCondition(
 	);
 }
 
+// ─── Resolve Step Inputs (for viewer display) ───────────────────
+
+function resolveStepInputs(
+	step: WorkflowStep,
+	scope: Record<string, unknown>,
+): unknown {
+	switch (step.type) {
+		case "tool-call": {
+			const resolved: Record<string, unknown> = {};
+			for (const [key, expr] of Object.entries(step.params.toolInput)) {
+				try {
+					resolved[key] = evaluateExpression(
+						expr as Expression,
+						scope,
+						step.id,
+					);
+				} catch {
+					resolved[key] = `<error resolving ${key}>`;
+				}
+			}
+			return resolved;
+		}
+		case "llm-prompt": {
+			try {
+				return {
+					prompt: interpolateTemplate(step.params.prompt, scope, step.id),
+				};
+			} catch {
+				return { prompt: step.params.prompt };
+			}
+		}
+		case "extract-data": {
+			try {
+				return {
+					sourceData: evaluateExpression(
+						step.params.sourceData as Expression,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return undefined;
+			}
+		}
+		case "switch-case": {
+			try {
+				return {
+					switchOn: evaluateExpression(
+						step.params.switchOn as Expression,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return undefined;
+			}
+		}
+		case "for-each": {
+			try {
+				return {
+					target: evaluateExpression(
+						step.params.target as Expression,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return undefined;
+			}
+		}
+		case "agent-loop": {
+			try {
+				return {
+					instructions: interpolateTemplate(
+						step.params.instructions,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return { instructions: step.params.instructions };
+			}
+		}
+		default:
+			return undefined;
+	}
+}
+
 // ─── Step Dispatch ───────────────────────────────────────────────
 
 async function executeStep(
@@ -1280,6 +1372,9 @@ async function executeChain(
 		options.onStepStart?.(step.id, step);
 
 		const scope = { ...stepOutputs, ...loopVars };
+		const resolvedInputs = stateManager
+			? resolveStepInputs(step, scope)
+			: undefined;
 		let stepOutput: unknown;
 
 		try {
@@ -1313,7 +1408,13 @@ async function executeChain(
 					undefined,
 					false,
 				);
-				stateManager?.stepFailed(step.id, execPath, wrappedError, durationMs);
+				stateManager?.stepFailed(
+					step.id,
+					execPath,
+					wrappedError,
+					durationMs,
+					resolvedInputs,
+				);
 				throw e;
 			}
 			stepOutput = await recoverFromError(
@@ -1333,7 +1434,13 @@ async function executeChain(
 		const durationMs = Date.now() - stepStartTime;
 		stepOutputs[step.id] = stepOutput;
 		lastOutput = stepOutput;
-		stateManager?.stepCompleted(step.id, execPath, stepOutput, durationMs);
+		stateManager?.stepCompleted(
+			step.id,
+			execPath,
+			stepOutput,
+			durationMs,
+			resolvedInputs,
+		);
 		options.onStepComplete?.(step.id, stepOutput);
 
 		currentStepId = step.nextStepId;

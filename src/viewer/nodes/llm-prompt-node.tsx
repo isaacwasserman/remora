@@ -14,6 +14,11 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
 		? Object.keys(outputFormat.properties)
 		: [];
 
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const resolvedPrompt = resolved?.prompt as string | undefined;
+
 	return (
 		<BaseNode
 			id={step.id}
@@ -27,8 +32,15 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
 			hasSourceEdge={hasSourceEdge}
 			executionSummary={executionSummary}
 		>
-			<div className="text-[11px] text-gray-500 italic line-clamp-3 bg-gray-50 rounded p-1.5 font-mono">
-				{step.params.prompt}
+			<div
+				className={`text-[11px] italic line-clamp-3 rounded p-1.5 font-mono ${
+					resolvedPrompt
+						? "text-emerald-700 bg-emerald-50"
+						: "text-gray-500 bg-gray-50"
+				}`}
+				title={resolvedPrompt ? step.params.prompt : undefined}
+			>
+				{resolvedPrompt ?? step.params.prompt}
 			</div>
 			{outputKeys.length > 0 && (
 				<div className="mt-1.5 text-[11px] text-gray-400">

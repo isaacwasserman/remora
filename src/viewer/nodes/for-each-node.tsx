@@ -86,6 +86,11 @@ export function ForEachNode({ data, selected }: NodeProps) {
 	}
 
 	// Non-group fallback (for-each with no resolvable children)
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const hasTargetResolved = resolved?.target !== undefined;
+
 	return (
 		<BaseNode
 			id={step.id}
@@ -101,8 +106,13 @@ export function ForEachNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">target:</span>
-				<span className="font-mono text-gray-600 truncate">
-					{renderExpr(step.params.target)}
+				<span
+					className={`font-mono truncate ${hasTargetResolved ? "text-emerald-700" : "text-gray-600"}`}
+					title={hasTargetResolved ? renderExpr(step.params.target) : undefined}
+				>
+					{hasTargetResolved
+						? `[${Array.isArray(resolved.target) ? resolved.target.length : "?"} items]`
+						: renderExpr(step.params.target)}
 				</span>
 			</div>
 			<div className="mt-0.5 flex gap-1.5 text-[11px]">

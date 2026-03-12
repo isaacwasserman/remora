@@ -15,6 +15,10 @@ function App() {
 	const [isRunning, setIsRunning] = useState(false);
 	const eventSourceRef = useRef<EventSource | null>(null);
 
+	// Replay state
+	const [stateHistory, setStateHistory] = useState<ExecutionState[]>([]);
+	const [replayIndex, setReplayIndex] = useState<number | null>(null);
+
 	useEffect(() => {
 		fetch("/api/workflows")
 			.then((r) => r.json())
@@ -30,6 +34,8 @@ function App() {
 		setWorkflow(null);
 		setExecutionState(null);
 		setIsRunning(false);
+		setStateHistory([]);
+		setReplayIndex(null);
 		eventSourceRef.current?.close();
 		fetch(`/api/workflows/${name}`)
 			.then((r) => r.json())
@@ -46,13 +52,22 @@ function App() {
 		if (!selectedName || isRunning) return;
 		setIsRunning(true);
 		setExecutionState(null);
+		setStateHistory([]);
+		setReplayIndex(null);
 
 		const es = new EventSource(`/api/execute/${selectedName}`);
 		eventSourceRef.current = es;
 
 		es.addEventListener("state", (e) => {
 			const state = JSON.parse(e.data) as ExecutionState;
-			setExecutionState(state);
+			setStateHistory((prev) => [...prev, state]);
+			// Only update the displayed state if user hasn't scrubbed back
+			setReplayIndex((idx) => {
+				if (idx === null) {
+					setExecutionState(state);
+				}
+				return idx;
+			});
 		});
 
 		es.addEventListener("done", () => {
@@ -70,7 +85,31 @@ function App() {
 
 	const handleReset = useCallback(() => {
 		setExecutionState(null);
+		setStateHistory([]);
+		setReplayIndex(null);
 	}, []);
+
+	const handleSliderChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const idx = Number(e.target.value);
+			const isAtEnd = idx === stateHistory.length - 1;
+			setReplayIndex(isAtEnd ? null : idx);
+			setExecutionState(stateHistory[idx] as ExecutionState);
+		},
+		[stateHistory],
+	);
+
+	const handleLive = useCallback(() => {
+		setReplayIndex(null);
+		if (stateHistory.length > 0) {
+			setExecutionState(
+				stateHistory[stateHistory.length - 1] as ExecutionState,
+			);
+		}
+	}, [stateHistory]);
+
+	const showSlider = stateHistory.length > 1;
+	const currentIndex = replayIndex ?? stateHistory.length - 1;
 
 	if (!names.length) return null;
 
@@ -120,15 +159,68 @@ function App() {
 					</div>
 				)}
 			</header>
-			<div className="flex-1">
-				{workflow ? (
-					<WorkflowViewer
-						workflow={workflow}
-						executionState={executionState ?? undefined}
-					/>
-				) : (
-					<div className="flex items-center justify-center h-full text-gray-400 text-sm">
-						Loading...
+			<div className="flex-1 flex flex-col">
+				<div className="flex-1">
+					{workflow ? (
+						<WorkflowViewer
+							workflow={workflow}
+							executionState={executionState ?? undefined}
+						/>
+					) : (
+						<div className="flex items-center justify-center h-full text-gray-400 text-sm">
+							Loading...
+						</div>
+					)}
+				</div>
+				{showSlider && (
+					<div className="bg-white border-t border-gray-200 px-4 py-2 flex items-center gap-3 shrink-0">
+						<input
+							type="range"
+							min={0}
+							max={stateHistory.length - 1}
+							value={currentIndex}
+							onChange={handleSliderChange}
+							className="flex-1 h-1.5 accent-blue-600"
+						/>
+						<span className="text-xs text-gray-500 tabular-nums min-w-[60px] text-right">
+							{currentIndex + 1} / {stateHistory.length}
+						</span>
+						{(() => {
+							const latestStatus =
+								stateHistory.length > 0
+									? stateHistory[stateHistory.length - 1]?.status
+									: undefined;
+							const base =
+								"w-[72px] h-[24px] text-[11px] font-medium rounded flex items-center justify-center";
+							if (replayIndex !== null) {
+								return (
+									<button
+										type="button"
+										onClick={handleLive}
+										className={`${base} bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors`}
+									>
+										Live
+									</button>
+								);
+							}
+							if (isRunning) {
+								return (
+									<span className={`${base} text-green-600 gap-1`}>
+										<span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+										Live
+									</span>
+								);
+							}
+							if (latestStatus === "completed") {
+								return (
+									<span className={`${base} text-green-600`}>Complete</span>
+								);
+							}
+							if (latestStatus === "failed") {
+								return <span className={`${base} text-red-600`}>Failed</span>;
+							}
+							return <span className={base} />;
+						})()}
 					</div>
 				)}
 			</div>

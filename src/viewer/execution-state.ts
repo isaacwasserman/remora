@@ -21,6 +21,8 @@ export interface StepExecutionSummary {
 	latestError?: { code: string; message: string };
 	/** Duration of the most recent execution in milliseconds. */
 	latestDurationMs?: number;
+	/** Resolved input values from the most recent execution. */
+	latestResolvedInputs?: unknown;
 }
 
 const STATUS_PRIORITY: Record<StepStatus, number> = {
@@ -102,6 +104,7 @@ export function deriveStepSummaries(
 		let latestOutput: unknown;
 		let latestError: { code: string; message: string } | undefined;
 		let latestDurationMs: number | undefined;
+		let latestResolvedInputs: unknown;
 
 		for (const record of records) {
 			status = worstStatus(status, record.status);
@@ -119,6 +122,9 @@ export function deriveStepSummaries(
 			if (record.durationMs !== undefined) {
 				latestDurationMs = record.durationMs;
 			}
+			if (record.resolvedInputs !== undefined) {
+				latestResolvedInputs = record.resolvedInputs;
+			}
 		}
 
 		summaries.set(stepId, {
@@ -130,6 +136,7 @@ export function deriveStepSummaries(
 			latestOutput,
 			latestError,
 			latestDurationMs,
+			latestResolvedInputs,
 		});
 	}
 

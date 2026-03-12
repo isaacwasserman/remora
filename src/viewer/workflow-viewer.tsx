@@ -11,7 +11,7 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Diagnostic } from "../compiler/types";
-import type { ExecutionState } from "../executor/state";
+import type { ExecutionState, StepExecutionRecord } from "../executor/state";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { WorkflowEdge } from "./edges/workflow-edge";
 import type { StepExecutionSummary } from "./execution-state";
@@ -94,6 +94,9 @@ export function WorkflowViewer({
 	const [selectedExecutionSummary, setSelectedExecutionSummary] = useState<
 		StepExecutionSummary | undefined
 	>();
+	const [selectedExecutionRecords, setSelectedExecutionRecords] = useState<
+		StepExecutionRecord[] | undefined
+	>();
 
 	useEffect(() => {
 		setNodes(layout.nodes);
@@ -108,15 +111,19 @@ export function WorkflowViewer({
 			setSelectedStep(data.step);
 			setSelectedDiagnostics(data.diagnostics);
 			setSelectedExecutionSummary(data.executionSummary);
+			setSelectedExecutionRecords(
+				executionState?.stepRecords.filter((r) => r.stepId === data.step.id),
+			);
 			onStepSelect?.(data.step.id);
 		},
-		[onStepSelect],
+		[onStepSelect, executionState],
 	);
 
 	const onPaneClick = useCallback(() => {
 		setSelectedStep(null);
 		setSelectedDiagnostics([]);
 		setSelectedExecutionSummary(undefined);
+		setSelectedExecutionRecords(undefined);
 		onStepSelect?.(null);
 	}, [onStepSelect]);
 
@@ -156,10 +163,12 @@ export function WorkflowViewer({
 					step={selectedStep}
 					diagnostics={selectedDiagnostics}
 					executionSummary={selectedExecutionSummary}
+					executionRecords={selectedExecutionRecords}
 					onClose={() => {
 						setSelectedStep(null);
 						setSelectedDiagnostics([]);
 						setSelectedExecutionSummary(undefined);
+						setSelectedExecutionRecords(undefined);
 						onStepSelect?.(null);
 					}}
 				/>

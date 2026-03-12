@@ -86,6 +86,11 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 	}
 
 	// Non-group fallback
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const hasSwitchResolved = resolved?.switchOn !== undefined;
+
 	return (
 		<BaseNode
 			id={step.id}
@@ -101,8 +106,15 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">on:</span>
-				<span className="font-mono text-gray-600 truncate">
-					{renderExpr(step.params.switchOn)}
+				<span
+					className={`font-mono truncate ${hasSwitchResolved ? "text-emerald-700" : "text-gray-600"}`}
+					title={
+						hasSwitchResolved ? renderExpr(step.params.switchOn) : undefined
+					}
+				>
+					{hasSwitchResolved
+						? JSON.stringify(resolved.switchOn)
+						: renderExpr(step.params.switchOn)}
 				</span>
 			</div>
 			<div className="mt-1.5 space-y-0.5">

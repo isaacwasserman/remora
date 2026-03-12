@@ -23,6 +23,11 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 		? Object.keys(outputFormat.properties)
 		: [];
 
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const hasSourceResolved = resolved?.sourceData !== undefined;
+
 	return (
 		<BaseNode
 			id={step.id}
@@ -38,8 +43,17 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">source:</span>
-				<span className="font-mono text-gray-600 truncate">
-					{renderExpr(step.params.sourceData)}
+				<span
+					className={`font-mono truncate ${hasSourceResolved ? "text-emerald-700" : "text-gray-600"}`}
+					title={
+						hasSourceResolved ? renderExpr(step.params.sourceData) : undefined
+					}
+				>
+					{hasSourceResolved
+						? typeof resolved.sourceData === "string"
+							? resolved.sourceData
+							: JSON.stringify(resolved.sourceData)
+						: renderExpr(step.params.sourceData)}
 				</span>
 			</div>
 			{outputKeys.length > 0 && (

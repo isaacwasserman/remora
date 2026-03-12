@@ -486,6 +486,11 @@ export function buildLayout(
 			const gid = id.replace("__header__", "");
 			const step = getOrThrow(stepMap, gid);
 
+			const summary = stepSummaries?.get(gid);
+			const resolvedInputs = summary?.latestResolvedInputs as
+				| Record<string, unknown>
+				| undefined;
+
 			if (step.type === "switch-case") {
 				nodes.push({
 					id,
@@ -495,6 +500,7 @@ export function buildLayout(
 						variant: "switch",
 						description: step.description,
 						expression: renderExpression(step.params.switchOn),
+						resolvedExpression: resolvedInputs?.switchOn,
 					},
 					...(parentId ? { parentId, extent: "parent" as const } : {}),
 				});
@@ -507,6 +513,7 @@ export function buildLayout(
 						variant: "loop",
 						description: step.description,
 						target: renderExpression(step.params.target),
+						resolvedTarget: resolvedInputs?.target,
 						itemName: step.params.itemName,
 					},
 					...(parentId ? { parentId, extent: "parent" as const } : {}),
