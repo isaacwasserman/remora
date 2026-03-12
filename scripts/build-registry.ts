@@ -4,8 +4,8 @@ const ROOT = path.resolve(import.meta.dir, "..");
 const VIEWER_DIR = path.join(ROOT, "src/viewer");
 const OUTPUT_DIR = path.join(ROOT, "docs/public/r");
 
-const VIEWER_PREFIX = "registry/default/workflow-viewer";
-const PANEL_PREFIX = "registry/default/workflow-step-detail-panel";
+const VIEWER_PREFIX = "components/workflow-viewer";
+const PANEL_PREFIX = "components/workflow-step-detail-panel";
 
 interface FileEntry {
 	relPath: string;
@@ -14,8 +14,8 @@ interface FileEntry {
 
 const VIEWER_FILES: FileEntry[] = [
 	{ relPath: "workflow-viewer.tsx", type: "registry:component" },
-	{ relPath: "graph-layout.ts", type: "registry:lib" },
-	{ relPath: "theme.tsx", type: "registry:lib" },
+	{ relPath: "graph-layout.ts", type: "registry:component" },
+	{ relPath: "theme.tsx", type: "registry:component" },
 	{ relPath: "edges/workflow-edge.tsx", type: "registry:component" },
 	{ relPath: "nodes/base-node.tsx", type: "registry:component" },
 	{ relPath: "nodes/tool-call-node.tsx", type: "registry:component" },
