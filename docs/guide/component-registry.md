@@ -60,8 +60,8 @@ Both components follow the shadcn convention for dark mode — they use Tailwind
 The two components are independent — you can use either one alone or compose them together:
 
 ```tsx
-import { WorkflowViewer } from "@/registry/default/workflow-viewer/workflow-viewer";
-import { StepDetailPanel } from "@/registry/default/workflow-step-detail-panel/panels/step-detail-panel";
+import { WorkflowViewer } from "@/components/workflow-viewer/workflow-viewer";
+import { StepDetailPanel } from "@/components/workflow-step-detail-panel/panels/step-detail-panel";
 import type { WorkflowStep, Diagnostic } from "@isaacwasserman/remora";
 import { useState } from "react";
 import "@xyflow/react/dist/style.css";
