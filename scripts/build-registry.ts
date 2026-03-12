@@ -36,33 +36,49 @@ const PANEL_FILES: FileEntry[] = [
 	{ relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
 ];
 
-const PACKAGE_IMPORT_RE =
-	/^\.\.\/compiler\/types$|^\.\.\/\.\.\/compiler\/types$|^\.\.\/types$|^\.\.\/\.\.\/types$/;
+function transformImports(
+	content: string,
+	fileRelPath: string,
+	registryFiles: Set<string>,
+): string {
+	const fileDir = path.dirname(fileRelPath);
 
-function transformImports(content: string): string {
 	return content.replace(
 		/(from\s+["'])([^"']+)(["'])/g,
 		(match, prefix, specifier, suffix) => {
-			if (PACKAGE_IMPORT_RE.test(specifier)) {
-				return `${prefix}@isaacwasserman/remora${suffix}`;
-			}
-
-			if (specifier.startsWith("./") || specifier.startsWith("../")) {
-				// Keep relative imports as-is — the directory structure is
-				// preserved on install so relative paths remain valid.
+			if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
 				return match;
 			}
 
-			return match;
+			// Resolve the relative import to a path relative to the viewer root.
+			const resolved = path.normalize(path.join(fileDir, specifier));
+
+			// If the resolved path points to a file in the registry, keep it relative.
+			if (registryFiles.has(resolved)) {
+				return match;
+			}
+
+			// Resolved path goes outside the viewer directory — use main package.
+			// Otherwise it's a viewer-internal file — use the viewer subpath.
+			if (resolved.startsWith("..")) {
+				return `${prefix}@isaacwasserman/remora${suffix}`;
+			}
+			return `${prefix}@isaacwasserman/remora/viewer${suffix}`;
 		},
 	);
 }
 
 async function processFiles(files: FileEntry[], registryPrefix: string) {
+	// Build a set of registry-relative paths (without extensions) for lookup.
+	const registryFiles = new Set<string>();
+	for (const { relPath } of files) {
+		registryFiles.add(relPath.replace(/\.[^.]+$/, ""));
+	}
+
 	return Promise.all(
 		files.map(async ({ relPath, type }) => {
 			const raw = await Bun.file(path.join(VIEWER_DIR, relPath)).text();
-			const content = transformImports(raw);
+			const content = transformImports(raw, relPath, registryFiles);
 			return { path: `${registryPrefix}/${relPath}`, content, type };
 		}),
 	);
