@@ -1,7 +1,12 @@
 import dagre from "@dagrejs/dagre";
 import type { Edge, Node } from "@xyflow/react";
 import type { Diagnostic } from "../compiler/types";
+import type { ExecutionState } from "../executor/state";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
+import {
+	deriveStepSummaries,
+	type StepExecutionSummary,
+} from "./execution-state";
 
 export interface StepNodeData {
 	step: WorkflowStep;
@@ -9,6 +14,8 @@ export interface StepNodeData {
 	hasSourceEdge?: boolean;
 	inputSchema?: object;
 	outputSchema?: object;
+	/** Execution summary for this step, when executionState is provided. */
+	executionSummary?: StepExecutionSummary;
 }
 
 const NODE_WIDTH = 300;
@@ -203,8 +210,12 @@ function getNodeDimensions(
 export function buildLayout(
 	workflow: WorkflowDefinition,
 	diagnostics: Diagnostic[] = [],
+	executionState?: ExecutionState,
 ): { nodes: Node[]; edges: Edge[] } {
 	// --- Step 1: Build maps ---
+	const stepSummaries = executionState
+		? deriveStepSummaries(executionState)
+		: undefined;
 	const diagnosticsByStep = new Map<string, Diagnostic[]>();
 	for (const d of diagnostics) {
 		if (d.location.stepId) {
@@ -505,6 +516,7 @@ export function buildLayout(
 					groupWidth: size.w,
 					groupHeight: size.h,
 					hasSourceEdge: !!step.nextStepId,
+					executionSummary: stepSummaries?.get(id),
 				},
 				style: { width: size.w, height: size.h },
 				...(parentId ? { parentId, extent: "parent" as const } : {}),
@@ -523,6 +535,11 @@ export function buildLayout(
 			const gid = id.replace("__header__", "");
 			const step = getOrThrow(stepMap, gid);
 
+			const summary = stepSummaries?.get(gid);
+			const resolvedInputs = summary?.latestResolvedInputs as
+				| Record<string, unknown>
+				| undefined;
+
 			if (step.type === "switch-case") {
 				nodes.push({
 					id,
@@ -532,6 +549,7 @@ export function buildLayout(
 						variant: "switch",
 						description: step.description,
 						expression: renderExpression(step.params.switchOn),
+						resolvedExpression: resolvedInputs?.switchOn,
 						step,
 						diagnostics: diagnosticsByStep.get(gid) ?? [],
 					},
@@ -546,6 +564,7 @@ export function buildLayout(
 						variant: "loop",
 						description: step.description,
 						target: renderExpression(step.params.target),
+						resolvedTarget: resolvedInputs?.target,
 						itemName: step.params.itemName,
 						step,
 						diagnostics: diagnosticsByStep.get(gid) ?? [],
@@ -575,6 +594,7 @@ export function buildLayout(
 				step,
 				diagnostics: diagnosticsByStep.get(id) ?? [],
 				hasSourceEdge: !!step.nextStepId,
+				executionSummary: stepSummaries?.get(id),
 			};
 			if (step.type === "start" && workflow.inputSchema) {
 				nodeData.inputSchema = workflow.inputSchema;
@@ -599,6 +619,12 @@ export function buildLayout(
 
 	// --- Step 6: Build edges ---
 	const edges: Edge[] = [];
+	const hasExecState = !!stepSummaries;
+
+	function isStepExecuted(stepId: string): boolean {
+		const s = stepSummaries?.get(stepId);
+		return s?.status === "completed" || s?.status === "running";
+	}
 
 	// Start → initial step (only when no explicit start step exists)
 	if (!hasStartStep) {
@@ -607,7 +633,11 @@ export function buildLayout(
 			source: START_NODE_ID,
 			target: workflow.initialStepId,
 			type: "workflow",
-			data: { edgeKind: "sequential" },
+			data: {
+				edgeKind: "sequential",
+				executed: hasExecState && isStepExecuted(workflow.initialStepId),
+				hasExecutionState: hasExecState,
+			},
 		});
 	}
 
@@ -624,7 +654,11 @@ export function buildLayout(
 						target: c.branchBodyStepId,
 						label,
 						type: "workflow",
-						data: { edgeKind: "branch" },
+						data: {
+							edgeKind: "branch",
+							executed: hasExecState && isStepExecuted(c.branchBodyStepId),
+							hasExecutionState: hasExecState,
+						},
 					});
 				}
 			}
@@ -634,7 +668,11 @@ export function buildLayout(
 					source: step.id,
 					target: step.nextStepId,
 					type: "workflow",
-					data: { edgeKind: "sequential" },
+					data: {
+						edgeKind: "sequential",
+						executed: hasExecState && isStepExecuted(step.nextStepId),
+						hasExecutionState: hasExecState,
+					},
 				});
 			}
 		} else if (step.type === "for-each") {
@@ -645,7 +683,12 @@ export function buildLayout(
 					source: headerId,
 					target: step.params.loopBodyStepId,
 					type: "workflow",
-					data: { edgeKind: "sequential" },
+					data: {
+						edgeKind: "sequential",
+						executed:
+							hasExecState && isStepExecuted(step.params.loopBodyStepId),
+						hasExecutionState: hasExecState,
+					},
 				});
 			}
 			if (step.nextStepId) {
@@ -654,7 +697,11 @@ export function buildLayout(
 					source: step.id,
 					target: step.nextStepId,
 					type: "workflow",
-					data: { edgeKind: "sequential" },
+					data: {
+						edgeKind: "sequential",
+						executed: hasExecState && isStepExecuted(step.nextStepId),
+						hasExecutionState: hasExecState,
+					},
 				});
 			}
 		} else if (step.type === "wait-for-condition") {
@@ -683,7 +730,11 @@ export function buildLayout(
 				source: step.id,
 				target: step.nextStepId,
 				type: "workflow",
-				data: { edgeKind: "sequential" },
+				data: {
+					edgeKind: "sequential",
+					executed: hasExecState && isStepExecuted(step.nextStepId),
+					hasExecutionState: hasExecState,
+				},
 			});
 		}
 	}

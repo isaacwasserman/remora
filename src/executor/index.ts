@@ -22,6 +22,13 @@ import {
 	StepExecutionError,
 	ValidationError,
 } from "./errors";
+import type {
+	ExecutionDelta,
+	ExecutionPathSegment,
+	ExecutionState,
+	RetryRecord,
+} from "./state";
+import { applyDelta, snapshotError } from "./state";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -42,6 +49,8 @@ export interface ExecutionResult {
 	output?: unknown;
 	/** The error that caused execution to fail, if `success` is `false`. */
 	error?: StepExecutionError;
+	/** The final execution state snapshot after the run completes. */
+	executionState: ExecutionState;
 }
 
 export interface ExecutorLimits {
@@ -77,6 +86,8 @@ export interface ExecuteWorkflowOptions {
 	onStepStart?: (stepId: string, step: WorkflowStep) => void;
 	/** Called when a step completes successfully. */
 	onStepComplete?: (stepId: string, output: unknown) => void;
+	/** Called on every state transition with the full execution state and the idempotent delta that produced it. */
+	onStateChange?: (state: ExecutionState, delta: ExecutionDelta) => void;
 	/** Injectable durable execution context. Default: simple in-process implementation. */
 	context?: DurableContext;
 	/** Execution limits for sleep/wait/timeout bounds. */
@@ -150,6 +161,125 @@ class ExecutionTimer {
 
 function isAgent(value: Agent | LanguageModel): value is Agent {
 	return typeof value === "object" && value !== null && "generate" in value;
+}
+
+// ─── Execution State Manager ─────────────────────────────────────
+
+class ExecutionStateManager {
+	private state: ExecutionState;
+	private readonly onChange?: (
+		state: ExecutionState,
+		delta: ExecutionDelta,
+	) => void;
+
+	constructor(
+		onChange?: (state: ExecutionState, delta: ExecutionDelta) => void,
+	) {
+		this.state = {
+			runId: crypto.randomUUID(),
+			status: "pending",
+			startedAt: new Date().toISOString(),
+			stepRecords: [],
+		};
+		this.onChange = onChange;
+	}
+
+	get currentState(): ExecutionState {
+		return this.state;
+	}
+
+	private emit(delta: ExecutionDelta): void {
+		this.state = applyDelta(this.state, delta);
+		this.onChange?.(this.state, delta);
+	}
+
+	runStarted(): void {
+		this.emit({
+			type: "run-started",
+			runId: this.state.runId,
+			startedAt: this.state.startedAt,
+		});
+	}
+
+	stepStarted(stepId: string, path: ExecutionPathSegment[]): void {
+		this.emit({
+			type: "step-started",
+			stepId,
+			path,
+			startedAt: new Date().toISOString(),
+		});
+	}
+
+	stepCompleted(
+		stepId: string,
+		path: ExecutionPathSegment[],
+		output: unknown,
+		durationMs: number,
+		resolvedInputs?: unknown,
+	): void {
+		this.emit({
+			type: "step-completed",
+			stepId,
+			path,
+			completedAt: new Date().toISOString(),
+			durationMs,
+			output,
+			resolvedInputs,
+		});
+	}
+
+	stepFailed(
+		stepId: string,
+		path: ExecutionPathSegment[],
+		error: StepExecutionError,
+		durationMs: number,
+		resolvedInputs?: unknown,
+	): void {
+		this.emit({
+			type: "step-failed",
+			stepId,
+			path,
+			failedAt: new Date().toISOString(),
+			durationMs,
+			error: snapshotError(error),
+			resolvedInputs,
+		});
+	}
+
+	retryAttempted(
+		stepId: string,
+		path: ExecutionPathSegment[],
+		retry: RetryRecord,
+	): void {
+		this.emit({
+			type: "step-retry",
+			stepId,
+			path,
+			retry,
+		});
+	}
+
+	runCompleted(output?: unknown): void {
+		const startMs = new Date(this.state.startedAt).getTime();
+		this.emit({
+			type: "run-completed",
+			runId: this.state.runId,
+			completedAt: new Date().toISOString(),
+			durationMs: Date.now() - startMs,
+			output,
+		});
+	}
+
+	runFailed(error: StepExecutionError): void {
+		const startMs = new Date(this.state.startedAt).getTime();
+		this.emit({
+			type: "run-failed",
+			runId: this.state.runId,
+			failedAt: new Date().toISOString(),
+			durationMs: Date.now() - startMs,
+			error: snapshotError(error),
+		});
+	}
 }
 
 // ─── Expression Evaluation ───────────────────────────────────────
@@ -688,6 +818,8 @@ async function executeSwitchCase(
 	loopVars: Record<string, unknown>,
 	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown> {
 	const switchValue = evaluateExpression(
 		step.params.switchOn as Expression,
@@ -697,10 +829,13 @@ async function executeSwitchCase(
 
 	let matchedBranchId: string | undefined;
 	let defaultBranchId: string | undefined;
+	let matchedCaseIndex = -1;
 
-	for (const c of step.params.cases) {
+	for (let i = 0; i < step.params.cases.length; i++) {
+		const c = step.params.cases[i] as (typeof step.params.cases)[number];
 		if (c.value.type === "default") {
 			defaultBranchId = c.branchBodyStepId;
+			if (matchedCaseIndex === -1) matchedCaseIndex = i;
 		} else {
 			const caseValue = evaluateExpression(
 				c.value as Expression,
@@ -709,6 +844,7 @@ async function executeSwitchCase(
 			);
 			if (caseValue === switchValue) {
 				matchedBranchId = c.branchBodyStepId;
+				matchedCaseIndex = i;
 				break;
 			}
 		}
@@ -719,6 +855,16 @@ async function executeSwitchCase(
 		return undefined;
 	}
 
+	const branchPath: ExecutionPathSegment[] = [
+		...execPath,
+		{
+			type: "switch-case" as const,
+			stepId: step.id,
+			matchedCaseIndex,
+			matchedValue: switchValue,
+		},
+	];
+
 	return await executeChain(
 		selectedBranchId,
 		stepIndex,
@@ -726,6 +872,9 @@ async function executeSwitchCase(
 		loopVars,
 		options,
 		context,
+		undefined,
+		stateManager,
+		branchPath,
 	);
 }
 
@@ -737,6 +886,8 @@ async function executeForEach(
 	loopVars: Record<string, unknown>,
 	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown[]> {
 	const target = evaluateExpression(
 		step.params.target as Expression,
@@ -754,7 +905,17 @@ async function executeForEach(
 	}
 
 	const results: unknown[] = [];
-	for (const item of target) {
+	for (let i = 0; i < target.length; i++) {
+		const item = target[i];
+		const iterationPath: ExecutionPathSegment[] = [
+			...execPath,
+			{
+				type: "for-each" as const,
+				stepId: step.id,
+				iterationIndex: i,
+				itemValue: item,
+			},
+		];
 		const innerLoopVars = { ...loopVars, [step.params.itemName]: item };
 		const lastOutput = await executeChain(
 			step.params.loopBodyStepId,
@@ -763,6 +924,9 @@ async function executeForEach(
 			innerLoopVars,
 			options,
 			context,
+			undefined,
+			stateManager,
+			iterationPath,
 		);
 		results.push(lastOutput);
 	}
@@ -803,6 +967,8 @@ async function executeWaitForCondition(
 	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer: ExecutionTimer,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown> {
 	const limits = timer.resolvedLimits;
 
@@ -848,9 +1014,18 @@ async function executeWaitForCondition(
 			)
 		: undefined;
 
+	let pollAttempt = 0;
 	return context.waitForCondition(
 		step.id,
 		async () => {
+			const pollPath: ExecutionPathSegment[] = [
+				...execPath,
+				{
+					type: "wait-for-condition" as const,
+					stepId: step.id,
+					pollAttempt: pollAttempt++,
+				},
+			];
 			timer.beginActive();
 			try {
 				await executeChain(
@@ -860,6 +1035,9 @@ async function executeWaitForCondition(
 					loopVars,
 					options,
 					context,
+					undefined,
+					stateManager,
+					pollPath,
 				);
 				const updatedScope = { ...stepOutputs, ...loopVars };
 				return evaluateExpression(
@@ -875,6 +1053,94 @@ async function executeWaitForCondition(
 	);
 }
 
+// ─── Resolve Step Inputs (for viewer display) ───────────────────
+
+function resolveStepInputs(
+	step: WorkflowStep,
+	scope: Record<string, unknown>,
+): unknown {
+	switch (step.type) {
+		case "tool-call": {
+			const resolved: Record<string, unknown> = {};
+			for (const [key, expr] of Object.entries(step.params.toolInput)) {
+				try {
+					resolved[key] = evaluateExpression(
+						expr as Expression,
+						scope,
+						step.id,
+					);
+				} catch {
+					resolved[key] = `<error resolving ${key}>`;
+				}
+			}
+			return resolved;
+		}
+		case "llm-prompt": {
+			try {
+				return {
+					prompt: interpolateTemplate(step.params.prompt, scope, step.id),
+				};
+			} catch {
+				return { prompt: step.params.prompt };
+			}
+		}
+		case "extract-data": {
+			try {
+				return {
+					sourceData: evaluateExpression(
+						step.params.sourceData as Expression,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return undefined;
+			}
+		}
+		case "switch-case": {
+			try {
+				return {
+					switchOn: evaluateExpression(
+						step.params.switchOn as Expression,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return undefined;
+			}
+		}
+		case "for-each": {
+			try {
+				return {
+					target: evaluateExpression(
+						step.params.target as Expression,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return undefined;
+			}
+		}
+		case "agent-loop": {
+			try {
+				return {
+					instructions: interpolateTemplate(
+						step.params.instructions,
+						scope,
+						step.id,
+					),
+				};
+			} catch {
+				return { instructions: step.params.instructions };
+			}
+		}
+		default:
+			return undefined;
+	}
+}
+
 // ─── Step Dispatch ───────────────────────────────────────────────
 
 async function executeStep(
@@ -886,6 +1152,8 @@ async function executeStep(
 	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer: ExecutionTimer,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown> {
 	switch (step.type) {
 		case "tool-call":
@@ -919,6 +1187,8 @@ async function executeStep(
 				loopVars,
 				options,
 				context,
+				stateManager,
+				execPath,
 			);
 		case "for-each":
 			return executeForEach(
@@ -929,6 +1199,8 @@ async function executeStep(
 				loopVars,
 				options,
 				context,
+				stateManager,
+				execPath,
 			);
 		case "sleep":
 			return executeSleep(step, scope, context, timer);
@@ -942,6 +1214,8 @@ async function executeStep(
 				options,
 				context,
 				timer,
+				stateManager,
+				execPath,
 			);
 		case "start":
 			return undefined;
@@ -973,11 +1247,14 @@ async function retryStep(
 	originalError: StepExecutionError,
 	context: DurableContext,
 	timer: ExecutionTimer,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown> {
 	const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 	const baseDelay = options.retryDelayMs ?? DEFAULT_BASE_DELAY_MS;
 	const scope = { ...stepOutputs, ...loopVars };
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		const retryStartedAt = new Date().toISOString();
 		await context.sleep(
 			`${step.id}_retry_${attempt}`,
 			baseDelay * 2 ** (attempt - 1),
@@ -992,8 +1269,17 @@ async function retryStep(
 				options,
 				context,
 				timer,
+				stateManager,
+				execPath,
 			);
-		} catch {
+		} catch (e) {
+			stateManager?.retryAttempted(step.id, execPath, {
+				attempt,
+				startedAt: retryStartedAt,
+				failedAt: new Date().toISOString(),
+				errorCode: e instanceof StepExecutionError ? e.code : "UNKNOWN",
+				errorMessage: e instanceof Error ? e.message : String(e),
+			});
 			if (attempt === maxRetries) throw originalError;
 		}
 	}
@@ -1009,6 +1295,8 @@ async function recoverFromError(
 	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer: ExecutionTimer,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown> {
 	switch (error.code) {
 		case "LLM_RATE_LIMITED":
@@ -1024,6 +1312,8 @@ async function recoverFromError(
 				error,
 				context,
 				timer,
+				stateManager,
+				execPath,
 			);
 
 		case "LLM_API_ERROR":
@@ -1037,6 +1327,8 @@ async function recoverFromError(
 					error,
 					context,
 					timer,
+					stateManager,
+					execPath,
 				);
 			}
 			throw error;
@@ -1061,6 +1353,8 @@ async function executeChain(
 	options: ResolvedExecuteWorkflowOptions,
 	context: DurableContext,
 	timer?: ExecutionTimer,
+	stateManager?: ExecutionStateManager,
+	execPath: ExecutionPathSegment[] = [],
 ): Promise<unknown> {
 	let currentStepId: string | undefined = startStepId;
 	let lastOutput: unknown;
@@ -1073,9 +1367,14 @@ async function executeChain(
 		}
 
 		timer?.checkTotal(step.id);
+		const stepStartTime = Date.now();
+		stateManager?.stepStarted(step.id, execPath);
 		options.onStepStart?.(step.id, step);
 
 		const scope = { ...stepOutputs, ...loopVars };
+		const resolvedInputs = stateManager
+			? resolveStepInputs(step, scope)
+			: undefined;
 		let stepOutput: unknown;
 
 		try {
@@ -1091,13 +1390,33 @@ async function executeChain(
 						options,
 						context,
 						timer ?? new ExecutionTimer(),
+						stateManager,
+						execPath,
 					),
 				);
 			} finally {
 				timer?.endActive(step.id);
 			}
 		} catch (e) {
-			if (!(e instanceof StepExecutionError)) throw e;
+			if (!(e instanceof StepExecutionError)) {
+				const durationMs = Date.now() - stepStartTime;
+				const wrappedError = new ExternalServiceError(
+					step.id,
+					"TOOL_EXECUTION_FAILED",
+					e instanceof Error ? e.message : String(e),
+					e,
+					undefined,
+					false,
+				);
+				stateManager?.stepFailed(
+					step.id,
+					execPath,
+					wrappedError,
+					durationMs,
+					resolvedInputs,
+				);
+				throw e;
+			}
 			stepOutput = await recoverFromError(
 				e,
 				step,
@@ -1107,11 +1426,21 @@ async function executeChain(
 				options,
 				context,
 				timer ?? new ExecutionTimer(),
+				stateManager,
+				execPath,
 			);
 		}
 
+		const durationMs = Date.now() - stepStartTime;
 		stepOutputs[step.id] = stepOutput;
 		lastOutput = stepOutput;
+		stateManager?.stepCompleted(
+			step.id,
+			execPath,
+			stepOutput,
+			durationMs,
+			resolvedInputs,
+		);
 		options.onStepComplete?.(step.id, stepOutput);
 
 		currentStepId = step.nextStepId;
@@ -1230,6 +1559,8 @@ export async function executeWorkflow(
 	};
 	const resolvedContext = options.context ?? createDefaultDurableContext();
 	const timer = new ExecutionTimer(options.limits);
+	const stateManager = new ExecutionStateManager(options.onStateChange);
+	stateManager.runStarted();
 
 	try {
 		validateWorkflowConfig(workflow, resolvedOptions);
@@ -1249,6 +1580,7 @@ export async function executeWorkflow(
 			resolvedOptions,
 			resolvedContext,
 			timer,
+			stateManager,
 		);
 
 		if (workflow.outputSchema) {
@@ -1266,7 +1598,13 @@ export async function executeWorkflow(
 			);
 		}
 
-		return { success: true, stepOutputs, output: chainOutput };
+		stateManager.runCompleted(chainOutput);
+		return {
+			success: true,
+			stepOutputs,
+			output: chainOutput,
+			executionState: stateManager.currentState,
+		};
 	} catch (e) {
 		const error =
 			e instanceof StepExecutionError
@@ -1279,10 +1617,12 @@ export async function executeWorkflow(
 						undefined,
 						false,
 					);
+		stateManager.runFailed(error);
 		return {
 			success: false,
 			stepOutputs,
 			error,
+			executionState: stateManager.currentState,
 		};
 	}
 }

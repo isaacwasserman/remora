@@ -9,10 +9,12 @@ import {
 	useNodesState,
 } from "@xyflow/react";
 import type React from "react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Diagnostic } from "../compiler/types";
+import type { ExecutionState, StepExecutionRecord } from "../executor/state";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { WorkflowEdge } from "./edges/workflow-edge";
+import type { StepExecutionSummary } from "./execution-state";
 import { buildLayout, type StepNodeData } from "./graph-layout";
 import { AgentLoopNode } from "./nodes/agent-loop-node";
 import { EndNode } from "./nodes/end-node";
@@ -26,6 +28,7 @@ import { StartStepNode } from "./nodes/start-step-node";
 import { SwitchCaseNode } from "./nodes/switch-case-node";
 import { ToolCallNode } from "./nodes/tool-call-node";
 import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
+import { StepDetailPanel } from "./panels/step-detail-panel";
 import { useDarkMode } from "./theme";
 
 const nodeTypes: NodeTypes = {
@@ -57,6 +60,8 @@ export interface WorkflowViewerProps {
 	diagnostics?: Diagnostic[];
 	/** Called when a step node is clicked (with the step and its diagnostics) or when the selection is cleared (with `null`). */
 	onStepSelect?: (step: WorkflowStep | null, diagnostics: Diagnostic[]) => void;
+	/** Execution state to visualize on the workflow DAG. */
+	executionState?: ExecutionState;
 }
 
 /**
@@ -75,6 +80,7 @@ export interface WorkflowViewerProps {
  * <WorkflowViewer
  *   workflow={myWorkflow}
  *   diagnostics={compileResult.diagnostics}
+ *   executionState={executionState}
  *   onStepSelect={(step, diagnostics) => console.log("Selected:", step?.id)}
  * />
  * ```
@@ -83,15 +89,25 @@ export function WorkflowViewer({
 	workflow,
 	diagnostics = EMPTY_DIAGNOSTICS,
 	onStepSelect,
+	executionState,
 }: WorkflowViewerProps) {
 	const dark = useDarkMode();
 	const layout = useMemo(
-		() => buildLayout(workflow, diagnostics),
-		[workflow, diagnostics],
+		() => buildLayout(workflow, diagnostics, executionState),
+		[workflow, diagnostics, executionState],
 	);
 
 	const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
 	const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
+	const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+	const [selectedDiagnostics, setSelectedDiagnostics] =
+		useState<Diagnostic[]>(EMPTY_DIAGNOSTICS);
+	const [selectedExecutionSummary, setSelectedExecutionSummary] = useState<
+		StepExecutionSummary | undefined
+	>();
+	const [selectedExecutionRecords, setSelectedExecutionRecords] = useState<
+		StepExecutionRecord[] | undefined
+	>();
 
 	useEffect(() => {
 		setNodes(layout.nodes);
@@ -102,46 +118,77 @@ export function WorkflowViewer({
 		(_: React.MouseEvent, node: { id: string; data: unknown }) => {
 			const data = node.data as StepNodeData;
 			if (!data.step) return;
+			setSelectedStep(data.step);
+			setSelectedDiagnostics(data.diagnostics);
+			setSelectedExecutionSummary(data.executionSummary);
+			setSelectedExecutionRecords(
+				executionState?.stepRecords.filter((r) => r.stepId === data.step.id),
+			);
 			onStepSelect?.(data.step, data.diagnostics);
 		},
-		[onStepSelect],
+		[onStepSelect, executionState],
 	);
 
 	const onPaneClick = useCallback(() => {
+		setSelectedStep(null);
+		setSelectedDiagnostics([]);
+		setSelectedExecutionSummary(undefined);
+		setSelectedExecutionRecords(undefined);
 		onStepSelect?.(null, []);
 	}, [onStepSelect]);
 
 	return (
-		<ReactFlow
-			nodes={nodes}
-			edges={edges}
-			onNodesChange={onNodesChange}
-			onEdgesChange={onEdgesChange}
-			onNodeClick={onNodeClick}
-			onPaneClick={onPaneClick}
-			nodeTypes={nodeTypes}
-			edgeTypes={edgeTypes}
-			fitView
-			fitViewOptions={{ padding: 0.2 }}
-			nodesDraggable={false}
-			defaultEdgeOptions={{
-				type: "workflow",
-			}}
-			proOptions={{ hideAttribution: true }}
-			colorMode={dark ? "dark" : "light"}
-		>
-			<Background color={dark ? "#4b5563" : "#e5e7eb"} gap={16} />
-			<Controls showInteractive={false} />
-			<MiniMap
-				nodeStrokeWidth={2}
-				pannable
-				zoomable
-				style={{
-					border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
-					backgroundColor: dark ? "#1f2937" : undefined,
-				}}
-				nodeColor={dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"}
-			/>
-		</ReactFlow>
+		<div className="flex h-full w-full">
+			<div className="flex-1 relative">
+				<ReactFlow
+					nodes={nodes}
+					edges={edges}
+					onNodesChange={onNodesChange}
+					onEdgesChange={onEdgesChange}
+					onNodeClick={onNodeClick}
+					onPaneClick={onPaneClick}
+					nodeTypes={nodeTypes}
+					edgeTypes={edgeTypes}
+					fitView
+					fitViewOptions={{ padding: 0.2 }}
+					nodesDraggable={false}
+					defaultEdgeOptions={{
+						type: "workflow",
+					}}
+					proOptions={{ hideAttribution: true }}
+					colorMode={dark ? "dark" : "light"}
+				>
+					<Background color={dark ? "#4b5563" : "#e5e7eb"} gap={16} />
+					<Controls showInteractive={false} />
+					<MiniMap
+						nodeStrokeWidth={2}
+						pannable
+						zoomable
+						style={{
+							border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
+							backgroundColor: dark ? "#1f2937" : undefined,
+						}}
+						nodeColor={
+							dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
+						}
+					/>
+				</ReactFlow>
+			</div>
+			{selectedStep && (
+				<StepDetailPanel
+					step={selectedStep}
+					diagnostics={selectedDiagnostics}
+					executionSummary={selectedExecutionSummary}
+					executionRecords={selectedExecutionRecords}
+					onClose={() => {
+						setSelectedStep(null);
+						setSelectedDiagnostics([]);
+						setSelectedExecutionSummary(undefined);
+						setSelectedExecutionRecords(undefined);
+						onStepSelect?.(null, []);
+					}}
+				/>
+			)}
+		</div>
 	);
 }

@@ -3,7 +3,8 @@ import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
 export function LlmPromptNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
+	const { step, diagnostics, hasSourceEdge, executionSummary } =
+		data as unknown as StepNodeData;
 	if (step.type !== "llm-prompt") return null;
 
 	const outputFormat = step.params.outputFormat as
@@ -12,6 +13,11 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
 	const outputKeys = outputFormat?.properties
 		? Object.keys(outputFormat.properties)
 		: [];
+
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const resolvedPrompt = resolved?.prompt as string | undefined;
 
 	return (
 		<BaseNode
@@ -24,9 +30,17 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		>
-			<div className="text-[11px] italic line-clamp-3 rounded p-1.5 font-mono text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-700">
-				{step.params.prompt}
+			<div
+				className={`text-[11px] italic line-clamp-3 rounded p-1.5 font-mono ${
+					resolvedPrompt
+						? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50"
+						: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-700"
+				}`}
+				title={resolvedPrompt ? step.params.prompt : undefined}
+			>
+				{resolvedPrompt ?? step.params.prompt}
 			</div>
 			{outputKeys.length > 0 && (
 				<div className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">

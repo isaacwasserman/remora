@@ -6,8 +6,10 @@ interface GroupHeaderData {
 	description: string;
 	// switch
 	expression?: string;
+	resolvedExpression?: unknown;
 	// loop
 	target?: string;
+	resolvedTarget?: unknown;
 	itemName?: string;
 	// condition
 	condition?: string;
@@ -19,6 +21,7 @@ const variantStyles = {
 			"bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 hover:border-amber-500",
 		label: "text-amber-600 dark:text-amber-400",
 		mono: "text-amber-800 dark:text-amber-300",
+		resolved: "text-emerald-700 dark:text-emerald-400",
 		desc: "text-amber-700/70 dark:text-amber-400/60",
 		handle: "!bg-amber-500",
 		ring: "ring-amber-400",
@@ -28,6 +31,7 @@ const variantStyles = {
 			"bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 hover:border-emerald-500",
 		label: "text-emerald-600 dark:text-emerald-400",
 		mono: "text-emerald-800 dark:text-emerald-300",
+		resolved: "text-emerald-700 dark:text-emerald-400",
 		desc: "text-emerald-700/70 dark:text-emerald-400/60",
 		handle: "!bg-emerald-500",
 		ring: "ring-emerald-400",
@@ -37,15 +41,29 @@ const variantStyles = {
 			"bg-orange-50 dark:bg-orange-950/50 border-orange-300 dark:border-orange-700 hover:border-orange-500",
 		label: "text-orange-600 dark:text-orange-400",
 		mono: "text-orange-800 dark:text-orange-300",
+		resolved: "text-emerald-700 dark:text-emerald-400",
 		desc: "text-orange-700/70 dark:text-orange-400/60",
 		handle: "!bg-orange-500",
 		ring: "ring-orange-400",
 	},
 };
 
+function formatValue(value: unknown): string {
+	if (typeof value === "string") return value;
+	return JSON.stringify(value);
+}
+
 export function GroupHeaderNode({ data, selected }: NodeProps) {
-	const { variant, description, expression, target, itemName, condition } =
-		data as unknown as GroupHeaderData;
+	const {
+		variant,
+		description,
+		expression,
+		resolvedExpression,
+		target,
+		resolvedTarget,
+		itemName,
+		condition,
+	} = data as unknown as GroupHeaderData;
 	const s = variantStyles[variant];
 
 	return (
@@ -64,9 +82,14 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 						</span>
 						<span className={`text-[11px] ${s.label}`}>on</span>
 						<span
-							className={`text-xs font-mono font-medium ${s.mono} truncate`}
+							className={`text-xs font-mono font-medium truncate ${
+								resolvedExpression !== undefined ? s.resolved : s.mono
+							}`}
+							title={resolvedExpression !== undefined ? expression : undefined}
 						>
-							{expression}
+							{resolvedExpression !== undefined
+								? formatValue(resolvedExpression)
+								: expression}
 						</span>
 					</div>
 				)}
@@ -82,9 +105,14 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 						</span>
 						<span className={`text-[11px] ${s.label}`}>in</span>
 						<span
-							className={`text-xs font-mono font-medium ${s.mono} truncate`}
+							className={`text-xs font-mono font-medium truncate ${
+								resolvedTarget !== undefined ? s.resolved : s.mono
+							}`}
+							title={resolvedTarget !== undefined ? target : undefined}
 						>
-							{target}
+							{resolvedTarget !== undefined
+								? `[${Array.isArray(resolvedTarget) ? resolvedTarget.length : "?"} items]`
+								: target}
 						</span>
 					</div>
 				)}

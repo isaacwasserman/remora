@@ -35,6 +35,17 @@ export {
 	ValidationError,
 } from "./executor/errors";
 export type {
+	ErrorSnapshot,
+	ExecutionDelta,
+	ExecutionPathSegment,
+	ExecutionState,
+	RetryRecord,
+	RunStatus,
+	StepExecutionRecord,
+	StepStatus,
+} from "./executor/state";
+export { applyDelta, snapshotError } from "./executor/state";
+export type {
 	GenerateWorkflowOptions,
 	GenerateWorkflowResult,
 	WorkflowGeneratorToolOptions,

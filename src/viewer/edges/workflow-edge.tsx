@@ -22,6 +22,8 @@ export function WorkflowEdge({
 	const dark = useDarkMode();
 	const edgeKind = (data?.edgeKind as string) ?? "sequential";
 	const isContinuation = edgeKind === "continuation";
+	const isExecuted = data?.executed === true;
+	const hasExecutionState = data?.hasExecutionState === true;
 
 	const [edgePath, labelX, labelY] = getBezierPath({
 		sourceX,
@@ -32,6 +34,25 @@ export function WorkflowEdge({
 		targetPosition,
 	});
 
+	let stroke = dark
+		? isContinuation
+			? "#6b7280"
+			: "#9ca3af"
+		: isContinuation
+			? "#9ca3af"
+			: "#6b7280";
+	let strokeWidth = 1.5;
+	let opacity = 1;
+
+	if (hasExecutionState) {
+		if (isExecuted) {
+			stroke = "#22c55e";
+			strokeWidth = 2.5;
+		} else {
+			opacity = 0.3;
+		}
+	}
+
 	return (
 		<>
 			<BaseEdge
@@ -41,14 +62,9 @@ export function WorkflowEdge({
 				style={{
 					...style,
 					strokeDasharray: isContinuation ? "6 3" : undefined,
-					stroke: dark
-						? isContinuation
-							? "#6b7280"
-							: "#9ca3af"
-						: isContinuation
-							? "#9ca3af"
-							: "#6b7280",
-					strokeWidth: 1.5,
+					stroke,
+					strokeWidth,
+					opacity,
 				}}
 			/>
 			{label && (

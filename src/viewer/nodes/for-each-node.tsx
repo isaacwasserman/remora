@@ -13,12 +13,19 @@ function renderExpr(
 }
 
 export function ForEachNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, isGroup, groupWidth, groupHeight, hasSourceEdge } =
-		data as unknown as StepNodeData & {
-			isGroup?: boolean;
-			groupWidth?: number;
-			groupHeight?: number;
-		};
+	const {
+		step,
+		diagnostics,
+		isGroup,
+		groupWidth,
+		groupHeight,
+		hasSourceEdge,
+		executionSummary,
+	} = data as unknown as StepNodeData & {
+		isGroup?: boolean;
+		groupWidth?: number;
+		groupHeight?: number;
+	};
 	if (step.type !== "for-each") return null;
 
 	if (isGroup) {
@@ -27,13 +34,31 @@ export function ForEachNode({ data, selected }: NodeProps) {
 			!hasErrors && diagnostics.some((d) => d.severity === "warning");
 
 		let ringClass = "";
-		if (hasErrors) ringClass = "ring-2 ring-red-500";
-		else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
-		else if (selected) ringClass = "ring-2 ring-emerald-400";
+		let borderColor = "border-emerald-300 dark:border-emerald-700";
+		if (executionSummary) {
+			switch (executionSummary.status) {
+				case "running":
+					ringClass = "ring-2 ring-blue-400 animate-pulse";
+					borderColor = "border-blue-300 dark:border-blue-700";
+					break;
+				case "completed":
+					ringClass = "ring-2 ring-green-400";
+					borderColor = "border-green-400 dark:border-green-600";
+					break;
+				case "failed":
+					ringClass = "ring-2 ring-red-500";
+					borderColor = "border-red-300 dark:border-red-700";
+					break;
+			}
+		} else {
+			if (hasErrors) ringClass = "ring-2 ring-red-500";
+			else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
+			else if (selected) ringClass = "ring-2 ring-emerald-400";
+		}
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed transition-colors duration-150 border-emerald-300 bg-emerald-50/30 hover:bg-emerald-50/60 hover:border-emerald-500 dark:border-emerald-700 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:hover:border-emerald-500 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${borderColor} bg-emerald-50/30 hover:bg-emerald-50/60 hover:border-emerald-500 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:hover:border-emerald-500 ${ringClass}`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
 				<Handle
@@ -61,6 +86,11 @@ export function ForEachNode({ data, selected }: NodeProps) {
 	}
 
 	// Non-group fallback (for-each with no resolvable children)
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const hasTargetResolved = resolved?.target !== undefined;
+
 	return (
 		<BaseNode
 			id={step.id}
@@ -72,11 +102,17 @@ export function ForEachNode({ data, selected }: NodeProps) {
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">target:</span>
-				<span className="font-mono truncate text-gray-600 dark:text-gray-400">
-					{renderExpr(step.params.target)}
+				<span
+					className={`font-mono truncate ${hasTargetResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
+					title={hasTargetResolved ? renderExpr(step.params.target) : undefined}
+				>
+					{hasTargetResolved
+						? `[${Array.isArray(resolved.target) ? resolved.target.length : "?"} items]`
+						: renderExpr(step.params.target)}
 				</span>
 			</div>
 			<div className="mt-0.5 flex gap-1.5 text-[11px]">

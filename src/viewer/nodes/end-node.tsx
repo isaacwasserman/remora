@@ -13,7 +13,8 @@ function renderExpr(
 }
 
 export function EndNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, outputSchema } = data as unknown as StepNodeData;
+	const { step, diagnostics, executionSummary, outputSchema } =
+		data as unknown as StepNodeData;
 
 	const schema = outputSchema as
 		| { properties?: Record<string, { type?: string }> }
@@ -37,6 +38,7 @@ export function EndNode({ data, selected }: NodeProps) {
 				diagnostics={diagnostics}
 				selected={selected}
 				hasSourceEdge={false}
+				executionSummary={executionSummary}
 			>
 				{step.params?.output && (
 					<div className="flex gap-1.5 text-[11px]">
@@ -68,10 +70,24 @@ export function EndNode({ data, selected }: NodeProps) {
 	const hasErrors = diagnostics?.some((d) => d.severity === "error");
 
 	let ringClass = "";
-	if (hasErrors) ringClass = "ring-2 ring-red-500";
-	else if (selected) ringClass = "ring-2 ring-blue-400";
+	if (executionSummary) {
+		switch (executionSummary.status) {
+			case "running":
+				ringClass = "ring-2 ring-blue-400 animate-pulse";
+				break;
+			case "completed":
+				ringClass = "ring-2 ring-green-400";
+				break;
+			case "failed":
+				ringClass = "ring-2 ring-red-500";
+				break;
+		}
+	} else {
+		if (hasErrors) ringClass = "ring-2 ring-red-500";
+		else if (selected) ringClass = "ring-2 ring-blue-400";
+	}
 
-	const hasRing = hasErrors || selected;
+	const hasRing = hasErrors || selected || !!executionSummary;
 
 	return (
 		<div

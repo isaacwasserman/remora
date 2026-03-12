@@ -12,7 +12,8 @@ function renderExpr(
 }
 
 export function ExtractDataNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
+	const { step, diagnostics, hasSourceEdge, executionSummary } =
+		data as unknown as StepNodeData;
 	if (step.type !== "extract-data") return null;
 
 	const outputFormat = step.params.outputFormat as
@@ -21,6 +22,11 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 	const outputKeys = outputFormat?.properties
 		? Object.keys(outputFormat.properties)
 		: [];
+
+	const resolved = executionSummary?.latestResolvedInputs as
+		| Record<string, unknown>
+		| undefined;
+	const hasSourceResolved = resolved?.sourceData !== undefined;
 
 	return (
 		<BaseNode
@@ -33,11 +39,21 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-gray-400 shrink-0">source:</span>
-				<span className="font-mono truncate text-gray-600 dark:text-gray-400">
-					{renderExpr(step.params.sourceData)}
+				<span
+					className={`font-mono truncate ${hasSourceResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
+					title={
+						hasSourceResolved ? renderExpr(step.params.sourceData) : undefined
+					}
+				>
+					{hasSourceResolved
+						? typeof resolved.sourceData === "string"
+							? resolved.sourceData
+							: JSON.stringify(resolved.sourceData)
+						: renderExpr(step.params.sourceData)}
 				</span>
 			</div>
 			{outputKeys.length > 0 && (
