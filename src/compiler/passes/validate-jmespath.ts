@@ -42,6 +42,41 @@ export function validateJmespath(
 	return diagnostics;
 }
 
+function collectFromExpressionValue(
+	val: { type: string; expression?: string; template?: string },
+	stepId: string,
+	field: string,
+	expressions: ExpressionInfo[],
+	templateDiagnostics: Diagnostic[],
+): void {
+	if (val.type === "jmespath" && val.expression) {
+		expressions.push({
+			expression: val.expression,
+			stepId,
+			field: `${field}.expression`,
+		});
+	} else if (val.type === "template" && val.template) {
+		const { expressions: templateExprs, unclosed } = extractTemplateExpressions(
+			val.template,
+		);
+		for (const te of templateExprs) {
+			expressions.push({
+				expression: te.expression,
+				stepId,
+				field: `${field}.template[${te.start}:${te.end}]`,
+			});
+		}
+		for (const pos of unclosed) {
+			templateDiagnostics.push({
+				severity: "error",
+				location: { stepId, field: `${field}.template[${pos}]` },
+				message: `Unclosed template expression at position ${pos} in template`,
+				code: "UNCLOSED_TEMPLATE_EXPRESSION",
+			});
+		}
+	}
+}
+
 function collectExpressions(workflow: WorkflowDefinition): {
 	expressions: ExpressionInfo[];
 	templateDiagnostics: Diagnostic[];
@@ -53,65 +88,67 @@ function collectExpressions(workflow: WorkflowDefinition): {
 		switch (step.type) {
 			case "tool-call":
 				for (const [key, val] of Object.entries(step.params.toolInput)) {
-					if (val.type === "jmespath") {
-						expressions.push({
-							expression: val.expression,
-							stepId: step.id,
-							field: `params.toolInput.${key}.expression`,
-						});
-					}
+					collectFromExpressionValue(
+						val,
+						step.id,
+						`params.toolInput.${key}`,
+						expressions,
+						templateDiagnostics,
+					);
 				}
 				break;
 
 			case "switch-case":
-				if (step.params.switchOn.type === "jmespath") {
-					expressions.push({
-						expression: step.params.switchOn.expression,
-						stepId: step.id,
-						field: "params.switchOn.expression",
-					});
-				}
+				collectFromExpressionValue(
+					step.params.switchOn,
+					step.id,
+					"params.switchOn",
+					expressions,
+					templateDiagnostics,
+				);
 				for (const [i, c] of step.params.cases.entries()) {
-					if (c.value.type === "jmespath") {
-						expressions.push({
-							expression: c.value.expression,
-							stepId: step.id,
-							field: `params.cases[${i}].value.expression`,
-						});
-					}
+					collectFromExpressionValue(
+						c.value,
+						step.id,
+						`params.cases[${i}].value`,
+						expressions,
+						templateDiagnostics,
+					);
 				}
 				break;
 
 			case "for-each":
-				if (step.params.target.type === "jmespath") {
-					expressions.push({
-						expression: step.params.target.expression,
-						stepId: step.id,
-						field: "params.target.expression",
-					});
-				}
+				collectFromExpressionValue(
+					step.params.target,
+					step.id,
+					"params.target",
+					expressions,
+					templateDiagnostics,
+				);
 				break;
 
 			case "extract-data":
-				if (step.params.sourceData.type === "jmespath") {
-					expressions.push({
-						expression: step.params.sourceData.expression,
-						stepId: step.id,
-						field: "params.sourceData.expression",
-					});
-				}
+				collectFromExpressionValue(
+					step.params.sourceData,
+					step.id,
+					"params.sourceData",
+					expressions,
+					templateDiagnostics,
+				);
 				break;
 
 			case "start":
 				break;
 
 			case "end":
-				if (step.params?.output && step.params.output.type === "jmespath") {
-					expressions.push({
-						expression: step.params.output.expression,
-						stepId: step.id,
-						field: "params.output.expression",
-					});
+				if (step.params?.output) {
+					collectFromExpressionValue(
+						step.params.output,
+						step.id,
+						"params.output",
+						expressions,
+						templateDiagnostics,
+					);
 				}
 				break;
 
@@ -160,12 +197,14 @@ function collectExpressions(workflow: WorkflowDefinition): {
 						code: "UNCLOSED_TEMPLATE_EXPRESSION",
 					});
 				}
-				if (step.params.maxSteps && step.params.maxSteps.type === "jmespath") {
-					expressions.push({
-						expression: step.params.maxSteps.expression,
-						stepId: step.id,
-						field: "params.maxSteps.expression",
-					});
+				if (step.params.maxSteps) {
+					collectFromExpressionValue(
+						step.params.maxSteps,
+						step.id,
+						"params.maxSteps",
+						expressions,
+						templateDiagnostics,
+					);
 				}
 				break;
 			}

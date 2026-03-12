@@ -78,7 +78,8 @@ export interface ExecuteWorkflowOptions {
 
 export type Expression =
 	| { type: "literal"; value: unknown }
-	| { type: "jmespath"; expression: string };
+	| { type: "jmespath"; expression: string }
+	| { type: "template"; template: string };
 
 /**
  * Internal resolved options. Extends the public `ExecuteWorkflowOptions`

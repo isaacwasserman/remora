@@ -35,6 +35,9 @@ export function evaluateExpression(
 	if (expr.type === "literal") {
 		return expr.value;
 	}
+	if (expr.type === "template") {
+		return interpolateTemplate(expr.template, scope, stepId);
+	}
 	try {
 		return search(scope as Parameters<typeof search>[0], expr.expression);
 	} catch (e) {

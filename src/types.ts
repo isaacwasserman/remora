@@ -8,8 +8,12 @@ const expressionSchema = type({
 		type: "'jmespath'",
 		expression: "string",
 	})
+	.or({
+		type: "'template'",
+		template: "string",
+	})
 	.describe(
-		"a value that must always be wrapped as an expression object — use { type: 'literal', value: ... } for any static value (strings, numbers, booleans, etc.), or { type: 'jmespath', expression: '...' } for dynamic data extracted from previous steps' outputs (via their step ids, e.g. `stepId.someKey`) or loop variables (e.g. `itemName.someKey` within a for-each loop body)",
+		"a value that must always be wrapped as an expression object — use { type: 'literal', value: ... } for any static value (strings, numbers, booleans, etc.), { type: 'jmespath', expression: '...' } for dynamic data extracted from previous steps' outputs (via their step ids, e.g. `stepId.someKey`) or loop variables (e.g. `itemName.someKey` within a for-each loop body), or { type: 'template', template: '...' } for string interpolation with embedded JMESPath expressions using ${...} syntax (e.g. 'Hello ${user.name}, order ${order.id}') — template expressions always resolve to a string",
 	);
 
 const toolCallParamsSchema = type({
