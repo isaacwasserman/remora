@@ -4,12 +4,15 @@ import type { Agent, LanguageModel, ToolSet } from "ai";
 import {
 	APICallError,
 	JSONParseError,
+	jsonSchema,
 	NoContentGeneratedError,
 	RetryError,
 	stepCountIs,
 	ToolLoopAgent,
 	TypeValidationError,
+	tool,
 } from "ai";
+import { type as arktype } from "arktype";
 import { extractTemplateExpressions } from "../compiler/utils/jmespath-helpers";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { createDefaultDurableContext, type DurableContext } from "./context";
@@ -18,10 +21,12 @@ import {
 	ConfigurationError,
 	ExpressionError,
 	ExternalServiceError,
+	ExtractionError,
 	OutputQualityError,
 	StepExecutionError,
 	ValidationError,
 } from "./errors";
+import { summarizeObjectStructure } from "./schema-inference";
 import type {
 	ExecutionDelta,
 	ExecutionPathSegment,
@@ -68,6 +73,12 @@ export interface ExecutorLimits {
 	minBackoffMultiplier?: number;
 	/** Soft cap on wait-for-condition timeoutMs. Clamped silently. Default: 600_000 (10 min). */
 	maxTimeoutMs?: number;
+	/** Byte threshold above which extract-data uses probe mode instead of inline data. Default: 50_000 (50KB). */
+	probeThresholdBytes?: number;
+	/** Maximum bytes returned per probe-data call. Default: 10_000 (10KB). */
+	probeResultMaxBytes?: number;
+	/** Maximum probe steps for extract-data probe mode. Default: 10. */
+	probeMaxSteps?: number;
 }
 
 /** Options for {@link executeWorkflow}. */
@@ -104,6 +115,9 @@ const DEFAULT_EXECUTOR_LIMITS: Required<ExecutorLimits> = {
 	maxBackoffMultiplier: 2,
 	minBackoffMultiplier: 1,
 	maxTimeoutMs: 600_000, // 10 minutes
+	probeThresholdBytes: 50_000, // 50KB
+	probeResultMaxBytes: 10_000, // 10KB
+	probeMaxSteps: 10,
 };
 
 class ExecutionTimer {
@@ -688,8 +702,17 @@ async function executeLlmPrompt(
 async function executeExtractData(
 	step: WorkflowStep & { type: "extract-data" },
 	scope: Record<string, unknown>,
-	agent: Agent,
+	options: ResolvedExecuteWorkflowOptions,
+	limits: Required<ExecutorLimits>,
 ): Promise<unknown> {
+	if (!options.agent) {
+		throw new ConfigurationError(
+			step.id,
+			"AGENT_NOT_PROVIDED",
+			"extract-data steps require an agent or LanguageModel to be provided",
+		);
+	}
+
 	const sourceData = evaluateExpression(
 		step.params.sourceData as Expression,
 		scope,
@@ -700,10 +723,33 @@ async function executeExtractData(
 			? sourceData
 			: JSON.stringify(sourceData, null, 2);
 
+	// Determine if we need probe mode: data is large, we have a raw model,
+	// and the source data is structured (not plain text)
+	const byteLength = new TextEncoder().encode(sourceStr).byteLength;
+	let useProbeMode =
+		byteLength > limits.probeThresholdBytes && !!options._rawModel;
+
+	// If source data is a string, check if it's parseable JSON — probe mode
+	// needs structured data for schema inference and JMESPath queries
+	if (useProbeMode && typeof sourceData === "string") {
+		try {
+			JSON.parse(sourceData);
+		} catch {
+			useProbeMode = false;
+		}
+	}
+
+	if (useProbeMode) {
+		const structuredData =
+			typeof sourceData === "string" ? JSON.parse(sourceData) : sourceData;
+		return executeExtractDataProbe(step, structuredData, options, limits);
+	}
+
+	// Inline mode: send all data in the prompt
 	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
 	const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
 	try {
-		const result = await agent.generate({ prompt });
+		const result = await (options.agent as Agent).generate({ prompt });
 		return JSON.parse(stripCodeFence(result.text));
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
@@ -720,10 +766,209 @@ async function executeExtractData(
 	}
 }
 
+// ─── Shared Probe Tools ──────────────────────────────────────────
+
+function createProbeDataTool(
+	sourceData: unknown,
+	limits: { probeResultMaxBytes: number },
+) {
+	return tool({
+		description:
+			"Query the available data using a JMESPath expression. Returns the matching subset of the data.",
+		inputSchema: arktype({
+			expression: [
+				"string",
+				"@",
+				"A JMESPath expression to evaluate against the data. Examples: 'users[0]', 'users[*].name', 'metadata.total', 'users[?age > `30`].name'",
+			],
+		}),
+		execute: async ({ expression }) => {
+			try {
+				const result = search(
+					sourceData as Parameters<typeof search>[0],
+					expression,
+				);
+				const resultStr =
+					typeof result === "string" ? result : JSON.stringify(result, null, 2);
+				if (
+					new TextEncoder().encode(resultStr).byteLength >
+					limits.probeResultMaxBytes
+				) {
+					const truncated = resultStr.slice(0, limits.probeResultMaxBytes);
+					return `${truncated}\n\n[TRUNCATED - result exceeded ${limits.probeResultMaxBytes} bytes. Use a more specific JMESPath expression to narrow the result.]`;
+				}
+				return resultStr;
+			} catch (e) {
+				return `JMESPath error: ${e instanceof Error ? e.message : String(e)}. Check your expression syntax.`;
+			}
+		},
+	});
+}
+
+function createGiveUpTool() {
+	let reason: string | undefined;
+	const giveUpTool = tool({
+		description:
+			"Call this if you determine you cannot complete the task or find/extract the requested data.",
+		inputSchema: arktype({
+			reason: [
+				"string",
+				"@",
+				"Explanation of why the task cannot be completed",
+			],
+		}),
+		execute: async ({ reason: r }) => {
+			reason = r;
+			return { acknowledged: true };
+		},
+	});
+	return {
+		tool: giveUpTool,
+		getReason: () => reason,
+	};
+}
+
+// ─── Extract Data Probe Mode ─────────────────────────────────────
+
+async function executeExtractDataProbe(
+	step: WorkflowStep & { type: "extract-data" },
+	sourceData: unknown,
+	options: ResolvedExecuteWorkflowOptions,
+	limits: Required<ExecutorLimits>,
+): Promise<unknown> {
+	const structureSummary = summarizeObjectStructure(sourceData as object, 2);
+
+	// Closure variable for capturing submit-result output
+	let submittedResult: unknown;
+
+	const outputSchema = jsonSchema(
+		step.params.outputFormat as Parameters<typeof jsonSchema>[0],
+	);
+
+	const probeDataTool = createProbeDataTool(sourceData, limits);
+	const giveUp = createGiveUpTool();
+
+	const submitResultTool = tool({
+		description:
+			"Submit the extracted data. Provide either `data` (the object directly) or `expression` (a JMESPath expression that evaluates to it). The result is validated against the target schema.",
+		inputSchema: jsonSchema<{ data?: unknown; expression?: string }>({
+			type: "object" as const,
+			properties: {
+				data: { description: "The extracted data object directly" },
+				expression: {
+					type: "string" as const,
+					description:
+						"A JMESPath expression that evaluates to the extracted data",
+				},
+			},
+		}),
+		execute: async (input) => {
+			let result: unknown;
+
+			if (input.expression !== undefined) {
+				try {
+					result = search(
+						sourceData as Parameters<typeof search>[0],
+						input.expression,
+					);
+				} catch (e) {
+					throw new Error(
+						`JMESPath error: ${e instanceof Error ? e.message : String(e)}. Fix the expression and try again.`,
+					);
+				}
+			} else if (input.data !== undefined) {
+				result = input.data;
+			} else {
+				throw new Error(
+					"Provide either `data` or `expression` to submit a result.",
+				);
+			}
+
+			// Validate against the output schema
+			const validation = await safeValidateTypes({
+				value: result,
+				schema: outputSchema,
+			});
+			if (!validation.success) {
+				throw new Error(
+					`Result does not match the target output schema: ${validation.error.message}. Fix the data or expression and try again.`,
+				);
+			}
+
+			submittedResult = validation.value;
+			return { success: true };
+		},
+	});
+
+	// _rawModel is guaranteed non-null: callers only invoke this function
+	// when options._rawModel is truthy (checked in executeExtractData).
+	const agent = new ToolLoopAgent({
+		model: options._rawModel as LanguageModel,
+		tools: {
+			"probe-data": probeDataTool,
+			"submit-result": submitResultTool,
+			"give-up": giveUp.tool,
+		},
+		stopWhen: [
+			() => submittedResult !== undefined || giveUp.getReason() !== undefined,
+			stepCountIs(limits.probeMaxSteps),
+		],
+	});
+
+	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
+	const prompt = `You need to extract structured data from a large dataset. The data is too large to include directly, so you have three tools:
+
+- probe-data: Query the data with a JMESPath expression to explore its contents.
+- submit-result: Submit the final extraction. Pass either \`data\` (the object directly) or \`expression\` (a JMESPath expression that evaluates to it). The result is validated against the target schema — if invalid, you'll get an error and can retry.
+- give-up: Call this if you determine the requested data cannot be found or extracted.
+
+## Data Structure Summary
+\`\`\`
+${structureSummary}
+\`\`\`
+
+## Target Output Schema
+\`\`\`json
+${schemaStr}
+\`\`\`
+
+## Instructions
+1. Use probe-data with JMESPath expressions to explore and extract values you need.
+2. When you have all the data, call submit-result with either the data directly or a JMESPath expression that produces it.
+3. If the data you need is not present or cannot be extracted, call give-up with a reason.`;
+
+	try {
+		await agent.generate({ prompt });
+	} catch (e) {
+		if (e instanceof StepExecutionError) throw e;
+		throw classifyLlmError(step.id, e);
+	}
+
+	if (submittedResult !== undefined) {
+		return submittedResult;
+	}
+
+	if (giveUp.getReason() !== undefined) {
+		throw new ExtractionError(
+			step.id,
+			`LLM was unable to extract the requested data: ${giveUp.getReason()}`,
+			giveUp.getReason() as string,
+		);
+	}
+
+	throw new OutputQualityError(
+		step.id,
+		"LLM_OUTPUT_PARSE_ERROR",
+		"extract-data probe mode exhausted all steps without submitting a result",
+		undefined,
+	);
+}
+
 async function executeAgentLoop(
 	step: WorkflowStep & { type: "agent-loop" },
 	scope: Record<string, unknown>,
 	options: ResolvedExecuteWorkflowOptions,
+	limits: Required<ExecutorLimits>,
 ): Promise<unknown> {
 	if (!options.agent) {
 		throw new ConfigurationError(
@@ -744,6 +989,7 @@ async function executeAgentLoop(
 	// it directly (the tools list in the step is ignored — the Agent is
 	// assumed to already have the tools it needs).
 	let agent: Agent;
+	let giveUp: ReturnType<typeof createGiveUpTool> | undefined;
 	if (options._rawModel) {
 		// Subset tools to only those listed in step.params.tools
 		const subsetTools: ToolSet = {};
@@ -766,6 +1012,12 @@ async function executeAgentLoop(
 			subsetTools[toolName] = toolDef;
 		}
 
+		// Inject built-in probe-data and give-up tools
+		const probeDataTool = createProbeDataTool(scope, limits);
+		giveUp = createGiveUpTool();
+		subsetTools["probe-data"] = probeDataTool;
+		subsetTools["give-up"] = giveUp.tool;
+
 		// Evaluate maxSteps (default: 10)
 		const maxSteps = step.params.maxSteps
 			? evaluateExpression(step.params.maxSteps as Expression, scope, step.id)
@@ -782,7 +1034,10 @@ async function executeAgentLoop(
 		agent = new ToolLoopAgent({
 			model: options._rawModel,
 			tools: subsetTools,
-			stopWhen: stepCountIs(Math.floor(maxSteps)),
+			stopWhen: [
+				() => giveUp?.getReason() !== undefined,
+				stepCountIs(Math.floor(maxSteps)),
+			],
 		});
 	} else {
 		// Pre-configured Agent — use it directly, ignoring the step's tools list
@@ -794,6 +1049,16 @@ async function executeAgentLoop(
 
 	try {
 		const result = await agent.generate({ prompt });
+
+		// Check if the agent gave up before trying to parse JSON output
+		if (giveUp?.getReason() !== undefined) {
+			throw new ExtractionError(
+				step.id,
+				`Agent gave up: ${giveUp.getReason()}`,
+				giveUp.getReason() as string,
+			);
+		}
+
 		return JSON.parse(stripCodeFence(result.text));
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
@@ -1167,17 +1432,10 @@ async function executeStep(
 				);
 			return executeLlmPrompt(step, scope, options.agent as Agent);
 		}
-		case "extract-data": {
-			if (!options.agent)
-				throw new ConfigurationError(
-					step.id,
-					"AGENT_NOT_PROVIDED",
-					"No agent provided",
-				);
-			return executeExtractData(step, scope, options.agent as Agent);
-		}
+		case "extract-data":
+			return executeExtractData(step, scope, options, timer.resolvedLimits);
 		case "agent-loop":
-			return executeAgentLoop(step, scope, options);
+			return executeAgentLoop(step, scope, options, timer.resolvedLimits);
 		case "switch-case":
 			return executeSwitchCase(
 				step,
