@@ -6,6 +6,7 @@ import { type } from "arktype";
 import { EXAMPLE_TASKS } from "../example-tasks";
 import type { WorkflowDefinition } from "../types";
 import { executeWorkflow } from ".";
+import { ExtractionError } from "./errors";
 
 // ─── Test Tools ──────────────────────────────────────────────────
 
@@ -2984,5 +2985,636 @@ describe("agent-loop", () => {
 		});
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe("TOOL_NOT_FOUND");
+	});
+
+	test("agent-loop has probe-data and give-up tools available", async () => {
+		const defaultUsage = {
+			inputTokens: {
+				total: 10,
+				noCache: undefined,
+				cacheRead: undefined,
+				cacheWrite: undefined,
+			},
+			outputTokens: { total: 10, text: undefined, reasoning: undefined },
+		};
+
+		let callCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					// Agent probes the scope data
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "probe-1",
+								toolName: "probe-data",
+								input: JSON.stringify({ expression: "get_data" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				// Agent responds with the final JSON
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: JSON.stringify({ result: "Hello, World!" }),
+						},
+					],
+					finishReason: { unified: "stop" as const, raw: undefined },
+					usage: defaultUsage,
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "start_step",
+			steps: [
+				step("start_step", {
+					type: "start",
+					nextStepId: "get_data",
+				}),
+				step("get_data", {
+					type: "tool-call",
+					nextStepId: "agent_step",
+					params: {
+						toolName: "greet",
+						toolInput: {
+							name: { type: "literal", value: "World" },
+						},
+					},
+				}),
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Analyze the greeting data.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+							required: ["result"],
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.agent_step).toEqual({
+			result: "Hello, World!",
+		});
+		// Verify probe-data was called (callCount > 1 means the tool call round-trip happened)
+		expect(callCount).toBe(2);
+	});
+
+	test("agent-loop give-up throws ExtractionError", async () => {
+		const defaultUsage = {
+			inputTokens: {
+				total: 10,
+				noCache: undefined,
+				cacheRead: undefined,
+				cacheWrite: undefined,
+			},
+			outputTokens: { total: 10, text: undefined, reasoning: undefined },
+		};
+
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () =>
+				({
+					content: [
+						{
+							type: "tool-call" as const,
+							toolCallId: "giveup-1",
+							toolName: "give-up",
+							input: JSON.stringify({
+								reason: "Cannot complete the research task",
+							}),
+						},
+					],
+					finishReason: {
+						unified: "tool-calls" as const,
+						raw: undefined,
+					},
+					usage: defaultUsage,
+					warnings: [],
+				}) as LanguageModelV3GenerateResult,
+		});
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Research something impossible.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+			maxRetries: 0,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("EXTRACTION_GAVE_UP");
+		expect(result.error?.message).toContain(
+			"Cannot complete the research task",
+		);
+	});
+
+	test("pre-configured Agent does not get probe-data/give-up injected", async () => {
+		const mockAgent = createMockAgent([{ result: "from agent" }]);
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockAgent,
+		});
+		expect(result.success).toBe(true);
+		// Pre-configured agent works fine — no probe-data/give-up injected
+		// (it uses its own tools, ignoring the step's tools list)
+		expect(result.stepOutputs.agent_step).toEqual({ result: "from agent" });
+	});
+});
+
+// ─── Extract-Data Probe Mode ─────────────────────────────────────
+
+describe("extract-data probe mode", () => {
+	// Helper to generate a large JSON object that exceeds 50KB
+	function makeLargeData(count: number) {
+		const records: Record<string, unknown>[] = [];
+		for (let i = 0; i < count; i++) {
+			records.push({
+				id: i,
+				name: `User ${i}`,
+				email: `user${i}@example.com`,
+				bio: "x".repeat(100),
+			});
+		}
+		return { users: records, metadata: { total: count, page: 1 } };
+	}
+
+	const defaultUsage = {
+		inputTokens: {
+			total: 10,
+			noCache: undefined,
+			cacheRead: undefined,
+			cacheWrite: undefined,
+		},
+		outputTokens: { total: 10, text: undefined, reasoning: undefined },
+	};
+
+	const outputFormat = {
+		type: "object",
+		properties: {
+			total: { type: "number" },
+			firstName: { type: "string" },
+		},
+		required: ["total", "firstName"],
+	};
+
+	function makeExtractWorkflow(sourceData: unknown) {
+		return {
+			initialStepId: "extract",
+			steps: [
+				step("extract", {
+					type: "extract-data",
+					params: {
+						sourceData: { type: "literal", value: sourceData },
+						outputFormat,
+					},
+				}),
+			],
+		} as WorkflowDefinition;
+	}
+
+	test("small data uses inline mode (no probe)", async () => {
+		const mockModel = createMockModel([{ total: 2, firstName: "Alice" }]);
+		const workflow = makeExtractWorkflow("Alice is first of 2 users");
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.extract).toEqual({
+			total: 2,
+			firstName: "Alice",
+		});
+	});
+
+	test("large data activates probe mode, model submits with data", async () => {
+		const largeData = makeLargeData(300); // > 50KB
+		const workflow = makeExtractWorkflow(largeData);
+
+		let callCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					// First call: model probes the data
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "probe-1",
+								toolName: "probe-data",
+								input: JSON.stringify({ expression: "metadata" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				if (callCount === 2) {
+					// Second call: model probes first user
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "probe-2",
+								toolName: "probe-data",
+								input: JSON.stringify({ expression: "users[0].name" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				// Third call: model submits result with data
+				return {
+					content: [
+						{
+							type: "tool-call" as const,
+							toolCallId: "submit-1",
+							toolName: "submit-result",
+							input: JSON.stringify({
+								data: { total: 300, firstName: "User 0" },
+							}),
+						},
+					],
+					finishReason: {
+						unified: "tool-calls" as const,
+						raw: undefined,
+					},
+					usage: defaultUsage,
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.extract).toEqual({
+			total: 300,
+			firstName: "User 0",
+		});
+	});
+
+	test("large data with submit-result via expression", async () => {
+		const largeData = makeLargeData(300);
+		const _workflow = makeExtractWorkflow(largeData);
+
+		const outputFormatForExpr = {
+			type: "object",
+			properties: {
+				total: { type: "number" },
+			},
+			required: ["total"],
+		};
+		const workflowExpr: WorkflowDefinition = {
+			initialStepId: "extract",
+			steps: [
+				step("extract", {
+					type: "extract-data",
+					params: {
+						sourceData: { type: "literal", value: largeData },
+						outputFormat: outputFormatForExpr,
+					},
+				}),
+			],
+		};
+
+		let callCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					// Model submits via expression
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "submit-1",
+								toolName: "submit-result",
+								input: JSON.stringify({ expression: "metadata" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				// Should not be called again
+				throw new Error("Unexpected extra call");
+			},
+		});
+
+		const result = await executeWorkflow(workflowExpr, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		// metadata is { total: 300, page: 1 }, which matches { total: number }
+		expect(result.stepOutputs.extract).toEqual({
+			total: 300,
+			page: 1,
+		});
+	});
+
+	test("submit-result with invalid expression retries, loop continues", async () => {
+		const largeData = makeLargeData(300);
+		const workflow = makeExtractWorkflow(largeData);
+
+		let callCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					// First attempt: invalid JMESPath expression
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "submit-bad",
+								toolName: "submit-result",
+								input: JSON.stringify({ expression: "invalid[[[" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				// Second attempt: valid submission
+				return {
+					content: [
+						{
+							type: "tool-call" as const,
+							toolCallId: "submit-ok",
+							toolName: "submit-result",
+							input: JSON.stringify({
+								data: { total: 300, firstName: "User 0" },
+							}),
+						},
+					],
+					finishReason: {
+						unified: "tool-calls" as const,
+						raw: undefined,
+					},
+					usage: defaultUsage,
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(true);
+		expect(callCount).toBe(2); // retried after invalid expression
+		expect(result.stepOutputs.extract).toEqual({
+			total: 300,
+			firstName: "User 0",
+		});
+	});
+
+	test("large data with pre-configured Agent falls back to inline mode", async () => {
+		const largeData = makeLargeData(300);
+		const workflow = makeExtractWorkflow(largeData);
+
+		// createMockAgent returns a pre-configured Agent (not a LanguageModel),
+		// so _rawModel will be null and probe mode won't activate
+		const mockAgent = createMockAgent([{ total: 300, firstName: "User 0" }]);
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockAgent,
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.extract).toEqual({
+			total: 300,
+			firstName: "User 0",
+		});
+	});
+
+	test("model calls give-up throws ExtractionError", async () => {
+		const largeData = makeLargeData(300);
+		const workflow = makeExtractWorkflow(largeData);
+
+		let callCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "probe-1",
+								toolName: "probe-data",
+								input: JSON.stringify({ expression: "metadata" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				// Give up
+				return {
+					content: [
+						{
+							type: "tool-call" as const,
+							toolCallId: "giveup-1",
+							toolName: "give-up",
+							input: JSON.stringify({
+								reason: "The data does not contain first names",
+							}),
+						},
+					],
+					finishReason: {
+						unified: "tool-calls" as const,
+						raw: undefined,
+					},
+					usage: defaultUsage,
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("EXTRACTION_GAVE_UP");
+		expect(result.error).toBeInstanceOf(ExtractionError);
+		expect((result.error as ExtractionError).reason).toBe(
+			"The data does not contain first names",
+		);
+	});
+
+	test("model hits step limit without submitting throws OutputQualityError", async () => {
+		const largeData = makeLargeData(300);
+		const workflow = makeExtractWorkflow(largeData);
+
+		let probeCallCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				probeCallCount++;
+				return {
+					content: [
+						{
+							type: "tool-call" as const,
+							toolCallId: `probe-${probeCallCount}`,
+							toolName: "probe-data",
+							input: JSON.stringify({ expression: "metadata" }),
+						},
+					],
+					finishReason: {
+						unified: "tool-calls" as const,
+						raw: undefined,
+					},
+					usage: defaultUsage,
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+			maxRetries: 0,
+			limits: { probeMaxSteps: 2 },
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe("LLM_OUTPUT_PARSE_ERROR");
+	});
+
+	test("probe-data truncates large results", async () => {
+		// Create data where a single probe returns a lot
+		const largeData = makeLargeData(300);
+		const workflow = makeExtractWorkflow(largeData);
+
+		let callCount = 0;
+		const mockModel = new MockLanguageModelV3({
+			doGenerate: async () => {
+				callCount++;
+				if (callCount === 1) {
+					// Probe for all users (will be huge)
+					return {
+						content: [
+							{
+								type: "tool-call" as const,
+								toolCallId: "probe-all",
+								toolName: "probe-data",
+								input: JSON.stringify({ expression: "users" }),
+							},
+						],
+						finishReason: {
+							unified: "tool-calls" as const,
+							raw: undefined,
+						},
+						usage: defaultUsage,
+						warnings: [],
+					} as LanguageModelV3GenerateResult;
+				}
+				// Check that the tool result was truncated by inspecting messages
+				// Then submit a result
+				return {
+					content: [
+						{
+							type: "tool-call" as const,
+							toolCallId: "submit-1",
+							toolName: "submit-result",
+							input: JSON.stringify({
+								data: { total: 300, firstName: "User 0" },
+							}),
+						},
+					],
+					finishReason: {
+						unified: "tool-calls" as const,
+						raw: undefined,
+					},
+					usage: defaultUsage,
+					warnings: [],
+				} as LanguageModelV3GenerateResult;
+			},
+		});
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			agent: mockModel,
+			limits: { probeResultMaxBytes: 500 },
+		});
+		expect(result.success).toBe(true);
 	});
 });

@@ -43,6 +43,8 @@ export type ErrorCode =
 	| "TEMPLATE_INTERPOLATION_ERROR"
 	// output-quality — LLM produced unparseable/unusable output
 	| "LLM_OUTPUT_PARSE_ERROR"
+	// extraction — probe mode failures
+	| "EXTRACTION_GAVE_UP"
 	// wait — wait/sleep step errors
 	| "SLEEP_INVALID_DURATION"
 	| "WAIT_CONDITION_TIMEOUT"
@@ -131,5 +133,16 @@ export class OutputQualityError extends StepExecutionError {
 		cause?: unknown,
 	) {
 		super(stepId, code, "output-quality", message, cause);
+	}
+}
+
+/** Thrown when the LLM determines that the requested data cannot be found or extracted from the source data during probe mode. Not retryable. */
+export class ExtractionError extends StepExecutionError {
+	constructor(
+		stepId: string,
+		message: string,
+		public readonly reason: string,
+	) {
+		super(stepId, "EXTRACTION_GAVE_UP", "output-quality", message);
 	}
 }
