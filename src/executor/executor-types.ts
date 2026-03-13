@@ -1,4 +1,4 @@
-import type { LanguageModel, ToolSet } from "ai";
+import type { Agent, LanguageModel, ToolSet } from "ai";
 import type { WorkflowStep } from "../types";
 import type { DurableContext } from "./context";
 import type { ErrorCode } from "./errors";
@@ -56,6 +56,10 @@ export interface ExecuteWorkflowOptions {
 	tools: ToolSet;
 	/** An AI SDK `LanguageModel` for `llm-prompt`, `extract-data`, and `agent-loop` steps. Required if the workflow contains LLM steps. */
 	model?: LanguageModel;
+	/** An AI SDK `Agent` to use for `agent-loop` steps. When provided, agent-loop steps use the Agent's own tools
+	 *  and describe the expected output shape in the prompt. The bare `model` is then used to coerce the Agent's
+	 *  text output into the structured format. Only applies to `agent-loop` steps. */
+	agent?: Agent;
 	/** Input values passed to the workflow's `start` step. Validated against the start step's `inputSchema`. */
 	inputs?: Record<string, unknown>;
 	/** Maximum number of retries for recoverable errors (rate limits, network errors, parse failures). Defaults to 3. */
