@@ -59,7 +59,8 @@ export interface ExecuteWorkflowOptions {
 	/** An AI SDK `Agent` to use for `agent-loop` steps. When provided, agent-loop steps use the Agent's own tools
 	 *  and describe the expected output shape in the prompt. The bare `model` is then used to coerce the Agent's
 	 *  text output into the structured format. Only applies to `agent-loop` steps. */
-	agent?: Agent;
+	// biome-ignore lint/suspicious/noExplicitAny: Agent generic params are irrelevant here
+	agent?: Agent<any, any, any>;
 	/** Input values passed to the workflow's `start` step. Validated against the start step's `inputSchema`. */
 	inputs?: Record<string, unknown>;
 	/** Maximum number of retries for recoverable errors (rate limits, network errors, parse failures). Defaults to 3. */
