@@ -36,6 +36,12 @@ function TypeBadge({ type }: { type: string }) {
 			"bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
 		"for-each":
 			"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400",
+		"agent-loop":
+			"bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400",
+		sleep:
+			"bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400",
+		"wait-for-condition":
+			"bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
 		start:
 			"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
 		end: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
@@ -242,8 +248,111 @@ function StepParams({
 				</div>
 			);
 
+		case "sleep":
+			return (
+				<div className="space-y-2">
+					<div>
+						<Label>Duration</Label>
+						{resolved?.durationMs !== undefined ? (
+							<ResolvedCode
+								value={`${resolved.durationMs}ms`}
+								expression={renderExpression(step.params.durationMs)}
+							/>
+						) : (
+							<Code>{renderExpression(step.params.durationMs)}ms</Code>
+						)}
+					</div>
+				</div>
+			);
+
+		case "wait-for-condition":
+			return (
+				<div className="space-y-2">
+					<div>
+						<Label>Condition</Label>
+						{resolved?.condition !== undefined ? (
+							<ResolvedCode
+								value={resolved.condition}
+								expression={renderExpression(step.params.condition)}
+							/>
+						) : (
+							<Code>{renderExpression(step.params.condition)}</Code>
+						)}
+					</div>
+					<div>
+						<Label>Condition Step</Label>
+						<Code>{step.params.conditionStepId}</Code>
+					</div>
+					{step.params.maxAttempts && (
+						<div>
+							<Label>Max Attempts</Label>
+							<Code>{renderExpression(step.params.maxAttempts)}</Code>
+						</div>
+					)}
+					{step.params.intervalMs && (
+						<div>
+							<Label>Interval</Label>
+							<Code>{renderExpression(step.params.intervalMs)}ms</Code>
+						</div>
+					)}
+					{step.params.timeoutMs && (
+						<div>
+							<Label>Timeout</Label>
+							<Code>{renderExpression(step.params.timeoutMs)}ms</Code>
+						</div>
+					)}
+				</div>
+			);
+
+		case "agent-loop":
+			return (
+				<div className="space-y-2">
+					<div>
+						<Label>Instructions</Label>
+						<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-700">
+							{step.params.instructions}
+						</pre>
+					</div>
+					{step.params.tools.length > 0 && (
+						<div>
+							<Label>Tools</Label>
+							<Code>{step.params.tools.join(", ")}</Code>
+						</div>
+					)}
+					<div>
+						<Label>Output Format</Label>
+						<Code>{JSON.stringify(step.params.outputFormat, null, 2)}</Code>
+					</div>
+					{step.params.maxSteps && (
+						<div>
+							<Label>Max Steps</Label>
+							<Code>{renderExpression(step.params.maxSteps)}</Code>
+						</div>
+					)}
+				</div>
+			);
+
 		case "start":
+			return null;
+
 		case "end":
+			if (step.params?.output) {
+				return (
+					<div className="space-y-2">
+						<div>
+							<Label>Output</Label>
+							{resolved?.output !== undefined ? (
+								<ResolvedCode
+									value={resolved.output}
+									expression={renderExpression(step.params.output)}
+								/>
+							) : (
+								<Code>{renderExpression(step.params.output)}</Code>
+							)}
+						</div>
+					</div>
+				);
+			}
 			return null;
 	}
 }
@@ -358,7 +467,7 @@ export function StepDetailPanel({
 	onClose,
 }: StepDetailPanelProps) {
 	return (
-		<div className="w-[340px] border-l h-full overflow-y-auto shadow-lg bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+		<div className="w-[340px] border-l h-full min-h-0 overflow-y-auto shadow-lg bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
 			<div className="sticky top-0 border-b px-4 py-3 flex items-center justify-between bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
 				<div className="flex items-center gap-2">
 					<TypeBadge type={step.type} />

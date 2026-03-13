@@ -35,7 +35,7 @@ function getOrThrow<K, V>(map: Map<K, V>, key: K): V {
 	return val;
 }
 
-function stepNodeType(step: WorkflowStep): string {
+function stepNodeType(step: WorkflowStep): string | undefined {
 	switch (step.type) {
 		case "tool-call":
 			return "toolCall";
