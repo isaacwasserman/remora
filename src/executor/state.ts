@@ -55,6 +55,18 @@ export const executionPathSegmentSchema = type({
 	});
 export type ExecutionPathSegment = typeof executionPathSegmentSchema.infer;
 
+// ─── Trace Entries ──────────────────────────────────────────────
+
+export const traceEntrySchema = type({
+	type: "'log'",
+	message: "string",
+	"data?": "unknown",
+}).or({
+	type: "'agent-step'",
+	step: "unknown",
+});
+export type TraceEntry = typeof traceEntrySchema.infer;
+
 // ─── Step Execution Record ───────────────────────────────────────
 
 export const stepExecutionRecordSchema = type({
@@ -66,6 +78,7 @@ export const stepExecutionRecordSchema = type({
 	"output?": "unknown",
 	"error?": errorSnapshotSchema,
 	"resolvedInputs?": "unknown",
+	"trace?": [traceEntrySchema, "[]"],
 	retries: [retryRecordSchema, "[]"],
 	path: [executionPathSegmentSchema, "[]"],
 });
@@ -106,6 +119,7 @@ export const executionDeltaSchema = type({
 		durationMs: "number",
 		output: "unknown",
 		"resolvedInputs?": "unknown",
+		"trace?": [traceEntrySchema, "[]"],
 	})
 	.or({
 		type: "'step-failed'",
@@ -242,6 +256,9 @@ export function applyDelta(
 				};
 				if (delta.resolvedInputs !== undefined) {
 					updated.resolvedInputs = delta.resolvedInputs;
+				}
+				if (delta.trace !== undefined) {
+					updated.trace = delta.trace;
 				}
 				records[idx] = updated;
 			}

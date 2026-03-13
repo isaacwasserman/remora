@@ -298,6 +298,59 @@ describe("applyDelta", () => {
 		expect(state.stepRecords.filter((r) => r.stepId === "s2")).toHaveLength(2);
 	});
 
+	test("step-completed with trace copies trace to record", () => {
+		let state = makeEmptyState();
+		state = applyDelta(state, {
+			type: "run-started",
+			runId: "run-1",
+			startedAt: "t0",
+		});
+		state = applyDelta(state, {
+			type: "step-started",
+			stepId: "s1",
+			path: [],
+			startedAt: "t1",
+		});
+		const trace = [
+			{ type: "log" as const, message: "starting extraction" },
+			{ type: "agent-step" as const, step: { text: "hello", toolCalls: [] } },
+		];
+		state = applyDelta(state, {
+			type: "step-completed",
+			stepId: "s1",
+			path: [],
+			completedAt: "t2",
+			durationMs: 100,
+			output: "result",
+			trace,
+		});
+		expect(state.stepRecords[0]?.trace).toEqual(trace);
+	});
+
+	test("step-completed without trace leaves trace undefined", () => {
+		let state = makeEmptyState();
+		state = applyDelta(state, {
+			type: "run-started",
+			runId: "run-1",
+			startedAt: "t0",
+		});
+		state = applyDelta(state, {
+			type: "step-started",
+			stepId: "s1",
+			path: [],
+			startedAt: "t1",
+		});
+		state = applyDelta(state, {
+			type: "step-completed",
+			stepId: "s1",
+			path: [],
+			completedAt: "t2",
+			durationMs: 100,
+			output: "result",
+		});
+		expect(state.stepRecords[0]?.trace).toBeUndefined();
+	});
+
 	test("is pure — does not mutate input state", () => {
 		const state = makeEmptyState();
 		const frozen = JSON.parse(JSON.stringify(state));
