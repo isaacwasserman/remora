@@ -221,7 +221,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			if (!result.success) {
@@ -256,7 +256,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			if (!result.success) {
@@ -294,7 +294,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			if (!result.success) {
@@ -324,7 +324,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			if (!result.success) {
@@ -540,7 +540,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			if (!result.success) {
@@ -578,7 +578,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);
@@ -603,7 +603,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);
@@ -634,7 +634,7 @@ describeE2E("e2e: LLM workflow generation and execution", () => {
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);
@@ -937,7 +937,7 @@ After processing all incidents, send a triage summary to the ops channel.`,
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);
@@ -1023,7 +1023,7 @@ After processing all incidents, send a triage summary to the ops channel.`,
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);
@@ -1101,7 +1101,7 @@ After processing all incidents, send a triage summary to the ops channel.`,
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);
@@ -1156,7 +1156,7 @@ After processing all incidents, send a triage summary to the ops channel.`,
 
 			const result = await executeWorkflow(workflow, {
 				tools,
-				agent: model,
+				model,
 				retryDelayMs: 100,
 			});
 			expect(result.success).toBe(true);

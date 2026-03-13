@@ -79,23 +79,6 @@ function createMockModel(responses: unknown[]) {
 	});
 }
 
-function createMockAgent(responses: unknown[]) {
-	let callIndex = 0;
-	return {
-		version: "agent-v1" as const,
-		id: "mock-agent",
-		tools: {},
-		async generate() {
-			return { text: JSON.stringify(responses[callIndex++]) } as Awaited<
-				ReturnType<import("ai").Agent["generate"]>
-			>;
-		},
-		async stream(): Promise<never> {
-			throw new Error("stream not implemented in mock");
-		},
-	};
-}
-
 // ─── Workflow Helpers ────────────────────────────────────────────
 
 function step(
@@ -1020,7 +1003,7 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: failingModel,
+			model: failingModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(false);
@@ -1060,7 +1043,7 @@ describe("error handling", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: failingModel,
+			model: failingModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(false);
@@ -1114,7 +1097,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: flakyModel,
+			model: flakyModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(true);
@@ -1146,7 +1129,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: alwaysFailModel,
+			model: alwaysFailModel,
 			maxRetries: 2,
 			retryDelayMs: 0,
 		});
@@ -1185,7 +1168,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: nonRetryableModel,
+			model: nonRetryableModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(false);
@@ -1268,7 +1251,7 @@ describe("error recovery", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: flakyModel,
+			model: flakyModel,
 			retryDelayMs: 0,
 		});
 		expect(result.success).toBe(true);
@@ -1387,42 +1370,11 @@ describe("llm steps", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.summarize).toEqual({
 			summary: "Three items found",
-		});
-	});
-
-	test("llm-prompt step works with Agent interface", async () => {
-		const mockAgent = createMockAgent([{ summary: "Agent response" }]);
-
-		const workflow: WorkflowDefinition = {
-			initialStepId: "summarize",
-			steps: [
-				step("summarize", {
-					type: "llm-prompt",
-					params: {
-						prompt: "Summarize something",
-						outputFormat: {
-							type: "object",
-							properties: {
-								summary: { type: "string" },
-							},
-						},
-					},
-				}),
-			],
-		};
-
-		const result = await executeWorkflow(workflow, {
-			tools: testTools,
-			agent: mockAgent,
-		});
-		expect(result.success).toBe(true);
-		expect(result.stepOutputs.summarize).toEqual({
-			summary: "Agent response",
 		});
 	});
 
@@ -1453,7 +1405,7 @@ describe("llm steps", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.extract).toEqual({ name: "Alice", age: 30 });
@@ -1618,7 +1570,7 @@ describe("integration: example tasks", () => {
 
 		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
 			tools: task.availableTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 
 		expect(result.success).toBe(true);
@@ -1662,7 +1614,7 @@ describe("integration: example tasks", () => {
 
 		const result = await executeWorkflow(task.workflow as WorkflowDefinition, {
 			tools: task.availableTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 
 		expect(result.success).toBe(true);
@@ -2964,7 +2916,7 @@ describe("agent-loop", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.agent_step).toEqual({
@@ -3010,7 +2962,7 @@ describe("agent-loop", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.agent_step).toEqual({ result: "processed" });
@@ -3039,7 +2991,7 @@ describe("agent-loop", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 	});
@@ -3064,34 +3016,6 @@ describe("agent-loop", () => {
 		expect(result.error?.code).toBe("AGENT_NOT_PROVIDED");
 	});
 
-	test("works when agent is pre-configured Agent (tools list ignored)", async () => {
-		const mockAgent = createMockAgent([{ result: "from agent" }]);
-
-		const workflow: WorkflowDefinition = {
-			initialStepId: "agent_step",
-			steps: [
-				step("agent_step", {
-					type: "agent-loop",
-					params: {
-						instructions: "Do something.",
-						tools: ["echo"],
-						outputFormat: {
-							type: "object",
-							properties: { result: { type: "string" } },
-						},
-					},
-				}),
-			],
-		};
-
-		const result = await executeWorkflow(workflow, {
-			tools: testTools,
-			agent: mockAgent,
-		});
-		expect(result.success).toBe(true);
-		expect(result.stepOutputs.agent_step).toEqual({ result: "from agent" });
-	});
-
 	test("fails when agent-loop references unknown tool", async () => {
 		const mockModel = createMockModel([]);
 
@@ -3111,7 +3035,7 @@ describe("agent-loop", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe("TOOL_NOT_FOUND");
@@ -3200,7 +3124,7 @@ describe("agent-loop", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.agent_step).toEqual({
@@ -3262,7 +3186,7 @@ describe("agent-loop", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 			maxRetries: 0,
 		});
 		expect(result.success).toBe(false);
@@ -3270,36 +3194,6 @@ describe("agent-loop", () => {
 		expect(result.error?.message).toContain(
 			"Cannot complete the research task",
 		);
-	});
-
-	test("pre-configured Agent does not get probe-data/give-up injected", async () => {
-		const mockAgent = createMockAgent([{ result: "from agent" }]);
-
-		const workflow: WorkflowDefinition = {
-			initialStepId: "agent_step",
-			steps: [
-				step("agent_step", {
-					type: "agent-loop",
-					params: {
-						instructions: "Do something.",
-						tools: ["echo"],
-						outputFormat: {
-							type: "object",
-							properties: { result: { type: "string" } },
-						},
-					},
-				}),
-			],
-		};
-
-		const result = await executeWorkflow(workflow, {
-			tools: testTools,
-			agent: mockAgent,
-		});
-		expect(result.success).toBe(true);
-		// Pre-configured agent works fine — no probe-data/give-up injected
-		// (it uses its own tools, ignoring the step's tools list)
-		expect(result.stepOutputs.agent_step).toEqual({ result: "from agent" });
 	});
 });
 
@@ -3360,7 +3254,7 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.extract).toEqual({
@@ -3439,7 +3333,7 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(result.stepOutputs.extract).toEqual({
@@ -3502,7 +3396,7 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflowExpr, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		// metadata is { total: 300, page: 1 }, which matches { total: number }
@@ -3563,29 +3457,10 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(true);
 		expect(callCount).toBe(2); // retried after invalid expression
-		expect(result.stepOutputs.extract).toEqual({
-			total: 300,
-			firstName: "User 0",
-		});
-	});
-
-	test("large data with pre-configured Agent falls back to inline mode", async () => {
-		const largeData = makeLargeData(300);
-		const workflow = makeExtractWorkflow(largeData);
-
-		// createMockAgent returns a pre-configured Agent (not a LanguageModel),
-		// so _rawModel will be null and probe mode won't activate
-		const mockAgent = createMockAgent([{ total: 300, firstName: "User 0" }]);
-
-		const result = await executeWorkflow(workflow, {
-			tools: testTools,
-			agent: mockAgent,
-		});
-		expect(result.success).toBe(true);
 		expect(result.stepOutputs.extract).toEqual({
 			total: 300,
 			firstName: "User 0",
@@ -3642,7 +3517,7 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 		});
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe("EXTRACTION_GAVE_UP");
@@ -3681,7 +3556,7 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 			maxRetries: 0,
 			limits: { probeMaxSteps: 2 },
 		});
@@ -3742,7 +3617,7 @@ describe("extract-data probe mode", () => {
 
 		const result = await executeWorkflow(workflow, {
 			tools: testTools,
-			agent: mockModel,
+			model: mockModel,
 			limits: { probeResultMaxBytes: 500 },
 		});
 		expect(result.success).toBe(true);
