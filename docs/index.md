@@ -13,8 +13,8 @@ hero:
       text: View on GitHub
       link: https://github.com/isaacwasserman/remora
     - theme: alt
-      text: llm.txt
-      link: /llm.txt
+      text: llms.txt
+      link: /llms.txt
 
 features:
   - title: Multi-Pass Compiler
