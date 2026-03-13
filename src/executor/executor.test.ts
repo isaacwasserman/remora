@@ -3134,6 +3134,135 @@ describe("agent-loop", () => {
 		expect(callCount).toBe(2);
 	});
 
+	test("agent-loop with Agent uses Agent and coerces output via model", async () => {
+		// The model is used for the coercion step — it receives the Agent's text and produces structured output
+		const mockModel = createMockModel([
+			{ summary: "Coerced summary", confidence: 0.88 },
+		]);
+
+		const mockAgent = {
+			version: "agent-v1" as const,
+			id: "test-agent",
+			tools: {},
+			generate: async () => ({
+				text: "Here is my analysis: The summary is about testing. Confidence: 88%.",
+				content: [
+					{
+						type: "text" as const,
+						text: "Here is my analysis: The summary is about testing. Confidence: 88%.",
+					},
+				],
+				steps: [],
+				finishReason: "stop" as const,
+				usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+				response: {
+					id: "test",
+					timestamp: new Date(),
+					modelId: "test",
+					headers: {},
+				},
+				warnings: [],
+				toolCalls: [],
+				toolResults: [],
+				providerMetadata: undefined,
+			}),
+			stream: async (): Promise<never> => {
+				throw new Error("not implemented");
+			},
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Analyze the data.",
+						tools: ["echo"],
+						outputFormat: {
+							type: "object",
+							properties: {
+								summary: { type: "string" },
+								confidence: { type: "number" },
+							},
+							required: ["summary", "confidence"],
+						},
+					},
+				}),
+			],
+		};
+
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: mockModel,
+			agent: mockAgent as unknown as Parameters<
+				typeof executeWorkflow
+			>[1]["agent"],
+		});
+		expect(result.success).toBe(true);
+		expect(result.stepOutputs.agent_step).toEqual({
+			summary: "Coerced summary",
+			confidence: 0.88,
+		});
+	});
+
+	test("agent-loop with Agent skips tool validation for step tools", async () => {
+		const mockModel = createMockModel([{ result: "coerced" }]);
+
+		const mockAgent = {
+			version: "agent-v1" as const,
+			id: "test-agent",
+			tools: {},
+			generate: async () => ({
+				text: "Result is ready.",
+				content: [{ type: "text" as const, text: "Result is ready." }],
+				steps: [],
+				finishReason: "stop" as const,
+				usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+				response: {
+					id: "test",
+					timestamp: new Date(),
+					modelId: "test",
+					headers: {},
+				},
+				warnings: [],
+				toolCalls: [],
+				toolResults: [],
+				providerMetadata: undefined,
+			}),
+			stream: async (): Promise<never> => {
+				throw new Error("not implemented");
+			},
+		};
+
+		const workflow: WorkflowDefinition = {
+			initialStepId: "agent_step",
+			steps: [
+				step("agent_step", {
+					type: "agent-loop",
+					params: {
+						instructions: "Do something.",
+						tools: ["nonexistent_tool"],
+						outputFormat: {
+							type: "object",
+							properties: { result: { type: "string" } },
+						},
+					},
+				}),
+			],
+		};
+
+		// Should NOT fail with TOOL_NOT_FOUND because Agent is provided
+		const result = await executeWorkflow(workflow, {
+			tools: testTools,
+			model: mockModel,
+			agent: mockAgent as unknown as Parameters<
+				typeof executeWorkflow
+			>[1]["agent"],
+		});
+		expect(result.success).toBe(true);
+	});
+
 	test("agent-loop give-up throws ExtractionError", async () => {
 		const defaultUsage = {
 			inputTokens: {

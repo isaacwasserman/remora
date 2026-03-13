@@ -577,7 +577,9 @@ function validateWorkflowConfig(
 				);
 			}
 		}
-		if (step.type === "agent-loop") {
+		if (step.type === "agent-loop" && !options.agent) {
+			// When an Agent is provided, tools come from the Agent itself;
+			// only validate tool references when using the LanguageModel path
 			for (const toolName of step.params.tools) {
 				const toolDef = options.tools[toolName];
 				if (!toolDef) {

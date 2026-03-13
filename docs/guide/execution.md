@@ -10,7 +10,7 @@ const compiled = await compileWorkflow(workflow, { tools });
 if (compiled.workflow) {
   const result = await executeWorkflow(compiled.workflow, {
     tools,
-    agent: myModel,
+    model: myModel,
     inputs: { userId: "u_123" },
   });
 
@@ -27,7 +27,8 @@ if (compiled.workflow) {
 ```ts
 interface ExecuteWorkflowOptions {
   tools: ToolSet;
-  agent?: Agent | LanguageModel;
+  model?: LanguageModel;
+  agent?: Agent;
   inputs?: Record<string, unknown>;
   maxRetries?: number;
   retryDelayMs?: number;
@@ -59,23 +60,43 @@ const tools = {
 };
 ```
 
-### `agent`
+### `model`
 
-**Type:** `Agent | LanguageModel` (from the [AI SDK](https://ai-sdk.dev/))
+**Type:** `LanguageModel` (from the [AI SDK](https://ai-sdk.dev/))
 **Default:** `undefined`
 
-Required if the workflow contains `llm-prompt`, `extract-data`, or `agent-loop` steps. You can pass either:
-
-- A **`LanguageModel`** — the executor wraps it in a `ToolLoopAgent` automatically
-- An **`Agent`** — used as-is
+Required if the workflow contains `llm-prompt`, `extract-data`, or `agent-loop` steps. A language model used by `llm-prompt`, `extract-data`, and `agent-loop` steps for generation and structured output coercion.
 
 ```ts
 import { anthropic } from "@ai-sdk/anthropic";
 
-// Pass a language model directly
+// Required for any LLM steps
 const result = await executeWorkflow(workflow, {
   tools,
-  agent: anthropic("claude-sonnet-4-20250514"),
+  model: anthropic("claude-sonnet-4-20250514"),
+});
+```
+
+### `agent`
+
+**Type:** `Agent` (from the [AI SDK](https://ai-sdk.dev/))
+**Default:** `undefined`
+
+Optional. When provided, `agent-loop` steps use this Agent directly with its own tools and behaviors, instead of creating a `ToolLoopAgent` from the `model`. The Agent generates text output, which is then coerced into the expected structured format using the bare `model` with `Output.object()`.
+
+```ts
+import { anthropic } from "@ai-sdk/anthropic";
+
+const agent = new MyCustomAgent({
+  tools: myAgentTools,
+  model: anthropic("claude-sonnet-4-20250514"),
+});
+
+// agent-loop steps will use myAgent instead of creating a ToolLoopAgent from model
+const result = await executeWorkflow(workflow, {
+  tools,
+  model: anthropic("claude-sonnet-4-20250514"),
+  agent: agent,
 });
 ```
 
@@ -324,7 +345,7 @@ Each category has a corresponding class:
 |---|---|---|
 | `TOOL_NOT_FOUND` | configuration | Referenced tool doesn't exist in the `ToolSet` |
 | `TOOL_MISSING_EXECUTE` | configuration | Tool exists but has no `execute` function |
-| `AGENT_NOT_PROVIDED` | configuration | Workflow has LLM steps but no `agent` was provided |
+| `AGENT_NOT_PROVIDED` | configuration | Workflow has LLM steps but no `model` was provided |
 | `TOOL_INPUT_VALIDATION_FAILED` | validation | Tool input doesn't match the expected schema |
 | `FOREACH_TARGET_NOT_ARRAY` | validation | `for-each` target resolved to a non-array value |
 | `WORKFLOW_OUTPUT_VALIDATION_FAILED` | validation | Final output doesn't match the workflow's `outputSchema` |
@@ -358,7 +379,7 @@ All other errors fail immediately. Configure retry behavior with `maxRetries` an
 ```ts
 const result = await executeWorkflow(workflow, {
   tools,
-  agent: myModel,
+  model: myModel,
   maxRetries: 5,        // Up to 5 retry attempts
   retryDelayMs: 2000,   // Start with 2-second delay, doubling each time
 });
@@ -436,9 +457,9 @@ const result = await executeWorkflow(workflow, {
 
 Before executing any steps, the executor performs pre-flight validation:
 
-1. **Agent check** — if the workflow contains `llm-prompt`, `extract-data`, or `agent-loop` steps, verifies an `agent` was provided
+1. **Model check** — if the workflow contains `llm-prompt`, `extract-data`, or `agent-loop` steps, verifies a `model` was provided
 2. **Tool check** — verifies every `tool-call` step's `toolName` exists in the `ToolSet` and has an `execute` function
-3. **Agent-loop tool check** — verifies every tool referenced in `agent-loop` steps exists and has an `execute` function
+3. **Agent-loop tool check** — if no `agent` is provided, verifies every tool referenced in `agent-loop` steps exists in the `ToolSet` and has an `execute` function. (When an `agent` is provided, tools come from the Agent itself)
 4. **Input validation** — if the workflow has an `inputSchema`, validates provided `inputs` against it
 
 These checks throw immediately with a `ConfigurationError` or `ValidationError`, before the run starts. This prevents partial execution of misconfigured workflows.
