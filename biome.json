@@ -20,7 +20,9 @@
 				"noNonNullAssertion": "error"
 			},
 			"suspicious": {
-				"noTemplateCurlyInString": "off"
+				"noTemplateCurlyInString": "off",
+				"noExplicitAny": "error",
+				"noEvolvingTypes": "error"
 			}
 		}
 	},
