@@ -151,7 +151,9 @@ export function WorkflowViewer({
 			setSelectedDiagnostics(data.diagnostics);
 			setSelectedExecutionSummary(data.executionSummary);
 			setSelectedExecutionRecords(
-				executionState?.stepRecords.filter((r) => r.stepId === data.step.id),
+				executionState?.stepRecords.filter(
+					(r: StepExecutionRecord) => r.stepId === data.step.id,
+				),
 			);
 			onStepSelect?.(data.step, data.diagnostics);
 		},
@@ -167,7 +169,7 @@ export function WorkflowViewer({
 	}, [onStepSelect]);
 
 	return (
-		<div className="flex h-full w-full">
+		<div className="flex h-full w-full min-h-0">
 			<div ref={containerRef} className="flex-1 relative">
 				<ReactFlow
 					nodes={nodes}

@@ -30,6 +30,7 @@ const VIEWER_FILES: FileEntry[] = [
 	{ relPath: "nodes/sleep-node.tsx", type: "registry:component" },
 	{ relPath: "nodes/wait-for-condition-node.tsx", type: "registry:component" },
 	{ relPath: "nodes/agent-loop-node.tsx", type: "registry:component" },
+	{ relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
 ];
 
 const PANEL_FILES: FileEntry[] = [
