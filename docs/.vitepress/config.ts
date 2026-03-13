@@ -34,6 +34,12 @@ export default defineConfig({
 						{ text: "What is Remora?", link: "/guide/what-is-remora" },
 						{ text: "Getting Started", link: "/guide/getting-started" },
 						{ text: "Workflow DSL", link: "/guide/workflow-dsl" },
+						{ text: "Compilation", link: "/guide/compilation" },
+						{ text: "Execution", link: "/guide/execution" },
+						{
+							text: "Execution State",
+							link: "/guide/execution-state",
+						},
 						{
 							text: "Component Registry",
 							link: "/guide/component-registry",
