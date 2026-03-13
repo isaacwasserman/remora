@@ -46,10 +46,9 @@ function TypeBadge({ type }: { type: string }) {
 			"bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
 		start:
 			"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
-		end: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+		end: "bg-muted text-muted-foreground",
 	};
-	const fallback =
-		"bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400";
+	const fallback = "bg-muted text-muted-foreground";
 	return (
 		<span
 			className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colors[type] ?? fallback}`}
@@ -61,12 +60,12 @@ function TypeBadge({ type }: { type: string }) {
 
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
 	const colors: Record<string, string> = {
-		pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+		pending: "bg-muted text-muted-foreground",
 		running: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
 		completed:
 			"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
 		failed: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400",
-		skipped: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
+		skipped: "bg-muted text-muted-foreground",
 	};
 	return (
 		<span
@@ -122,11 +121,11 @@ function StepParams({
 									const hasResolved = resolvedVal !== undefined;
 									return (
 										<div key={key} className="flex gap-2 text-xs">
-											<span className="font-mono text-gray-500 dark:text-gray-400">
+											<span className="font-mono text-muted-foreground">
 												{key}:
 											</span>
 											<span
-												className={`font-mono ${hasResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"}`}
+												className={`font-mono ${hasResolved ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}
 												title={hasResolved ? renderExpression(val) : undefined}
 											>
 												{hasResolved
@@ -155,7 +154,7 @@ function StepParams({
 								expression={step.params.prompt}
 							/>
 						) : (
-							<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-700">
+							<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
 								{step.params.prompt}
 							</pre>
 						)}
@@ -207,15 +206,13 @@ function StepParams({
 						<div className="space-y-1">
 							{step.params.cases.map((c) => (
 								<div key={c.branchBodyStepId} className="text-xs flex gap-2">
-									<span className="font-mono text-gray-500 dark:text-gray-400">
+									<span className="font-mono text-muted-foreground">
 										{c.value.type === "default"
 											? "default"
 											: renderExpression(c.value)}
 									</span>
-									<span className="text-gray-400 dark:text-gray-600">
-										&rarr;
-									</span>
-									<span className="font-mono text-gray-700 dark:text-gray-300">
+									<span className="text-muted-foreground/50">&rarr;</span>
+									<span className="font-mono text-foreground">
 										{c.branchBodyStepId}
 									</span>
 								</div>
@@ -311,7 +308,7 @@ function StepParams({
 				<div className="space-y-2">
 					<div>
 						<Label>Instructions</Label>
-						<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-700">
+						<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
 							{step.params.instructions}
 						</pre>
 					</div>
@@ -361,7 +358,7 @@ function StepParams({
 
 function Label({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="text-[11px] font-medium uppercase tracking-wide mb-0.5 text-gray-400 dark:text-gray-500">
+		<div className="text-[11px] font-medium uppercase tracking-wide mb-0.5 text-muted-foreground">
 			{children}
 		</div>
 	);
@@ -369,7 +366,7 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function Code({ children }: { children: React.ReactNode }) {
 	return (
-		<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-700">
+		<pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] text-foreground bg-muted">
 			{children}
 		</pre>
 	);
@@ -392,12 +389,12 @@ function formatValue(value: unknown): string {
 }
 
 const recordStatusColors: Record<string, string> = {
-	pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+	pending: "bg-muted text-muted-foreground",
 	running: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
 	completed:
 		"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
 	failed: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400",
-	skipped: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
+	skipped: "bg-muted text-muted-foreground",
 };
 
 function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
@@ -407,9 +404,9 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 			: null;
 
 	return (
-		<div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 space-y-1.5">
+		<div className="border border-border rounded-md p-2 space-y-1.5">
 			{pathLabel && (
-				<div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+				<div className="text-[11px] font-medium text-muted-foreground">
 					{pathLabel}
 				</div>
 			)}
@@ -420,7 +417,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 					{record.status}
 				</span>
 				{record.durationMs !== undefined && (
-					<span className="text-[11px] text-gray-400 dark:text-gray-500">
+					<span className="text-[11px] text-muted-foreground">
 						{record.durationMs}ms
 					</span>
 				)}
@@ -433,7 +430,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 			</div>
 			{record.resolvedInputs !== undefined && (
 				<details className="text-xs">
-					<summary className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide cursor-pointer select-none">
+					<summary className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide cursor-pointer select-none">
 						Resolved Inputs
 					</summary>
 					<ResolvedCode value={record.resolvedInputs} />
@@ -441,7 +438,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
 			)}
 			{record.output !== undefined && (
 				<details className="text-xs">
-					<summary className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide cursor-pointer select-none">
+					<summary className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide cursor-pointer select-none">
 						Output
 					</summary>
 					<Code>
@@ -469,18 +466,18 @@ export function StepDetailPanel({
 	onClose,
 }: StepDetailPanelProps) {
 	return (
-		<div className="w-[340px] border-l h-full min-h-0 overflow-y-auto shadow-lg bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-			<div className="sticky top-0 border-b px-4 py-3 flex items-center justify-between bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+		<div className="w-[340px] border-l h-full min-h-0 overflow-y-auto shadow-lg bg-card border-border">
+			<div className="sticky top-0 border-b px-4 py-3 flex items-center justify-between bg-card border-border">
 				<div className="flex items-center gap-2">
 					<TypeBadge type={step.type} />
-					<span className="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
+					<span className="font-medium text-sm truncate text-foreground">
 						{step.name}
 					</span>
 				</div>
 				<button
 					type="button"
 					onClick={onClose}
-					className="text-lg leading-none text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+					className="text-lg leading-none text-muted-foreground hover:text-foreground"
 				>
 					&times;
 				</button>
@@ -489,14 +486,14 @@ export function StepDetailPanel({
 			<div className="px-4 py-3 space-y-4">
 				<div>
 					<Label>Step ID</Label>
-					<div className="text-xs font-mono text-gray-600 dark:text-gray-400">
+					<div className="text-xs font-mono text-muted-foreground">
 						{step.id}
 					</div>
 				</div>
 
 				<div>
 					<Label>Description</Label>
-					<div className="text-xs text-gray-600 dark:text-gray-400">
+					<div className="text-xs text-muted-foreground">
 						{step.description}
 					</div>
 				</div>
@@ -504,13 +501,13 @@ export function StepDetailPanel({
 				{step.nextStepId && (
 					<div>
 						<Label>Next Step</Label>
-						<div className="text-xs font-mono text-gray-600 dark:text-gray-400">
+						<div className="text-xs font-mono text-muted-foreground">
 							{step.nextStepId}
 						</div>
 					</div>
 				)}
 
-				<div className="border-t pt-3 border-gray-100 dark:border-gray-700">
+				<div className="border-t pt-3 border-border">
 					<Label>Parameters</Label>
 					<div className="mt-1">
 						<StepParams
@@ -526,18 +523,18 @@ export function StepDetailPanel({
 				</div>
 
 				{executionSummary && (
-					<div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+					<div className="border-t border-border pt-3">
 						<Label>Execution</Label>
 						<div className="mt-1 space-y-2">
 							<div className="flex items-center gap-2">
 								<StatusBadge summary={executionSummary} />
 								{executionSummary.latestDurationMs !== undefined && (
-									<span className="text-[11px] text-gray-400 dark:text-gray-500">
+									<span className="text-[11px] text-muted-foreground">
 										{executionSummary.latestDurationMs}ms
 									</span>
 								)}
 								{executionSummary.executionCount > 1 && (
-									<span className="text-[11px] text-gray-400 dark:text-gray-500">
+									<span className="text-[11px] text-muted-foreground">
 										({executionSummary.completedCount}/
 										{executionSummary.executionCount} iterations)
 									</span>
@@ -578,7 +575,7 @@ export function StepDetailPanel({
 				)}
 
 				{executionRecords && executionRecords.length > 0 && (
-					<div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+					<div className="border-t border-border pt-3">
 						<Label>Execution History</Label>
 						<div className="space-y-2 mt-1">
 							{executionRecords.map((record, i) => (
@@ -592,7 +589,7 @@ export function StepDetailPanel({
 				)}
 
 				{diagnostics.length > 0 && (
-					<div className="border-t pt-3 border-gray-100 dark:border-gray-700">
+					<div className="border-t pt-3 border-border">
 						<Label>Diagnostics</Label>
 						<div className="space-y-2 mt-1">
 							{diagnostics.map((d) => (

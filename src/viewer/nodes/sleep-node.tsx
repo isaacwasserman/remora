@@ -30,8 +30,8 @@ export function SleepNode({ data, selected }: NodeProps) {
 			hasSourceEdge={hasSourceEdge}
 		>
 			<div className="flex gap-1.5 text-[11px]">
-				<span className="text-gray-400 shrink-0">duration:</span>
-				<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
+				<span className="text-muted-foreground shrink-0">duration:</span>
+				<span className="font-mono text-muted-foreground truncate">
 					{renderExpr(step.params.durationMs)}ms
 				</span>
 			</div>
