@@ -18,13 +18,13 @@ export function AgentLoopNode({ data, selected }: NodeProps) {
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
 		>
-			<div className="text-[11px] text-gray-500 dark:text-gray-400 italic line-clamp-2 bg-gray-50 dark:bg-gray-700 rounded p-1.5 font-mono">
+			<div className="text-[11px] text-muted-foreground italic line-clamp-2 bg-muted rounded p-1.5 font-mono">
 				{step.params.instructions}
 			</div>
 			{step.params.tools.length > 0 && (
 				<div className="mt-1.5 flex gap-1.5 text-[11px]">
-					<span className="text-gray-400 shrink-0">tools:</span>
-					<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
+					<span className="text-muted-foreground shrink-0">tools:</span>
+					<span className="font-mono text-muted-foreground truncate">
 						{step.params.tools.join(", ")}
 					</span>
 				</div>

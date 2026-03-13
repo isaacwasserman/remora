@@ -44,9 +44,9 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
-				<span className="text-gray-400 shrink-0">source:</span>
+				<span className="text-muted-foreground shrink-0">source:</span>
 				<span
-					className={`font-mono truncate ${hasSourceResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
+					className={`font-mono truncate ${hasSourceResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
 					title={
 						hasSourceResolved ? renderExpr(step.params.sourceData) : undefined
 					}
@@ -60,8 +60,8 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 			</div>
 			{outputKeys.length > 0 && (
 				<div className="mt-1 flex gap-1.5 text-[11px]">
-					<span className="text-gray-400 shrink-0">output:</span>
-					<span className="font-mono text-gray-500 dark:text-gray-400">
+					<span className="text-muted-foreground shrink-0">output:</span>
+					<span className="font-mono text-muted-foreground">
 						{outputKeys.join(", ")}
 					</span>
 				</div>

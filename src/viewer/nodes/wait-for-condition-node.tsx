@@ -47,7 +47,7 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-orange-500">
 						Wait
 					</span>
-					<span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+					<span className="text-sm font-medium text-foreground truncate">
 						{step.name}
 					</span>
 				</div>
@@ -76,15 +76,15 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
 			hasSourceEdge={hasSourceEdge}
 		>
 			<div className="flex gap-1.5 text-[11px]">
-				<span className="text-gray-400 shrink-0">until:</span>
-				<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
+				<span className="text-muted-foreground shrink-0">until:</span>
+				<span className="font-mono text-muted-foreground truncate">
 					{renderExpr(step.params.condition)}
 				</span>
 			</div>
 			{step.params.maxAttempts && (
 				<div className="mt-0.5 flex gap-1.5 text-[11px]">
-					<span className="text-gray-400 shrink-0">max attempts:</span>
-					<span className="font-mono text-gray-600 dark:text-gray-400">
+					<span className="text-muted-foreground shrink-0">max attempts:</span>
+					<span className="font-mono text-muted-foreground">
 						{renderExpr(step.params.maxAttempts)}
 					</span>
 				</div>

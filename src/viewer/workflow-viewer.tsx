@@ -29,7 +29,7 @@ import { SwitchCaseNode } from "./nodes/switch-case-node";
 import { ToolCallNode } from "./nodes/tool-call-node";
 import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
-import { useDarkMode } from "./theme";
+import { useThemeColors } from "./theme";
 
 const nodeTypes: NodeTypes = {
 	toolCall: ToolCallNode,
@@ -100,7 +100,7 @@ export function WorkflowViewer({
 	minimapWidth = 200,
 	minimapHeight = 150,
 }: WorkflowViewerProps) {
-	const dark = useDarkMode();
+	const theme = useThemeColors();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerWidth, setContainerWidth] = useState(0);
 	const layout = useMemo(
@@ -185,9 +185,9 @@ export function WorkflowViewer({
 						type: "workflow",
 					}}
 					proOptions={{ hideAttribution: true }}
-					colorMode={dark ? "dark" : "light"}
+					colorMode={theme.dark ? "dark" : "light"}
 				>
-					<Background color={dark ? "#4b5563" : "#e5e7eb"} gap={16} />
+					<Background color={theme.border} gap={16} />
 					<Controls showInteractive={false} />
 					{showMinimap && (
 						<MiniMap
@@ -197,12 +197,10 @@ export function WorkflowViewer({
 							style={{
 								width: effectiveMinimapWidth,
 								height: effectiveMinimapHeight,
-								border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`,
-								backgroundColor: dark ? "#1f2937" : undefined,
+								border: `1px solid ${theme.border}`,
+								backgroundColor: theme.card,
 							}}
-							nodeColor={
-								dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)"
-							}
+							nodeColor={theme.mutedForeground}
 						/>
 					)}
 				</ReactFlow>

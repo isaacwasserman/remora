@@ -72,7 +72,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
 						Loop
 					</span>
-					<span className="text-sm font-medium truncate text-gray-800 dark:text-gray-200">
+					<span className="text-sm font-medium truncate text-foreground">
 						{step.name}
 					</span>
 				</div>
@@ -107,9 +107,9 @@ export function ForEachNode({ data, selected }: NodeProps) {
 			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
-				<span className="text-gray-400 shrink-0">target:</span>
+				<span className="text-muted-foreground shrink-0">target:</span>
 				<span
-					className={`font-mono truncate ${hasTargetResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
+					className={`font-mono truncate ${hasTargetResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
 					title={hasTargetResolved ? renderExpr(step.params.target) : undefined}
 				>
 					{hasTargetResolved
@@ -118,8 +118,8 @@ export function ForEachNode({ data, selected }: NodeProps) {
 				</span>
 			</div>
 			<div className="mt-0.5 flex gap-1.5 text-[11px]">
-				<span className="text-gray-400 shrink-0">as:</span>
-				<span className="font-mono text-gray-600 dark:text-gray-400">
+				<span className="text-muted-foreground shrink-0">as:</span>
+				<span className="font-mono text-muted-foreground">
 					{step.params.itemName}
 				</span>
 			</div>

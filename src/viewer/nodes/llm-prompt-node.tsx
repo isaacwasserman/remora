@@ -36,16 +36,16 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
 				className={`text-[11px] italic line-clamp-3 rounded p-1.5 font-mono ${
 					resolvedPrompt
 						? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50"
-						: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-700"
+						: "text-muted-foreground bg-muted"
 				}`}
 				title={resolvedPrompt ? step.params.prompt : undefined}
 			>
 				{resolvedPrompt ?? step.params.prompt}
 			</div>
 			{outputKeys.length > 0 && (
-				<div className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+				<div className="mt-1.5 text-[11px] text-muted-foreground">
 					<span>output: </span>
-					<span className="font-mono text-gray-500 dark:text-gray-400">
+					<span className="font-mono text-muted-foreground">
 						{outputKeys.join(", ")}
 					</span>
 				</div>

@@ -41,7 +41,7 @@ export function ToolCallNode({ data, selected }: NodeProps) {
 			hasSourceEdge={hasSourceEdge}
 			executionSummary={executionSummary}
 		>
-			<div className="text-xs font-mono font-medium text-gray-700 dark:text-gray-300">
+			<div className="text-xs font-mono font-medium text-foreground">
 				{step.params.toolName}
 			</div>
 			{entries.length > 0 && (
@@ -51,9 +51,9 @@ export function ToolCallNode({ data, selected }: NodeProps) {
 						const hasResolved = resolvedVal !== undefined;
 						return (
 							<div key={key} className="flex gap-1.5 text-[11px]">
-								<span className="text-gray-400 shrink-0">{key}:</span>
+								<span className="text-muted-foreground shrink-0">{key}:</span>
 								<span
-									className={`font-mono truncate ${hasResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
+									className={`font-mono truncate ${hasResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
 									title={hasResolved ? renderExpr(val) : undefined}
 								>
 									{hasResolved ? formatValue(resolvedVal) : renderExpr(val)}

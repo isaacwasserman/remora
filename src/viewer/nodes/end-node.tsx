@@ -34,7 +34,7 @@ export function EndNode({ data, selected }: NodeProps) {
 				id={step.id}
 				name={step.name}
 				typeLabel="End"
-				typeLabelColor="text-gray-500"
+				typeLabelColor="text-muted-foreground"
 				accent="#6b7280"
 				description={step.description}
 				diagnostics={diagnostics}
@@ -44,23 +44,25 @@ export function EndNode({ data, selected }: NodeProps) {
 			>
 				{step.params?.output && (
 					<div className="flex gap-1.5 text-[11px]">
-						<span className="text-gray-400 shrink-0">output:</span>
-						<span className="font-mono text-gray-600 dark:text-gray-400 truncate">
+						<span className="text-muted-foreground shrink-0">output:</span>
+						<span className="font-mono text-muted-foreground truncate">
 							{renderExpr(step.params.output)}
 						</span>
 					</div>
 				)}
 				{schemaProperties.length > 0 && (
 					<div className="mt-1 space-y-0.5">
-						<div className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold">
+						<div className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold">
 							Output Schema
 						</div>
 						{schemaProperties.map(([key, val]) => (
 							<div key={key} className="flex gap-1.5 text-[11px]">
-								<span className="text-gray-500 font-medium shrink-0">
+								<span className="text-muted-foreground font-medium shrink-0">
 									{key}
 								</span>
-								<span className="font-mono text-gray-400">{val?.type}</span>
+								<span className="font-mono text-muted-foreground">
+									{val?.type}
+								</span>
 							</div>
 						))}
 					</div>
@@ -93,16 +95,14 @@ export function EndNode({ data, selected }: NodeProps) {
 
 	return (
 		<div
-			className={`rounded-full w-[60px] h-[60px] flex items-center justify-center shadow-sm border transition-all duration-150 bg-gray-100 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600 ${hasRing ? ringClass : "hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"}`}
+			className={`rounded-full w-[60px] h-[60px] flex items-center justify-center shadow-sm border transition-all duration-150 bg-muted border-border hover:bg-accent ${hasRing ? ringClass : "hover:ring-2 hover:ring-ring"}`}
 		>
 			<Handle
 				type="target"
 				position={Position.Top}
-				className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
+				className="!w-2 !h-2 !bg-muted-foreground"
 			/>
-			<span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-				End
-			</span>
+			<span className="text-xs font-medium text-muted-foreground">End</span>
 		</div>
 	);
 }

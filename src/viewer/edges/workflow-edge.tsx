@@ -4,7 +4,7 @@ import {
 	type EdgeProps,
 	getBezierPath,
 } from "@xyflow/react";
-import { useDarkMode } from "../theme";
+import { useThemeColors } from "../theme";
 
 export function WorkflowEdge({
 	id,
@@ -19,7 +19,7 @@ export function WorkflowEdge({
 	markerEnd,
 	style,
 }: EdgeProps) {
-	const dark = useDarkMode();
+	const theme = useThemeColors();
 	const edgeKind = (data?.edgeKind as string) ?? "sequential";
 	const isContinuation = edgeKind === "continuation";
 	const isExecuted = data?.executed === true;
@@ -34,20 +34,15 @@ export function WorkflowEdge({
 		targetPosition,
 	});
 
-	let stroke = dark
-		? isContinuation
-			? "#6b7280"
-			: "#9ca3af"
-		: isContinuation
-			? "#9ca3af"
-			: "#6b7280";
+	let stroke = theme.mutedForeground;
 	let strokeWidth = 1.5;
-	let opacity = 1;
+	let opacity = isContinuation ? 0.5 : 1;
 
 	if (hasExecutionState) {
 		if (isExecuted) {
 			stroke = "#22c55e";
 			strokeWidth = 2.5;
+			opacity = 1;
 		} else {
 			opacity = 0.3;
 		}
@@ -76,7 +71,7 @@ export function WorkflowEdge({
 							pointerEvents: "all",
 							zIndex: 10,
 						}}
-						className="px-1.5 py-0.5 rounded text-[10px] font-medium border-2 shadow whitespace-nowrap transition-colors duration-150 bg-white text-gray-700 border-gray-200 hover:border-gray-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:border-gray-400"
+						className="px-1.5 py-0.5 rounded text-[10px] font-medium border-2 shadow whitespace-nowrap transition-colors duration-150 bg-card text-foreground border-border hover:border-foreground"
 					>
 						{label}
 					</div>

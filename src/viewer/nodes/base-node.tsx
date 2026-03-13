@@ -100,14 +100,14 @@ export function BaseNode({
 
 	return (
 		<div
-			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 bg-white dark:bg-gray-800 ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"}`}
+			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"}`}
 			style={{ borderLeftColor: accent }}
 		>
 			{hasTargetEdge && (
 				<Handle
 					type="target"
 					position={Position.Top}
-					className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
+					className="!w-2 !h-2 !bg-muted-foreground"
 				/>
 			)}
 			<div className="px-3 py-2.5">
@@ -118,7 +118,7 @@ export function BaseNode({
 						>
 							{typeLabel}
 						</span>
-						<div className="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
+						<div className="font-medium text-sm truncate text-foreground">
 							{name}
 						</div>
 					</div>
@@ -145,23 +145,19 @@ export function BaseNode({
 						)}
 					</div>
 				</div>
-				<div className="text-[11px] font-mono text-gray-400 dark:text-gray-500">
-					{id}
-				</div>
-				<div className="text-[11px] mt-1 text-gray-500 dark:text-gray-400">
+				<div className="text-[11px] font-mono text-muted-foreground">{id}</div>
+				<div className="text-[11px] mt-1 text-muted-foreground">
 					{description}
 				</div>
 				{children && (
-					<div className="mt-2 border-t pt-2 border-gray-100 dark:border-gray-700">
-						{children}
-					</div>
+					<div className="mt-2 border-t pt-2 border-border">{children}</div>
 				)}
 			</div>
 			{hasSourceEdge && (
 				<Handle
 					type="source"
 					position={Position.Bottom}
-					className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500"
+					className="!w-2 !h-2 !bg-muted-foreground"
 				/>
 			)}
 		</div>

@@ -72,7 +72,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-amber-500">
 						Branch
 					</span>
-					<span className="text-sm font-medium truncate text-gray-800 dark:text-gray-200">
+					<span className="text-sm font-medium truncate text-foreground">
 						{step.name}
 					</span>
 				</div>
@@ -107,9 +107,9 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
-				<span className="text-gray-400 shrink-0">on:</span>
+				<span className="text-muted-foreground shrink-0">on:</span>
 				<span
-					className={`font-mono truncate ${hasSwitchResolved ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}
+					className={`font-mono truncate ${hasSwitchResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
 					title={
 						hasSwitchResolved ? renderExpr(step.params.switchOn) : undefined
 					}
@@ -125,11 +125,11 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
 						key={c.branchBodyStepId}
 						className="flex items-center gap-1.5 text-[11px]"
 					>
-						<span className="font-mono text-gray-500 dark:text-gray-400">
+						<span className="font-mono text-muted-foreground">
 							{c.value.type === "default" ? "default" : renderExpr(c.value)}
 						</span>
-						<span className="text-gray-300 dark:text-gray-600">&rarr;</span>
-						<span className="font-mono text-gray-600 dark:text-gray-400">
+						<span className="text-muted-foreground/50">&rarr;</span>
+						<span className="font-mono text-muted-foreground">
 							{c.branchBodyStepId}
 						</span>
 					</div>
