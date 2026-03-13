@@ -14,7 +14,7 @@ import {
 	ExecutionTimer,
 	type ResolvedExecuteWorkflowOptions,
 } from "./executor-types";
-import type { ExecutionPathSegment } from "./state";
+import type { ExecutionPathSegment, TraceEntry } from "./state";
 
 export type {
 	ExecuteWorkflowOptions,
@@ -247,6 +247,12 @@ function resolveStepInputs(
 
 // ─── Step Dispatch ───────────────────────────────────────────────
 
+/** Return type for executeStep. LLM steps may attach trace entries for debugging. */
+type StepOutput = {
+	output: unknown;
+	trace?: TraceEntry[];
+};
+
 async function executeStep(
 	step: WorkflowStep,
 	scope: Record<string, unknown>,
@@ -258,62 +264,68 @@ async function executeStep(
 	timer: ExecutionTimer,
 	stateManager?: ExecutionStateManager,
 	execPath: ExecutionPathSegment[] = [],
-): Promise<unknown> {
+): Promise<StepOutput> {
 	switch (step.type) {
-		case "tool-call":
-			return executeToolCall(step, scope, options.tools);
 		case "llm-prompt":
 			return executeLlmPrompt(step, scope, options);
 		case "extract-data":
 			return executeExtractData(step, scope, options, timer.resolvedLimits);
 		case "agent-loop":
 			return executeAgentLoop(step, scope, options, timer.resolvedLimits);
+		case "tool-call":
+			return { output: await executeToolCall(step, scope, options.tools) };
 		case "switch-case":
-			return executeSwitchCase(
-				step,
-				scope,
-				stepIndex,
-				stepOutputs,
-				loopVars,
-				options,
-				context,
-				stateManager,
-				execPath,
-				executeChain,
-			);
+			return {
+				output: await executeSwitchCase(
+					step,
+					scope,
+					stepIndex,
+					stepOutputs,
+					loopVars,
+					options,
+					context,
+					stateManager,
+					execPath,
+					executeChain,
+				),
+			};
 		case "for-each":
-			return executeForEach(
-				step,
-				scope,
-				stepIndex,
-				stepOutputs,
-				loopVars,
-				options,
-				context,
-				stateManager,
-				execPath,
-				executeChain,
-			);
+			return {
+				output: await executeForEach(
+					step,
+					scope,
+					stepIndex,
+					stepOutputs,
+					loopVars,
+					options,
+					context,
+					stateManager,
+					execPath,
+					executeChain,
+				),
+			};
 		case "sleep":
-			return executeSleep(step, scope, context, timer);
+			return { output: await executeSleep(step, scope, context, timer) };
 		case "wait-for-condition":
-			return executeWaitForCondition(
-				step,
-				scope,
-				stepIndex,
-				stepOutputs,
-				loopVars,
-				options,
-				context,
-				timer,
-				stateManager,
-				execPath,
-				executeChain,
-			);
+			return {
+				output: await executeWaitForCondition(
+					step,
+					scope,
+					stepIndex,
+					stepOutputs,
+					loopVars,
+					options,
+					context,
+					timer,
+					stateManager,
+					execPath,
+					executeChain,
+				),
+			};
 		case "start":
-			return executeStart();
+			return { output: await executeStart() };
 		case "end":
-			return executeEnd(step, scope);
+			return { output: await executeEnd(step, scope) };
 	}
 }
 
@@ -333,7 +345,7 @@ async function retryStep(
 	timer: ExecutionTimer,
 	stateManager?: ExecutionStateManager,
 	execPath: ExecutionPathSegment[] = [],
-): Promise<unknown> {
+): Promise<StepOutput> {
 	const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 	const baseDelay = options.retryDelayMs ?? DEFAULT_BASE_DELAY_MS;
 	const scope = { ...stepOutputs, ...loopVars };
@@ -381,7 +393,7 @@ async function recoverFromError(
 	timer: ExecutionTimer,
 	stateManager?: ExecutionStateManager,
 	execPath: ExecutionPathSegment[] = [],
-): Promise<unknown> {
+): Promise<StepOutput> {
 	switch (error.code) {
 		case "LLM_RATE_LIMITED":
 		case "LLM_NETWORK_ERROR":
@@ -459,12 +471,12 @@ const executeChain: ExecuteChainFn = async function executeChain(
 		const resolvedInputs = stateManager
 			? resolveStepInputs(step, scope)
 			: undefined;
-		let stepOutput: unknown;
+		let stepResult: StepOutput;
 
 		try {
 			timer?.beginActive();
 			try {
-				stepOutput = await context.step(step.id, () =>
+				stepResult = (await context.step(step.id, () =>
 					executeStep(
 						step,
 						scope,
@@ -477,7 +489,7 @@ const executeChain: ExecuteChainFn = async function executeChain(
 						stateManager,
 						execPath,
 					),
-				);
+				)) as StepOutput;
 			} finally {
 				timer?.endActive(step.id);
 			}
@@ -501,7 +513,7 @@ const executeChain: ExecuteChainFn = async function executeChain(
 				);
 				throw e;
 			}
-			stepOutput = await recoverFromError(
+			stepResult = await recoverFromError(
 				e,
 				step,
 				stepIndex,
@@ -516,16 +528,17 @@ const executeChain: ExecuteChainFn = async function executeChain(
 		}
 
 		const durationMs = Date.now() - stepStartTime;
-		stepOutputs[step.id] = stepOutput;
-		lastOutput = stepOutput;
+		stepOutputs[step.id] = stepResult.output;
+		lastOutput = stepResult.output;
 		stateManager?.stepCompleted(
 			step.id,
 			execPath,
-			stepOutput,
+			stepResult.output,
 			durationMs,
 			resolvedInputs,
+			stepResult.trace,
 		);
-		options.onStepComplete?.(step.id, stepOutput);
+		options.onStepComplete?.(step.id, stepResult.output);
 
 		currentStepId = step.nextStepId;
 	}

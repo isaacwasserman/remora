@@ -8,6 +8,7 @@ import type {
 	ExecutionPathSegment,
 	ExecutionState,
 	RetryRecord,
+	TraceEntry,
 } from "./state";
 import { applyDelta, snapshotError } from "./state";
 
@@ -229,6 +230,7 @@ export class ExecutionStateManager {
 		output: unknown,
 		durationMs: number,
 		resolvedInputs?: unknown,
+		trace?: TraceEntry[],
 	): void {
 		this.emit({
 			type: "step-completed",
@@ -238,6 +240,7 @@ export class ExecutionStateManager {
 			durationMs,
 			output,
 			resolvedInputs,
+			trace,
 		});
 	}
 

@@ -2,6 +2,7 @@ import type {
 	ExecutionState,
 	StepExecutionRecord,
 	StepStatus,
+	TraceEntry,
 } from "../executor/state";
 
 /** Aggregated execution summary for a single step across all its executions. */
@@ -23,6 +24,8 @@ export interface StepExecutionSummary {
 	latestDurationMs?: number;
 	/** Resolved input values from the most recent execution. */
 	latestResolvedInputs?: unknown;
+	/** Trace entries from the most recent execution. */
+	latestTrace?: TraceEntry[];
 }
 
 const STATUS_PRIORITY: Record<StepStatus, number> = {
@@ -105,6 +108,7 @@ export function deriveStepSummaries(
 		let latestError: { code: string; message: string } | undefined;
 		let latestDurationMs: number | undefined;
 		let latestResolvedInputs: unknown;
+		let latestTrace: TraceEntry[] | undefined;
 
 		for (const record of records) {
 			status = worstStatus(status, record.status);
@@ -125,6 +129,9 @@ export function deriveStepSummaries(
 			if (record.resolvedInputs !== undefined) {
 				latestResolvedInputs = record.resolvedInputs;
 			}
+			if (record.trace !== undefined) {
+				latestTrace = record.trace;
+			}
 		}
 
 		summaries.set(stepId, {
@@ -137,6 +144,7 @@ export function deriveStepSummaries(
 			latestError,
 			latestDurationMs,
 			latestResolvedInputs,
+			latestTrace,
 		});
 	}
 

@@ -27,13 +27,16 @@ import {
 	evaluateExpression,
 } from "../helpers";
 import { summarizeObjectStructure } from "../schema-inference";
+import type { TraceEntry } from "../state";
+
+type StepOutput = { output: unknown; trace?: TraceEntry[] };
 
 export async function executeExtractData(
 	step: WorkflowStep & { type: "extract-data" },
 	scope: Record<string, unknown>,
 	options: ResolvedExecuteWorkflowOptions,
 	limits: Required<ExecutorLimits>,
-): Promise<unknown> {
+): Promise<StepOutput> {
 	if (!options.model) {
 		throw new ConfigurationError(
 			step.id,
@@ -87,7 +90,11 @@ export async function executeExtractData(
 	const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}`;
 	try {
 		const result = await agent.generate({ prompt });
-		return result.output;
+		const trace: TraceEntry[] = result.steps.map((s) => ({
+			type: "agent-step" as const,
+			step: s,
+		}));
+		return { output: result.output, trace };
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
 		throw classifyLlmError(step.id, e);
@@ -99,7 +106,7 @@ async function executeExtractDataProbe(
 	sourceData: unknown,
 	model: LanguageModel,
 	limits: Required<ExecutorLimits>,
-): Promise<unknown> {
+): Promise<StepOutput> {
 	const structureSummary = summarizeObjectStructure(sourceData as object, 2);
 
 	// Closure variable for capturing submit-result output
@@ -199,15 +206,21 @@ ${schemaStr}
 2. When you have all the data, call submit-result with either the data directly or a JMESPath expression that produces it.
 3. If the data you need is not present or cannot be extracted, call give-up with a reason.`;
 
+	let result: Awaited<ReturnType<typeof agent.generate>>;
 	try {
-		await agent.generate({ prompt });
+		result = await agent.generate({ prompt });
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
 		throw classifyLlmError(step.id, e);
 	}
 
+	const trace: TraceEntry[] = result.steps.map((s) => ({
+		type: "agent-step" as const,
+		step: s,
+	}));
+
 	if (submittedResult !== undefined) {
-		return submittedResult;
+		return { output: submittedResult, trace };
 	}
 
 	if (giveUp.getReason() !== undefined) {

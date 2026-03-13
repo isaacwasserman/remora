@@ -25,13 +25,16 @@ import {
 	evaluateExpression,
 	interpolateTemplate,
 } from "../helpers";
+import type { TraceEntry } from "../state";
+
+type StepOutput = { output: unknown; trace?: TraceEntry[] };
 
 export async function executeAgentLoop(
 	step: WorkflowStep & { type: "agent-loop" },
 	scope: Record<string, unknown>,
 	options: ResolvedExecuteWorkflowOptions,
 	limits: Required<ExecutorLimits>,
-): Promise<unknown> {
+): Promise<StepOutput> {
 	if (!options.model) {
 		throw new ConfigurationError(
 			step.id,
@@ -80,7 +83,7 @@ async function executeWithAgent(
 	model: LanguageModel,
 	outputSchema: ReturnType<typeof jsonSchema>,
 	rawOutputFormat: unknown,
-): Promise<unknown> {
+): Promise<StepOutput> {
 	const schemaStr = JSON.stringify(rawOutputFormat, null, 2);
 	const prompt = `${interpolatedInstructions}\n\nWhen you have completed the task, respond with your final answer. Your response should contain the following structured information matching this JSON Schema:\n\`\`\`json\n${schemaStr}\n\`\`\`\n\nInclude all the required fields in your response.`;
 
@@ -106,7 +109,14 @@ async function executeWithAgent(
 			);
 		}
 
-		return coerced.output;
+		const trace: TraceEntry[] = [
+			...result.steps.map((s): TraceEntry => ({ type: "agent-step", step: s })),
+			...coerced.steps.map(
+				(s): TraceEntry => ({ type: "agent-step", step: s }),
+			),
+		];
+
+		return { output: coerced.output, trace };
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
 		throw classifyLlmError(step.id, e);
@@ -122,7 +132,7 @@ async function executeWithModel(
 	model: LanguageModel,
 	limits: Required<ExecutorLimits>,
 	outputSchema: ReturnType<typeof jsonSchema>,
-): Promise<unknown> {
+): Promise<StepOutput> {
 	// Subset tools to only those listed in step.params.tools
 	const subsetTools: ToolSet = {};
 	for (const toolName of step.params.tools) {
@@ -185,7 +195,12 @@ async function executeWithModel(
 			);
 		}
 
-		return result.output;
+		const trace: TraceEntry[] = result.steps.map((s) => ({
+			type: "agent-step" as const,
+			step: s,
+		}));
+
+		return { output: result.output, trace };
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
 		throw classifyLlmError(step.id, e);

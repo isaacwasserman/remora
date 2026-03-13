@@ -43,6 +43,7 @@ export type {
 	RunStatus,
 	StepExecutionRecord,
 	StepStatus,
+	TraceEntry,
 } from "./executor/state";
 export { applyDelta, snapshotError } from "./executor/state";
 export type {
