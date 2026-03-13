@@ -1,9 +1,9 @@
 import { safeValidateTypes } from "@ai-sdk/provider-utils";
 import { search } from "@jmespath-community/jmespath";
 import {
-	type Agent,
 	jsonSchema,
 	type LanguageModel,
+	Output,
 	stepCountIs,
 	ToolLoopAgent,
 	tool,
@@ -25,7 +25,6 @@ import {
 	createGiveUpTool,
 	createProbeDataTool,
 	evaluateExpression,
-	stripCodeFence,
 } from "../helpers";
 import { summarizeObjectStructure } from "../schema-inference";
 
@@ -35,13 +34,14 @@ export async function executeExtractData(
 	options: ResolvedExecuteWorkflowOptions,
 	limits: Required<ExecutorLimits>,
 ): Promise<unknown> {
-	if (!options.agent) {
+	if (!options.model) {
 		throw new ConfigurationError(
 			step.id,
 			"AGENT_NOT_PROVIDED",
-			"extract-data steps require an agent or LanguageModel to be provided",
+			"extract-data steps require a LanguageModel to be provided",
 		);
 	}
+	const { model } = options;
 
 	const sourceData = evaluateExpression(
 		step.params.sourceData as Expression,
@@ -56,8 +56,7 @@ export async function executeExtractData(
 	// Determine if we need probe mode: data is large, we have a raw model,
 	// and the source data is structured (not plain text)
 	const byteLength = new TextEncoder().encode(sourceStr).byteLength;
-	let useProbeMode =
-		byteLength > limits.probeThresholdBytes && !!options._rawModel;
+	let useProbeMode = byteLength > limits.probeThresholdBytes;
 
 	// If source data is a string, check if it's parseable JSON — probe mode
 	// needs structured data for schema inference and JMESPath queries
@@ -72,26 +71,25 @@ export async function executeExtractData(
 	if (useProbeMode) {
 		const structuredData =
 			typeof sourceData === "string" ? JSON.parse(sourceData) : sourceData;
-		return executeExtractDataProbe(step, structuredData, options, limits);
+		return executeExtractDataProbe(step, structuredData, model, limits);
 	}
 
-	// Inline mode: send all data in the prompt
-	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
-	const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
+	// Inline mode: send all data in the prompt with structured output
+	const agent = new ToolLoopAgent({
+		model: model,
+		output: Output.object({
+			schema: jsonSchema(
+				step.params.outputFormat as Parameters<typeof jsonSchema>[0],
+			),
+		}),
+		stopWhen: stepCountIs(1),
+	});
+	const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}`;
 	try {
-		const result = await (options.agent as Agent).generate({ prompt });
-		return JSON.parse(stripCodeFence(result.text));
+		const result = await agent.generate({ prompt });
+		return result.output;
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
-		if (e instanceof SyntaxError) {
-			throw new OutputQualityError(
-				step.id,
-				"LLM_OUTPUT_PARSE_ERROR",
-				`LLM output is not valid JSON: ${e.message}`,
-				undefined,
-				e,
-			);
-		}
 		throw classifyLlmError(step.id, e);
 	}
 }
@@ -99,7 +97,7 @@ export async function executeExtractData(
 async function executeExtractDataProbe(
 	step: WorkflowStep & { type: "extract-data" },
 	sourceData: unknown,
-	options: ResolvedExecuteWorkflowOptions,
+	model: LanguageModel,
 	limits: Required<ExecutorLimits>,
 ): Promise<unknown> {
 	const structureSummary = summarizeObjectStructure(sourceData as object, 2);
@@ -166,10 +164,8 @@ async function executeExtractDataProbe(
 		},
 	});
 
-	// _rawModel is guaranteed non-null: callers only invoke this function
-	// when options._rawModel is truthy (checked in executeExtractData).
 	const agent = new ToolLoopAgent({
-		model: options._rawModel as LanguageModel,
+		model,
 		tools: {
 			"probe-data": probeDataTool,
 			"submit-result": submitResultTool,

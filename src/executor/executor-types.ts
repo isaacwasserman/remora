@@ -1,4 +1,4 @@
-import type { Agent, LanguageModel, ToolSet } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
 import type { WorkflowStep } from "../types";
 import type { DurableContext } from "./context";
 import type { ErrorCode } from "./errors";
@@ -54,8 +54,8 @@ export interface ExecutorLimits {
 export interface ExecuteWorkflowOptions {
 	/** Tool definitions. Every tool referenced by a `tool-call` step must be present with an `execute` function. */
 	tools: ToolSet;
-	/** An AI SDK `Agent` or `LanguageModel` for `llm-prompt` and `extract-data` steps. Required if the workflow contains LLM steps. */
-	agent?: Agent | LanguageModel;
+	/** An AI SDK `LanguageModel` for `llm-prompt`, `extract-data`, and `agent-loop` steps. Required if the workflow contains LLM steps. */
+	model?: LanguageModel;
 	/** Input values passed to the workflow's `start` step. Validated against the start step's `inputSchema`. */
 	inputs?: Record<string, unknown>;
 	/** Maximum number of retries for recoverable errors (rate limits, network errors, parse failures). Defaults to 3. */
@@ -82,13 +82,10 @@ export type Expression =
 	| { type: "template"; template: string };
 
 /**
- * Internal resolved options. Extends the public `ExecuteWorkflowOptions`
- * with fields needed by the executor internals but not exposed to consumers.
+ * Internal resolved options. Currently identical to the public options
+ * but kept as a separate type for future internal-only fields.
  */
-export interface ResolvedExecuteWorkflowOptions extends ExecuteWorkflowOptions {
-	/** The raw LanguageModel before wrapping in ToolLoopAgent. Needed by agent-loop steps. */
-	_rawModel?: LanguageModel | null;
-}
+export type ResolvedExecuteWorkflowOptions = ExecuteWorkflowOptions;
 
 /**
  * Callback type for `executeChain`, injected into structural steps
@@ -172,10 +169,6 @@ export class ExecutionTimer {
 			);
 		}
 	}
-}
-
-export function isAgent(value: Agent | LanguageModel): value is Agent {
-	return typeof value === "object" && value !== null && "generate" in value;
 }
 
 // ─── Execution State Manager ─────────────────────────────────────

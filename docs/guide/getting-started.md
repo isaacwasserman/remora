@@ -108,7 +108,7 @@ import { executeWorkflow } from "@isaacwasserman/remora";
 
 const result = await executeWorkflow(workflow, {
   tools: myTools,
-  agent: myAgent, // Required if the workflow has llm-prompt or extract-data steps
+  model: anthropic("claude-sonnet-4-20250514"), // Required if the workflow has llm-prompt, extract-data, or agent-loop steps
   inputs: { userId: "123" }, // Passed to the start step
   onStepStart: (stepId) => console.log(`Starting: ${stepId}`),
   onStepComplete: (stepId, output) =>

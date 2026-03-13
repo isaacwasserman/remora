@@ -1,5 +1,3 @@
-import type { Agent } from "ai";
-import { stepCountIs, ToolLoopAgent } from "ai";
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { createDefaultDurableContext, type DurableContext } from "./context";
 import {
@@ -14,7 +12,6 @@ import {
 	type ExecutionResult,
 	ExecutionStateManager,
 	ExecutionTimer,
-	isAgent,
 	type ResolvedExecuteWorkflowOptions,
 } from "./executor-types";
 import type { ExecutionPathSegment } from "./state";
@@ -265,15 +262,8 @@ async function executeStep(
 	switch (step.type) {
 		case "tool-call":
 			return executeToolCall(step, scope, options.tools);
-		case "llm-prompt": {
-			if (!options.agent)
-				throw new ConfigurationError(
-					step.id,
-					"AGENT_NOT_PROVIDED",
-					"No agent provided",
-				);
-			return executeLlmPrompt(step, scope, options.agent as Agent);
-		}
+		case "llm-prompt":
+			return executeLlmPrompt(step, scope, options);
 		case "extract-data":
 			return executeExtractData(step, scope, options, timer.resolvedLimits);
 		case "agent-loop":
@@ -555,7 +545,7 @@ function validateWorkflowConfig(
 			s.type === "extract-data" ||
 			s.type === "agent-loop",
 	);
-	if (needsAgent && !options.agent) {
+	if (needsAgent && !options.model) {
 		const llmStep = workflow.steps.find(
 			(s) =>
 				s.type === "llm-prompt" ||
@@ -633,24 +623,7 @@ export async function executeWorkflow(
 
 	const stepOutputs: Record<string, unknown> = {};
 
-	// Preserve the raw LanguageModel for agent-loop steps that need to create
-	// their own ToolLoopAgent with a different tool subset and step limit.
-	const rawModel =
-		options.agent && !isAgent(options.agent) ? options.agent : null;
-
-	const resolvedAgent = options.agent
-		? isAgent(options.agent)
-			? options.agent
-			: new ToolLoopAgent({
-					model: options.agent,
-					stopWhen: stepCountIs(1),
-				})
-		: undefined;
-	const resolvedOptions: ResolvedExecuteWorkflowOptions = {
-		...options,
-		agent: resolvedAgent,
-		_rawModel: rawModel,
-	};
+	const resolvedOptions: ResolvedExecuteWorkflowOptions = options;
 	const resolvedContext = options.context ?? createDefaultDurableContext();
 	const timer = new ExecutionTimer(options.limits);
 	const stateManager = new ExecutionStateManager(options.onStateChange);

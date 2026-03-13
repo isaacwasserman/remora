@@ -1,38 +1,39 @@
-import type { Agent } from "ai";
+import { jsonSchema, Output, stepCountIs, ToolLoopAgent } from "ai";
 import type { WorkflowStep } from "../../types";
-import { OutputQualityError, StepExecutionError } from "../errors";
-import {
-	classifyLlmError,
-	interpolateTemplate,
-	stripCodeFence,
-} from "../helpers";
+import { ConfigurationError, StepExecutionError } from "../errors";
+import type { ResolvedExecuteWorkflowOptions } from "../executor-types";
+import { classifyLlmError, interpolateTemplate } from "../helpers";
 
 export async function executeLlmPrompt(
 	step: WorkflowStep & { type: "llm-prompt" },
 	scope: Record<string, unknown>,
-	agent: Agent,
+	options: ResolvedExecuteWorkflowOptions,
 ): Promise<unknown> {
-	const interpolatedPrompt = interpolateTemplate(
-		step.params.prompt,
-		scope,
-		step.id,
-	);
-	const schemaStr = JSON.stringify(step.params.outputFormat, null, 2);
-	const prompt = `${interpolatedPrompt}\n\nYou must respond with valid JSON matching this JSON Schema:\n${schemaStr}\n\nRespond ONLY with the JSON object, no other text.`;
+	if (!options.model) {
+		throw new ConfigurationError(
+			step.id,
+			"AGENT_NOT_PROVIDED",
+			"llm-prompt steps require a LanguageModel to be provided",
+		);
+	}
+
+	const prompt = interpolateTemplate(step.params.prompt, scope, step.id);
+
+	const agent = new ToolLoopAgent({
+		model: options.model,
+		output: Output.object({
+			schema: jsonSchema(
+				step.params.outputFormat as Parameters<typeof jsonSchema>[0],
+			),
+		}),
+		stopWhen: stepCountIs(1),
+	});
+
 	try {
 		const result = await agent.generate({ prompt });
-		return JSON.parse(stripCodeFence(result.text));
+		return result.output;
 	} catch (e) {
 		if (e instanceof StepExecutionError) throw e;
-		if (e instanceof SyntaxError) {
-			throw new OutputQualityError(
-				step.id,
-				"LLM_OUTPUT_PARSE_ERROR",
-				`LLM output is not valid JSON: ${e.message}`,
-				undefined,
-				e,
-			);
-		}
 		throw classifyLlmError(step.id, e);
 	}
 }
