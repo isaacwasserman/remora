@@ -38,7 +38,7 @@ jobs:
         id: version
         run: |
           npx changeset version --snapshot canary
-          version=$(node -p "require('./package.json').version")
+          version=$(node -p "require('./packages/core/package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if echo "$version" | grep -q "canary"; then
             echo "is_snapshot=true" >> "$GITHUB_OUTPUT"
@@ -49,7 +49,9 @@ jobs:
 
       - name: Publish canary to npm
         if: steps.version.outputs.is_snapshot == 'true'
-        run: npm publish --tag canary --provenance --access public --no-git-checks
+        run: |
+          cd packages/core && npm publish --tag canary --provenance --access public --no-git-checks && cd ../..
+          cd packages/ui && npm publish --tag canary --provenance --access public --no-git-checks
 
   release:
     runs-on: ubuntu-latest

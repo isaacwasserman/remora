@@ -1,2 +1,2 @@
-[serve.static]
-plugins = ["bun-plugin-tailwind"]
+# Root bunfig — intentionally minimal.
+# Package-specific config lives in each workspace.

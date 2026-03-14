@@ -1,0 +1,7 @@
+{
+	"name": "registry",
+	"private": true,
+	"scripts": {
+		"build": "bun build-registry.ts"
+	}
+}
