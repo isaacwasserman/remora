@@ -2,7 +2,7 @@
 
 ## How Publishing Works
 
-Remora is published to npm as `@isaacwasserman/remora`. There are two kinds of releases — **canary** (preview) and **stable** — and both are driven by **changeset files**. Here's how the whole thing works, from start to finish.
+Remora is published to npm as `@remoraflow/core`. There are two kinds of releases — **canary** (preview) and **stable** — and both are driven by **changeset files**. Here's how the whole thing works, from start to finish.
 
 ### Changesets: the starting point
 
@@ -16,7 +16,7 @@ It asks you two things: what kind of bump (`patch`, `minor`, or `major`) and a s
 
 ```markdown
 ---
-'@isaacwasserman/remora': minor
+'@remoraflow/core': minor
 ---
 
 Added a new step type for agent loops.
@@ -38,7 +38,7 @@ This creates a changeset file with no version bump. It tells CI "yes, I thought 
 
 When a PR lands on `main`, the publish workflow runs automatically and does two things in parallel:
 
-**1. Canary release** — A canary is a preview version published to npm under the `canary` tag. The workflow looks at the pending changeset files, applies them as a **snapshot** (so the version becomes something like `0.3.0-canary-20260310`), and publishes to npm. This does NOT change `package.json` on `main` — it's a throwaway version just so people can test the latest code with `npm install @isaacwasserman/remora@canary`. If there are no pending changesets, the canary is skipped.
+**1. Canary release** — A canary is a preview version published to npm under the `canary` tag. The workflow looks at the pending changeset files, applies them as a **snapshot** (so the version becomes something like `0.3.0-canary-20260310`), and publishes to npm. This does NOT change `package.json` on `main` — it's a throwaway version just so people can test the latest code with `npm install @remoraflow/core@canary`. If there are no pending changesets, the canary is skipped.
 
 **2. Stable release PR** — The `changesets/action` checks if there are pending changesets. If so, it creates (or updates) a PR titled "chore: version packages". That PR contains the actual `package.json` version bump and changelog updates. When you merge *that* PR, the workflow runs again, sees there are no more changesets to consume, and publishes the new stable version to npm.
 

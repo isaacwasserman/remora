@@ -1,0 +1,11 @@
+{
+	"entryPoints": [
+		"../../packages/core/src/lib.ts",
+		"../../packages/ui/src/index.ts"
+	],
+	"plugin": ["typedoc-plugin-markdown"],
+	"out": "api",
+	"readme": "none",
+	"githubPages": false,
+	"entryFileName": "index"
+}

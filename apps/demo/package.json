@@ -1,0 +1,22 @@
+{
+	"name": "demo",
+	"private": true,
+	"scripts": {
+		"dev": "bun --hot server.ts"
+	},
+	"dependencies": {
+		"@remoraflow/core": "workspace:*",
+		"@remoraflow/ui": "workspace:*"
+	},
+	"devDependencies": {
+		"@ai-sdk/openai": "^3.0.37",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@xyflow/react": "^12.10.1",
+		"ai": "^6.0.105",
+		"bun-plugin-tailwind": "^0.1.2",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4",
+		"tailwindcss": "^4.2.1"
+	}
+}

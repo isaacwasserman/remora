@@ -26,5 +26,13 @@
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
 		"noPropertyAccessFromIndexSignature": false
-	}
+	},
+	"references": [
+		{ "path": "packages/core" },
+		{ "path": "packages/ui" },
+		{ "path": "apps/demo" },
+		{ "path": "apps/docs" },
+		{ "path": "apps/registry" }
+	],
+	"include": []
 }

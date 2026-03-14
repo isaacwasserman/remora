@@ -1,0 +1,17 @@
+{
+	"name": "docs",
+	"private": true,
+	"scripts": {
+		"dev": "bun run api && bunx vitepress dev .",
+		"build": "bun run api && bun run --filter registry build && bunx vitepress build .",
+		"preview": "bunx vitepress preview .",
+		"api": "bunx typedoc"
+	},
+	"devDependencies": {
+		"typedoc": "^0.28.17",
+		"typedoc-plugin-markdown": "^4.10.0",
+		"vitepress": "^1.6.4",
+		"vitepress-plugin-llms": "^1.11.0",
+		"vitepress-plugin-tabs": "^0.8.0"
+	}
+}

@@ -5,6 +5,8 @@ node_modules
 out
 dist
 *.tgz
+*.d.ts
+*.d.ts.map
 
 # code coverage
 coverage
@@ -35,7 +37,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 generated-workflows
 
 # docs
-docs/.vitepress/dist
-docs/.vitepress/cache
-docs/api
-docs/public/r
+apps/docs/.vitepress/dist
+apps/docs/.vitepress/cache
+apps/docs/api
+apps/docs/public/r

@@ -1,8 +1,0 @@
-{
-	"entryPoints": ["src/lib.ts", "src/viewer/index.ts"],
-	"plugin": ["typedoc-plugin-markdown"],
-	"out": "docs/api",
-	"readme": "none",
-	"githubPages": false,
-	"entryFileName": "index"
-}
