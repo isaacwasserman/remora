@@ -1,5 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
+import { Repeat } from "lucide-react";
+import { useEditContext } from "../edit-context";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -15,6 +17,7 @@ function renderExpr(
 }
 
 export function ForEachNode({ data, selected }: NodeProps) {
+	const { isEditing, onDeleteStep } = useEditContext();
 	const {
 		step,
 		diagnostics,
@@ -60,15 +63,33 @@ export function ForEachNode({ data, selected }: NodeProps) {
 
 		return (
 			<div
-				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${borderColor} bg-emerald-50/30 hover:bg-emerald-50/60 hover:border-emerald-500 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:hover:border-emerald-500 ${ringClass}`}
+				className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${borderColor} bg-emerald-50/30 hover:bg-emerald-50/60 hover:border-emerald-500 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:hover:border-emerald-500 ${ringClass} ${isEditing ? "group" : ""} relative`}
 				style={{ width: groupWidth, height: groupHeight }}
 			>
+				{isEditing && (
+					<button
+						type="button"
+						onClick={(e) => {
+							e.stopPropagation();
+							onDeleteStep(step.id);
+						}}
+						className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
+						title="Delete step"
+					>
+						&times;
+					</button>
+				)}
 				<Handle
 					type="target"
 					position={Position.Top}
-					className="!bg-emerald-500 !w-2.5 !h-2.5"
+					className={
+						isEditing
+							? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+							: "!bg-emerald-500 !w-2.5 !h-2.5"
+					}
 				/>
 				<div className="px-3 py-2 flex items-center gap-2">
+					<Repeat className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
 					<span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
 						Loop
 					</span>
@@ -76,11 +97,15 @@ export function ForEachNode({ data, selected }: NodeProps) {
 						{step.name}
 					</span>
 				</div>
-				{hasSourceEdge && (
+				{(hasSourceEdge || isEditing) && (
 					<Handle
 						type="source"
 						position={Position.Bottom}
-						className="!bg-emerald-500 !w-2.5 !h-2.5"
+						className={
+							isEditing
+								? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+								: "!bg-emerald-500 !w-2.5 !h-2.5"
+						}
 					/>
 				)}
 			</div>
@@ -97,9 +122,10 @@ export function ForEachNode({ data, selected }: NodeProps) {
 		<BaseNode
 			id={step.id}
 			name={step.name}
-			typeLabel="ForEach"
+			typeLabel="For Each"
 			typeLabelColor="text-emerald-500"
 			accent="#10b981"
+			icon={<Repeat className="w-3.5 h-3.5" />}
 			description={step.description}
 			diagnostics={diagnostics}
 			selected={selected}

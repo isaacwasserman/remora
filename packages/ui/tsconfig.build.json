@@ -10,7 +10,8 @@
 		"allowImportingTsExtensions": false,
 		"types": [],
 		"paths": {
-			"@remoraflow/core": ["../core/dist/lib.d.ts"]
+			"@remoraflow/core": ["../core/dist/lib.d.ts"],
+			"@/*": ["./src/*"]
 		}
 	},
 	"include": ["src/**/*.ts", "src/**/*.tsx"],

@@ -6,6 +6,7 @@ import type {
 } from "@remoraflow/core";
 import type React from "react";
 import type { StepExecutionSummary } from "../execution-state";
+import { TypeBadge } from "./shared";
 
 export interface StepDetailPanelProps {
 	step: WorkflowStep;
@@ -24,38 +25,6 @@ function renderExpression(
 	if (expr.type === "literal") return JSON.stringify(expr.value);
 	if (expr.type === "template") return expr.template;
 	return expr.expression;
-}
-
-function TypeBadge({ type }: { type: string }) {
-	const colors: Record<string, string> = {
-		"tool-call":
-			"bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
-		"llm-prompt":
-			"bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-400",
-		"extract-data":
-			"bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
-		"switch-case":
-			"bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
-		"for-each":
-			"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400",
-		"agent-loop":
-			"bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400",
-		sleep:
-			"bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400",
-		"wait-for-condition":
-			"bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
-		start:
-			"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
-		end: "bg-muted text-muted-foreground",
-	};
-	const fallback = "bg-muted text-muted-foreground";
-	return (
-		<span
-			className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colors[type] ?? fallback}`}
-		>
-			{type}
-		</span>
-	);
 }
 
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
@@ -468,22 +437,21 @@ export function StepDetailPanel({
 	return (
 		<div className="w-[340px] border-l h-full min-h-0 overflow-y-auto shadow-lg bg-card border-border">
 			<div className="sticky top-0 border-b px-4 py-3 flex items-center justify-between bg-card border-border">
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 min-w-0">
 					<TypeBadge type={step.type} />
-					<span className="font-medium text-sm truncate text-foreground">
-						{step.name}
-					</span>
 				</div>
 				<button
 					type="button"
 					onClick={onClose}
-					className="text-lg leading-none text-muted-foreground hover:text-foreground"
+					className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0"
 				>
 					&times;
 				</button>
 			</div>
 
 			<div className="px-4 py-3 space-y-4">
+				<div className="font-medium text-sm text-foreground">{step.name}</div>
+
 				<div>
 					<Label>Step ID</Label>
 					<div className="text-xs font-mono text-muted-foreground">

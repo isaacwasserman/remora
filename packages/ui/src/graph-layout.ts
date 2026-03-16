@@ -23,12 +23,11 @@ export interface StepNodeData {
 
 const NODE_WIDTH = 300;
 const NODE_HEIGHT = 180;
-const END_NODE_SIZE = 60;
 const START_NODE_SIZE = 60;
 const GROUP_HEADER_WIDTH = 280;
 const GROUP_HEADER_HEIGHT = 80;
-const GROUP_PADDING = 30;
-const GROUP_HEADER = 40;
+export const GROUP_PADDING = 30;
+export const GROUP_HEADER = 40;
 
 const START_NODE_ID = "__start__";
 
@@ -75,12 +74,9 @@ function renderExpression(
 }
 
 function nodeSize(
-	step: WorkflowStep,
-	workflow?: WorkflowDefinition,
+	_step: WorkflowStep,
+	_workflow?: WorkflowDefinition,
 ): { w: number; h: number } {
-	if (step.type === "end" && !step.params?.output && !workflow?.outputSchema) {
-		return { w: END_NODE_SIZE, h: END_NODE_SIZE };
-	}
 	return { w: NODE_WIDTH, h: NODE_HEIGHT };
 }
 
@@ -213,10 +209,14 @@ function getNodeDimensions(
 }
 
 export function buildLayout(
-	workflow: WorkflowDefinition,
+	workflow: WorkflowDefinition | null,
 	diagnostics: Diagnostic[] = [],
 	executionState?: ExecutionState,
 ): { nodes: Node[]; edges: Edge[] } {
+	if (!workflow || workflow.steps.length === 0) {
+		return { nodes: [], edges: [] };
+	}
+
 	// --- Step 1: Build maps ---
 	const stepSummaries = executionState
 		? deriveStepSummaries(executionState)
@@ -520,7 +520,7 @@ export function buildLayout(
 					isGroup: true,
 					groupWidth: size.w,
 					groupHeight: size.h,
-					hasSourceEdge: !!step.nextStepId,
+					...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
 					executionSummary: stepSummaries?.get(id),
 				},
 				style: { width: size.w, height: size.h },
@@ -598,13 +598,13 @@ export function buildLayout(
 			const nodeData: Record<string, unknown> = {
 				step,
 				diagnostics: diagnosticsByStep.get(id) ?? [],
-				hasSourceEdge: !!step.nextStepId,
+				...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
 				executionSummary: stepSummaries?.get(id),
 			};
-			if (step.type === "start" && workflow.inputSchema) {
+			if (step.type === "start" && workflow?.inputSchema) {
 				nodeData.inputSchema = workflow.inputSchema;
 			}
-			if (step.type === "end" && workflow.outputSchema) {
+			if (step.type === "end" && workflow?.outputSchema) {
 				nodeData.outputSchema = workflow.outputSchema;
 			}
 
@@ -742,6 +742,151 @@ export function buildLayout(
 				},
 			});
 		}
+	}
+
+	return { nodes, edges };
+}
+
+const EMPTY_GROUP_WIDTH = GROUP_HEADER_WIDTH + GROUP_PADDING * 2;
+const EMPTY_GROUP_HEIGHT = GROUP_HEADER_HEIGHT + GROUP_HEADER + GROUP_PADDING;
+const GROUP_STEP_TYPES = new Set([
+	"for-each",
+	"switch-case",
+	"wait-for-condition",
+]);
+
+function buildGroupHeaderData(
+	step: WorkflowStep,
+	diagnostics: Diagnostic[],
+): Record<string, unknown> {
+	const stepDiags = diagnostics.filter((d) => d.location.stepId === step.id);
+
+	if (step.type === "switch-case") {
+		return {
+			variant: "switch",
+			description: step.description,
+			expression: renderExpression(step.params.switchOn),
+			step,
+			diagnostics: stepDiags,
+		};
+	}
+	if (step.type === "for-each") {
+		return {
+			variant: "loop",
+			description: step.description,
+			target: renderExpression(step.params.target),
+			itemName: step.params.itemName,
+			step,
+			diagnostics: stepDiags,
+		};
+	}
+	if (step.type === "wait-for-condition") {
+		return {
+			variant: "condition",
+			description: step.description,
+			condition: renderExpression(step.params.condition),
+		};
+	}
+	return {};
+}
+
+/**
+ * Build layout for edit mode, applying user position overrides on top of dagre layout.
+ * Nodes with overrides get their dagre-computed position replaced.
+ */
+export function buildEditableLayout(
+	workflow: WorkflowDefinition | null,
+	diagnostics: Diagnostic[] = [],
+	executionState?: ExecutionState,
+	positionOverrides?: Map<string, { x: number; y: number }>,
+	dimensionOverrides?: Map<string, { width: number; height: number }>,
+): { nodes: Node[]; edges: Edge[] } {
+	const result = buildLayout(workflow, diagnostics, executionState);
+
+	// Filter out the pseudo __start__ node in edit mode — users create explicit start/end steps instead.
+	// Keep __header__* nodes since those are group headers for for-each/switch-case/wait-for-condition.
+	let nodes = result.nodes.filter((n) => n.id !== "__start__");
+	const edges = result.edges.filter(
+		(e) => e.source !== "__start__" && e.target !== "__start__",
+	);
+
+	// In edit mode, group-type steps without children should still render as
+	// group containers with a header node so users can connect children to them.
+	if (workflow) {
+		const existingGroupIds = new Set(
+			nodes
+				.filter((n) => (n.data as Record<string, unknown>)?.isGroup === true)
+				.map((n) => n.id),
+		);
+
+		for (const step of workflow.steps) {
+			if (!GROUP_STEP_TYPES.has(step.type)) continue;
+			if (existingGroupIds.has(step.id)) continue;
+
+			const flatNodeIdx = nodes.findIndex((n) => n.id === step.id);
+			if (flatNodeIdx === -1) continue;
+			const flatNode = nodes[flatNodeIdx] as Node;
+
+			// Replace flat node with group container
+			nodes[flatNodeIdx] = {
+				...flatNode,
+				data: {
+					...(flatNode.data as Record<string, unknown>),
+					isGroup: true,
+					groupWidth: EMPTY_GROUP_WIDTH,
+					groupHeight: EMPTY_GROUP_HEIGHT,
+				},
+				style: { width: EMPTY_GROUP_WIDTH, height: EMPTY_GROUP_HEIGHT },
+			};
+
+			// Inject header node as child
+			nodes.push({
+				id: groupHeaderId(step.id),
+				type: "groupHeader",
+				position: {
+					x: (EMPTY_GROUP_WIDTH - GROUP_HEADER_WIDTH) / 2,
+					y: GROUP_HEADER,
+				},
+				data: buildGroupHeaderData(step, diagnostics),
+				parentId: step.id,
+				extent: "parent" as const,
+			});
+		}
+	}
+
+	// In edit mode, remove extent constraint so children can be dragged freely
+	// (the parent group will expand to fit via onNodeDrag in the viewer).
+	nodes = nodes.map((node) => {
+		if (node.parentId && node.extent) {
+			const { extent, ...rest } = node;
+			return rest;
+		}
+		return node;
+	});
+
+	if (positionOverrides && positionOverrides.size > 0) {
+		nodes = nodes.map((node) => {
+			const override = positionOverrides.get(node.id);
+			if (override && !node.parentId) {
+				return { ...node, position: override };
+			}
+			return node;
+		});
+	}
+
+	if (dimensionOverrides && dimensionOverrides.size > 0) {
+		nodes = nodes.map((node) => {
+			const dims = dimensionOverrides.get(node.id);
+			if (dims) {
+				const data = node.data as Record<string, unknown>;
+				return {
+					...node,
+					style: { ...node.style, width: dims.width, height: dims.height },
+					data: { ...data, groupWidth: dims.width, groupHeight: dims.height },
+				};
+			}
+			return node;
+		});
 	}
 
 	return { nodes, edges };

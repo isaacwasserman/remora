@@ -1,6 +1,7 @@
 import type { Diagnostic } from "@remoraflow/core";
 import { Handle, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
+import { useEditContext } from "../edit-context";
 import type { StepExecutionSummary } from "../execution-state";
 
 interface BaseNodeProps {
@@ -11,6 +12,7 @@ interface BaseNodeProps {
 	accent: string;
 	description: string;
 	diagnostics: Diagnostic[];
+	icon?: ReactNode;
 	children?: ReactNode;
 	selected?: boolean;
 	hasSourceEdge?: boolean;
@@ -63,12 +65,14 @@ export function BaseNode({
 	accent,
 	description,
 	diagnostics,
+	icon,
 	children,
 	selected,
 	hasSourceEdge = true,
 	hasTargetEdge = true,
 	executionSummary,
 }: BaseNodeProps) {
+	const { isEditing, onDeleteStep } = useEditContext();
 	const hasErrors = diagnostics.some((d) => d.severity === "error");
 	const hasWarnings =
 		!hasErrors && diagnostics.some((d) => d.severity === "warning");
@@ -98,29 +102,42 @@ export function BaseNode({
 
 	const hasRing = hasErrors || hasWarnings || selected || !!executionSummary;
 
+	const handleClass = isEditing
+		? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+		: "!w-2 !h-2 !bg-muted-foreground";
+
 	return (
 		<div
-			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"}`}
+			className={`rounded-lg shadow-md border-l-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"} ${isEditing ? "cursor-grab active:cursor-grabbing group" : ""} relative`}
 			style={{ borderLeftColor: accent }}
 		>
-			{hasTargetEdge && (
-				<Handle
-					type="target"
-					position={Position.Top}
-					className="!w-2 !h-2 !bg-muted-foreground"
-				/>
+			{isEditing && (
+				<button
+					type="button"
+					onClick={(e) => {
+						e.stopPropagation();
+						onDeleteStep(id);
+					}}
+					className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
+					title="Delete step"
+				>
+					&times;
+				</button>
+			)}
+			{(hasTargetEdge || (isEditing && hasTargetEdge !== false)) && (
+				<Handle type="target" position={Position.Top} className={handleClass} />
 			)}
 			<div className="px-3 py-2.5">
 				<div className="flex items-center justify-between gap-2">
-					<div className="flex items-center gap-2 min-w-0">
+					<div className="flex items-center gap-1.5 min-w-0">
+						{icon && (
+							<span className={`shrink-0 ${typeLabelColor}`}>{icon}</span>
+						)}
 						<span
 							className={`text-[10px] font-semibold uppercase tracking-wide shrink-0 ${typeLabelColor}`}
 						>
 							{typeLabel}
 						</span>
-						<div className="font-medium text-sm truncate text-foreground">
-							{name}
-						</div>
 					</div>
 					<div className="flex items-center gap-1.5 shrink-0">
 						{executionSummary && executionSummary.totalRetries > 0 && (
@@ -145,6 +162,9 @@ export function BaseNode({
 						)}
 					</div>
 				</div>
+				<div className="font-medium text-sm truncate text-foreground">
+					{name}
+				</div>
 				<div className="text-[11px] font-mono text-muted-foreground">{id}</div>
 				<div className="text-[11px] mt-1 text-muted-foreground">
 					{description}
@@ -153,11 +173,11 @@ export function BaseNode({
 					<div className="mt-2 border-t pt-2 border-border">{children}</div>
 				)}
 			</div>
-			{hasSourceEdge && (
+			{(hasSourceEdge || (isEditing && hasSourceEdge !== false)) && (
 				<Handle
 					type="source"
 					position={Position.Bottom}
-					className="!w-2 !h-2 !bg-muted-foreground"
+					className={handleClass}
 				/>
 			)}
 		</div>

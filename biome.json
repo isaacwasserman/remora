@@ -6,7 +6,8 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"ignoreUnknown": false
+		"ignoreUnknown": false,
+		"includes": ["**", "!apps/demo/styles.css", "!apps/demo/index.html"]
 	},
 	"formatter": {
 		"enabled": true,
@@ -16,6 +17,14 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"a11y": {
+				"noLabelWithoutControl": {
+					"level": "error",
+					"options": {
+						"inputComponents": ["Input", "Textarea", "Select", "Switch"]
+					}
+				}
+			},
 			"style": {
 				"noNonNullAssertion": "error"
 			},

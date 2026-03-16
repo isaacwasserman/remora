@@ -108,11 +108,14 @@ export async function compileWorkflow(
 	};
 }
 
-async function extractToolSchemas(tools: ToolSet): Promise<ToolDefinitionMap> {
+export async function extractToolSchemas(
+	tools: ToolSet,
+): Promise<ToolDefinitionMap> {
 	const schemas: ToolDefinitionMap = {};
 	for (const [name, toolDef] of Object.entries(tools)) {
 		const jsonSchema = await asSchema(toolDef.inputSchema).jsonSchema;
 		schemas[name] = {
+			description: toolDef.description,
 			inputSchema: jsonSchema as ToolDefinitionMap[string]["inputSchema"],
 		};
 		if (toolDef.outputSchema) {
@@ -133,4 +136,6 @@ export type {
 	DiagnosticLocation,
 	DiagnosticSeverity,
 	ExecutionGraph,
+	ToolDefinitionMap,
+	ToolSchemaDefinition,
 } from "./types";

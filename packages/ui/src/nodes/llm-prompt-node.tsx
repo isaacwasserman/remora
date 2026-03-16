@@ -1,4 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
+import { Sparkles } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -23,9 +24,10 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
 		<BaseNode
 			id={step.id}
 			name={step.name}
-			typeLabel="LLM"
+			typeLabel="LLM Prompt"
 			typeLabelColor="text-violet-500"
 			accent="#8b5cf6"
+			icon={<Sparkles className="w-3.5 h-3.5" />}
 			description={step.description}
 			diagnostics={diagnostics}
 			selected={selected}

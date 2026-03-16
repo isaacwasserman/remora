@@ -16,6 +16,9 @@ const VIEWER_FILES: FileEntry[] = [
 	{ relPath: "workflow-viewer.tsx", type: "registry:component" },
 	{ relPath: "graph-layout.ts", type: "registry:component" },
 	{ relPath: "theme.tsx", type: "registry:component" },
+	{ relPath: "edit-context.tsx", type: "registry:component" },
+	{ relPath: "hooks/use-editable-workflow.ts", type: "registry:component" },
+	{ relPath: "utils/step-defaults.ts", type: "registry:component" },
 	{ relPath: "edges/workflow-edge.tsx", type: "registry:component" },
 	{ relPath: "nodes/base-node.tsx", type: "registry:component" },
 	{ relPath: "nodes/tool-call-node.tsx", type: "registry:component" },
@@ -30,12 +33,23 @@ const VIEWER_FILES: FileEntry[] = [
 	{ relPath: "nodes/sleep-node.tsx", type: "registry:component" },
 	{ relPath: "nodes/wait-for-condition-node.tsx", type: "registry:component" },
 	{ relPath: "nodes/agent-loop-node.tsx", type: "registry:component" },
+	{ relPath: "components/step-palette.tsx", type: "registry:component" },
+	{
+		relPath: "components/canvas-context-menu.tsx",
+		type: "registry:component",
+	},
+	{ relPath: "editors/expression-editor.tsx", type: "registry:component" },
+	{ relPath: "panels/shared.tsx", type: "registry:component" },
 	{ relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
+	{ relPath: "panels/step-editor-panel.tsx", type: "registry:component" },
 ];
 
 const PANEL_FILES: FileEntry[] = [
 	{ relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
 ];
+
+/** Prefixes that map to shadcn-convention `@/` imports in the consumer's project. */
+const SHADCN_INTERNAL_PREFIXES = ["components/ui/", "lib/"];
 
 function transformImports(
 	content: string,
@@ -47,6 +61,7 @@ function transformImports(
 	return content.replace(
 		/(from\s+["'])([^"']+)(["'])/g,
 		(match, prefix, specifier, suffix) => {
+			// Pass through non-relative imports (npm packages, @/ aliases, etc.)
 			if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
 				return match;
 			}
@@ -57,6 +72,14 @@ function transformImports(
 			// If the resolved path points to a file in the registry, keep it relative.
 			if (registryFiles.has(resolved)) {
 				return match;
+			}
+
+			// If the resolved path points to a shadcn internal file (components/ui/*, lib/*),
+			// rewrite to @/ alias so it resolves in the consumer's shadcn project.
+			for (const p of SHADCN_INTERNAL_PREFIXES) {
+				if (resolved.startsWith(p)) {
+					return `${prefix}@/${resolved}${suffix}`;
+				}
 			}
 
 			// Viewer-internal file not in this registry item — use the UI package.
@@ -97,7 +120,7 @@ async function main() {
 		description:
 			"Interactive DAG visualization for Remora workflow definitions, built with React Flow. Requires Tailwind CSS and @xyflow/react/dist/style.css to be imported in your app.",
 		dependencies: ["@remoraflow/core", "@xyflow/react", "@dagrejs/dagre"],
-		registryDependencies: [],
+		registryDependencies: ["button", "input", "select", "textarea", "label"],
 		files: viewerFiles,
 	};
 

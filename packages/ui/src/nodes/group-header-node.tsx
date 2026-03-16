@@ -1,5 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
+import { GitBranch, Repeat, Timer } from "lucide-react";
+import { useEditContext } from "../edit-context";
 
 interface GroupHeaderData {
 	variant: "switch" | "loop" | "condition";
@@ -54,6 +56,7 @@ function formatValue(value: unknown): string {
 }
 
 export function GroupHeaderNode({ data, selected }: NodeProps) {
+	const { isEditing } = useEditContext();
 	const {
 		variant,
 		description,
@@ -74,7 +77,8 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 		>
 			<div className="px-3 py-2">
 				{variant === "switch" && (
-					<div className="flex items-baseline gap-1.5">
+					<div className="flex items-center gap-1.5">
+						<GitBranch className={`w-3.5 h-3.5 shrink-0 ${s.label}`} />
 						<span
 							className={`text-[10px] font-bold uppercase tracking-wide ${s.label} shrink-0`}
 						>
@@ -94,7 +98,8 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 					</div>
 				)}
 				{variant === "loop" && (
-					<div className="flex items-baseline gap-1.5 flex-wrap">
+					<div className="flex items-center gap-1.5 flex-wrap">
+						<Repeat className={`w-3.5 h-3.5 shrink-0 ${s.label}`} />
 						<span
 							className={`text-[10px] font-bold uppercase tracking-wide ${s.label} shrink-0`}
 						>
@@ -117,7 +122,8 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 					</div>
 				)}
 				{variant === "condition" && (
-					<div className="flex items-baseline gap-1.5">
+					<div className="flex items-center gap-1.5">
+						<Timer className={`w-3.5 h-3.5 shrink-0 ${s.label}`} />
 						<span
 							className={`text-[10px] font-bold uppercase tracking-wide ${s.label} shrink-0`}
 						>
@@ -139,7 +145,11 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
 			<Handle
 				type="source"
 				position={Position.Bottom}
-				className={`${s.handle} !w-2 !h-2`}
+				className={
+					isEditing
+						? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+						: `${s.handle} !w-2 !h-2`
+				}
 			/>
 		</div>
 	);

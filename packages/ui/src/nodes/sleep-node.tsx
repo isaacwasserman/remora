@@ -1,4 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
+import { Moon } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -14,7 +15,8 @@ function renderExpr(
 }
 
 export function SleepNode({ data, selected }: NodeProps) {
-	const { step, diagnostics, hasSourceEdge } = data as unknown as StepNodeData;
+	const { step, diagnostics, hasSourceEdge, executionSummary } =
+		data as unknown as StepNodeData;
 	if (step.type !== "sleep") return null;
 
 	return (
@@ -24,10 +26,12 @@ export function SleepNode({ data, selected }: NodeProps) {
 			typeLabel="Sleep"
 			typeLabelColor="text-amber-500"
 			accent="#f59e0b"
+			icon={<Moon className="w-3.5 h-3.5" />}
 			description={step.description}
 			diagnostics={diagnostics}
 			selected={selected}
 			hasSourceEdge={hasSourceEdge}
+			executionSummary={executionSummary}
 		>
 			<div className="flex gap-1.5 text-[11px]">
 				<span className="text-muted-foreground shrink-0">duration:</span>

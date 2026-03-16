@@ -53,12 +53,12 @@ export function useThemeColors() {
 		const resolve = (v: string, fb: string) => resolveCssColor(v, fb);
 		return {
 			dark,
-			border: resolve("--border", dark ? "#374151" : "#e5e7eb"),
+			border: resolve("--color-border", dark ? "#374151" : "#e5e7eb"),
 			mutedForeground: resolve(
-				"--muted-foreground",
+				"--color-muted-foreground",
 				dark ? "#9ca3af" : "#6b7280",
 			),
-			card: resolve("--card", dark ? "#1f2937" : "#ffffff"),
+			card: resolve("--color-card", dark ? "#1f2937" : "#ffffff"),
 		};
 	}, [dark]);
 }

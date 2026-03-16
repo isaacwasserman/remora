@@ -8,8 +8,10 @@ export type {
 	DiagnosticLocation,
 	DiagnosticSeverity,
 	ExecutionGraph,
+	ToolDefinitionMap,
+	ToolSchemaDefinition,
 } from "./compiler";
-export { compileWorkflow } from "./compiler";
+export { compileWorkflow, extractToolSchemas } from "./compiler";
 export type {
 	ExecuteWorkflowOptions,
 	ExecutionResult,

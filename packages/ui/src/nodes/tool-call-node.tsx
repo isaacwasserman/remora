@@ -1,4 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
+import { Wrench } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -32,9 +33,10 @@ export function ToolCallNode({ data, selected }: NodeProps) {
 		<BaseNode
 			id={step.id}
 			name={step.name}
-			typeLabel="Tool"
+			typeLabel="Tool Call"
 			typeLabelColor="text-blue-500"
 			accent="#3b82f6"
+			icon={<Wrench className="w-3.5 h-3.5" />}
 			description={step.description}
 			diagnostics={diagnostics}
 			selected={selected}

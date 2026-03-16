@@ -1,4 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
+import { Play } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -21,6 +22,7 @@ export function StartStepNode({ data, selected }: NodeProps) {
 			typeLabel="Start"
 			typeLabelColor="text-green-500"
 			accent="#22c55e"
+			icon={<Play className="w-3.5 h-3.5" />}
 			description={step.description}
 			diagnostics={diagnostics}
 			selected={selected}

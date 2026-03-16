@@ -4,10 +4,12 @@ import {
 	type EdgeProps,
 	getBezierPath,
 } from "@xyflow/react";
+import { useEditContext } from "../edit-context";
 import { useThemeColors } from "../theme";
 
 export function WorkflowEdge({
 	id,
+	source,
 	sourceX,
 	sourceY,
 	targetX,
@@ -20,6 +22,7 @@ export function WorkflowEdge({
 	style,
 }: EdgeProps) {
 	const theme = useThemeColors();
+	const { isEditing, onDisconnectStep } = useEditContext();
 	const edgeKind = (data?.edgeKind as string) ?? "sequential";
 	const isContinuation = edgeKind === "continuation";
 	const isExecuted = data?.executed === true;
@@ -62,8 +65,8 @@ export function WorkflowEdge({
 					opacity,
 				}}
 			/>
-			{label && (
-				<EdgeLabelRenderer>
+			<EdgeLabelRenderer>
+				{label && (
 					<div
 						style={{
 							position: "absolute",
@@ -75,8 +78,24 @@ export function WorkflowEdge({
 					>
 						{label}
 					</div>
-				</EdgeLabelRenderer>
-			)}
+				)}
+				{isEditing && source && (
+					<button
+						type="button"
+						onClick={() => onDisconnectStep(source)}
+						style={{
+							position: "absolute",
+							transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + (label ? 16 : 0)}px)`,
+							pointerEvents: "all",
+							zIndex: 10,
+						}}
+						className="w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center hover:bg-red-600 shadow-sm opacity-0 hover:opacity-100 transition-opacity"
+						title="Remove connection"
+					>
+						&times;
+					</button>
+				)}
+			</EdgeLabelRenderer>
 		</>
 	);
 }

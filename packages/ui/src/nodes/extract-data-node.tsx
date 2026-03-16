@@ -1,4 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
+import { FileOutput } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
@@ -34,9 +35,10 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
 		<BaseNode
 			id={step.id}
 			name={step.name}
-			typeLabel="Extract"
+			typeLabel="Extract Data"
 			typeLabelColor="text-purple-500"
 			accent="#a855f7"
+			icon={<FileOutput className="w-3.5 h-3.5" />}
 			description={step.description}
 			diagnostics={diagnostics}
 			selected={selected}

@@ -65,6 +65,7 @@ export interface Diagnostic {
 
 /** JSON Schema representation of a tool's input and output. */
 export interface ToolSchemaDefinition {
+	description?: string;
 	inputSchema: {
 		required?: string[];
 		properties?: Record<string, unknown>;
