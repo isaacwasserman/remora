@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --hot dev.ts",
-    "build": "bun build index.html --outdir dist"
+    "build": "bun build.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.37",
