@@ -179,6 +179,87 @@ function App() {
 
 Requires `@xyflow/react` and `@xyflow/react/dist/style.css` imported in your app.
 
+## Edit a Workflow Visually
+
+Set `isEditing` on `WorkflowViewer` to enable a full canvas editor. In editing mode, users can add steps via right-click context menu or a step palette, connect steps by dragging edges, and delete nodes. Use [`StepEditorPanel`](/api/viewer/functions/StepEditorPanel) as the side panel to let users edit step parameters:
+
+```tsx
+import {
+  WorkflowViewer,
+  StepEditorPanel,
+  StepDetailPanel,
+} from "@remoraflow/ui";
+import type { WorkflowDefinition, WorkflowStep, Diagnostic } from "@remoraflow/core";
+import { useState } from "react";
+
+function WorkflowEditor({ tools }) {
+  const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
+  const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+  const [stepDiagnostics, setStepDiagnostics] = useState<Diagnostic[]>([]);
+  const [isEditing, setIsEditing] = useState(true);
+
+  const availableToolNames = Object.keys(tools ?? {});
+
+  return (
+    <div style={{ display: "flex", height: "100vh" }}>
+      <div style={{ flex: 1 }}>
+        <WorkflowViewer
+          workflow={workflow}
+          isEditing={isEditing}
+          onWorkflowChange={setWorkflow}
+          tools={tools}
+          onStepSelect={(s, d) => { setSelectedStep(s); setStepDiagnostics(d); }}
+        />
+      </div>
+      {selectedStep && isEditing && (
+        <StepEditorPanel
+          step={selectedStep}
+          availableToolNames={availableToolNames}
+          allStepIds={workflow?.steps.map((s) => s.id) ?? []}
+          diagnostics={stepDiagnostics}
+          onChange={(updates) => {
+            // updates is a partial step object — merge into the workflow
+          }}
+          onClose={() => setSelectedStep(null)}
+        />
+      )}
+      {selectedStep && !isEditing && (
+        <StepDetailPanel
+          step={selectedStep}
+          diagnostics={stepDiagnostics}
+          onClose={() => setSelectedStep(null)}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+Pass `workflow={null}` to start with an empty canvas. The `onWorkflowChange` callback is called with the updated `WorkflowDefinition` whenever a step is added, removed, or modified.
+
+### `WorkflowViewer` editing props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `isEditing` | `boolean` | `false` | Enables canvas editing mode. |
+| `onWorkflowChange` | `(w: WorkflowDefinition) => void` | — | Called on every workflow mutation. |
+| `tools` | `ToolSet` | — | Provides tool name autocomplete in the step editor. |
+
+### `StepEditorPanel` props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `step` | `WorkflowStep` | Yes | The step to edit. |
+| `availableToolNames` | `string[]` | Yes | Tool names for autocomplete in `tool-call` steps. |
+| `allStepIds` | `string[]` | Yes | All step IDs for reference validation in editors. |
+| `toolSchemas` | `ToolDefinitionMap` | No | Tool schemas for parameter hints. |
+| `diagnostics` | `Diagnostic[]` | No | Diagnostics to highlight on specific fields. |
+| `workflowInputSchema` | `object` | No | Workflow-level input schema (for `start` step editor). |
+| `workflowOutputSchema` | `object` | No | Workflow-level output schema (for `end` step editor). |
+| `onChange` | `(updates: Record<string, unknown>) => void` | Yes | Called with a partial step object on any field change. |
+| `onWorkflowMetaChange` | `(updates: Record<string, unknown>) => void` | No | Called when the user edits the workflow's `inputSchema` or `outputSchema` (from start/end step editors). |
+| `onClose` | `() => void` | Yes | Called when the user closes the panel. |
+
 ### Install via shadcn
 
 The viewer components are also available as a [shadcn registry](/guide/component-registry). This copies the source directly into your project, letting you customize the components:

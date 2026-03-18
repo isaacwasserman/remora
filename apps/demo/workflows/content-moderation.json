@@ -1,249 +1,249 @@
 {
-	"initialStepId": "start",
-	"inputSchema": {
-		"type": "object",
-		"properties": {
-			"batchId": {
-				"type": "string",
-				"description": "The submission batch to moderate"
-			}
-		},
-		"required": ["batchId"]
-	},
-	"outputSchema": {
-		"type": "object",
-		"properties": {
-			"totalProcessed": { "type": "number" },
-			"summary": { "type": "string" }
-		},
-		"required": ["totalProcessed", "summary"]
-	},
-	"steps": [
-		{
-			"id": "start",
-			"name": "Start",
-			"description": "Begin content moderation workflow",
-			"type": "start",
-			"nextStepId": "fetch_content"
-		},
-		{
-			"id": "fetch_content",
-			"name": "Fetch Submissions",
-			"description": "Get all pending submissions for the batch",
-			"type": "tool-call",
-			"params": {
-				"toolName": "fetch-submissions",
-				"toolInput": {
-					"batchId": {
-						"type": "jmespath",
-						"expression": "input.batchId"
-					}
-				}
-			},
-			"nextStepId": "moderate_all"
-		},
-		{
-			"id": "moderate_all",
-			"name": "Moderate Each Submission",
-			"description": "Iterate over submissions for moderation",
-			"type": "for-each",
-			"params": {
-				"target": {
-					"type": "jmespath",
-					"expression": "fetch_content.submissions"
-				},
-				"itemName": "submission",
-				"loopBodyStepId": "analyze_content"
-			},
-			"nextStepId": "generate_report"
-		},
-		{
-			"id": "analyze_content",
-			"name": "Analyze Content",
-			"description": "Use an agent to thoroughly analyze the submission for policy violations",
-			"type": "agent-loop",
-			"params": {
-				"instructions": "Analyze the following submission for policy violations: ${submission.text}. Check for hate speech, spam, misinformation, and copyright issues. Use available tools to verify claims and check against known sources.",
-				"tools": [
-					"check-hate-speech",
-					"check-spam-score",
-					"reverse-image-search",
-					"plagiarism-check"
-				],
-				"outputFormat": {
-					"type": "object",
-					"properties": {
-						"action": {
-							"type": "string",
-							"enum": ["approve", "reject", "review"]
-						},
-						"reason": { "type": "string" },
-						"confidence": { "type": "number" }
-					},
-					"required": ["action", "reason", "confidence"]
-				},
-				"maxSteps": { "type": "literal", "value": 5 }
-			},
-			"nextStepId": "route_content"
-		},
-		{
-			"id": "route_content",
-			"name": "Route Content",
-			"description": "Branch based on moderation decision",
-			"type": "switch-case",
-			"params": {
-				"switchOn": {
-					"type": "jmespath",
-					"expression": "analyze_content.action"
-				},
-				"cases": [
-					{
-						"value": { "type": "literal", "value": "approve" },
-						"branchBodyStepId": "publish"
-					},
-					{
-						"value": { "type": "literal", "value": "reject" },
-						"branchBodyStepId": "quarantine_rejected"
-					},
-					{
-						"value": { "type": "default" },
-						"branchBodyStepId": "quarantine_review"
-					}
-				]
-			},
-			"nextStepId": "rate_limit"
-		},
-		{
-			"id": "publish",
-			"name": "Publish Content",
-			"description": "Publish the approved content",
-			"type": "tool-call",
-			"params": {
-				"toolName": "publish-content",
-				"toolInput": {
-					"submissionId": {
-						"type": "jmespath",
-						"expression": "submission.id"
-					}
-				}
-			},
-			"nextStepId": "notify_approved"
-		},
-		{
-			"id": "notify_approved",
-			"name": "Notify Approved",
-			"description": "Notify author their content was approved",
-			"type": "tool-call",
-			"params": {
-				"toolName": "send-notification",
-				"toolInput": {
-					"userId": {
-						"type": "jmespath",
-						"expression": "submission.userId"
-					},
-					"message": {
-						"type": "literal",
-						"value": "Your submission has been approved and published."
-					}
-				}
-			}
-		},
-		{
-			"id": "quarantine_rejected",
-			"name": "Quarantine Rejected",
-			"description": "Quarantine content that violates policies",
-			"type": "tool-call",
-			"params": {
-				"toolName": "quarantine-content",
-				"toolInput": {
-					"submissionId": {
-						"type": "jmespath",
-						"expression": "submission.id"
-					},
-					"reason": {
-						"type": "jmespath",
-						"expression": "analyze_content.reason"
-					}
-				}
-			},
-			"nextStepId": "notify_rejected"
-		},
-		{
-			"id": "notify_rejected",
-			"name": "Notify Rejected",
-			"description": "Notify author their content was rejected",
-			"type": "tool-call",
-			"params": {
-				"toolName": "send-notification",
-				"toolInput": {
-					"userId": {
-						"type": "jmespath",
-						"expression": "submission.userId"
-					},
-					"message": {
-						"type": "literal",
-						"value": "Your submission has been removed for policy violations."
-					}
-				}
-			}
-		},
-		{
-			"id": "quarantine_review",
-			"name": "Quarantine for Review",
-			"description": "Quarantine borderline content for manual review",
-			"type": "tool-call",
-			"params": {
-				"toolName": "quarantine-content",
-				"toolInput": {
-					"submissionId": {
-						"type": "jmespath",
-						"expression": "submission.id"
-					},
-					"reason": {
-						"type": "literal",
-						"value": "Flagged for manual review"
-					}
-				}
-			}
-		},
-		{
-			"id": "rate_limit",
-			"name": "Rate Limit Pause",
-			"description": "Brief pause between submissions to respect API rate limits",
-			"type": "sleep",
-			"params": {
-				"durationMs": { "type": "literal", "value": 500 }
-			}
-		},
-		{
-			"id": "generate_report",
-			"name": "Generate Report",
-			"description": "Generate a moderation summary report",
-			"type": "llm-prompt",
-			"params": {
-				"prompt": "Generate a moderation summary for batch ${input.batchId}. ${length(moderate_all)} submissions were processed.",
-				"outputFormat": {
-					"type": "object",
-					"properties": {
-						"totalProcessed": { "type": "number" },
-						"summary": { "type": "string" }
-					},
-					"required": ["totalProcessed", "summary"]
-				}
-			},
-			"nextStepId": "moderation_done"
-		},
-		{
-			"id": "moderation_done",
-			"name": "Done",
-			"description": "End of moderation workflow",
-			"type": "end",
-			"params": {
-				"output": {
-					"type": "jmespath",
-					"expression": "generate_report"
-				}
-			}
-		}
-	]
+  "initialStepId": "start",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "batchId": {
+        "type": "string",
+        "description": "The submission batch to moderate"
+      }
+    },
+    "required": ["batchId"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "totalProcessed": { "type": "number" },
+      "summary": { "type": "string" }
+    },
+    "required": ["totalProcessed", "summary"]
+  },
+  "steps": [
+    {
+      "id": "start",
+      "name": "Start",
+      "description": "Begin content moderation workflow",
+      "type": "start",
+      "nextStepId": "fetch_content"
+    },
+    {
+      "id": "fetch_content",
+      "name": "Fetch Submissions",
+      "description": "Get all pending submissions for the batch",
+      "type": "tool-call",
+      "params": {
+        "toolName": "fetch-submissions",
+        "toolInput": {
+          "batchId": {
+            "type": "jmespath",
+            "expression": "input.batchId"
+          }
+        }
+      },
+      "nextStepId": "moderate_all"
+    },
+    {
+      "id": "moderate_all",
+      "name": "Moderate Each Submission",
+      "description": "Iterate over submissions for moderation",
+      "type": "for-each",
+      "params": {
+        "target": {
+          "type": "jmespath",
+          "expression": "fetch_content.submissions"
+        },
+        "itemName": "submission",
+        "loopBodyStepId": "analyze_content"
+      },
+      "nextStepId": "generate_report"
+    },
+    {
+      "id": "analyze_content",
+      "name": "Analyze Content",
+      "description": "Use an agent to thoroughly analyze the submission for policy violations",
+      "type": "agent-loop",
+      "params": {
+        "instructions": "Analyze the following submission for policy violations: ${submission.text}. Check for hate speech, spam, misinformation, and copyright issues. Use available tools to verify claims and check against known sources.",
+        "tools": [
+          "check-hate-speech",
+          "check-spam-score",
+          "reverse-image-search",
+          "plagiarism-check"
+        ],
+        "outputFormat": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["approve", "reject", "review"]
+            },
+            "reason": { "type": "string" },
+            "confidence": { "type": "number" }
+          },
+          "required": ["action", "reason", "confidence"]
+        },
+        "maxSteps": { "type": "literal", "value": 5 }
+      },
+      "nextStepId": "route_content"
+    },
+    {
+      "id": "route_content",
+      "name": "Route Content",
+      "description": "Branch based on moderation decision",
+      "type": "switch-case",
+      "params": {
+        "switchOn": {
+          "type": "jmespath",
+          "expression": "analyze_content.action"
+        },
+        "cases": [
+          {
+            "value": { "type": "literal", "value": "approve" },
+            "branchBodyStepId": "publish"
+          },
+          {
+            "value": { "type": "literal", "value": "reject" },
+            "branchBodyStepId": "quarantine_rejected"
+          },
+          {
+            "value": { "type": "default" },
+            "branchBodyStepId": "quarantine_review"
+          }
+        ]
+      },
+      "nextStepId": "rate_limit"
+    },
+    {
+      "id": "publish",
+      "name": "Publish Content",
+      "description": "Publish the approved content",
+      "type": "tool-call",
+      "params": {
+        "toolName": "publish-content",
+        "toolInput": {
+          "submissionId": {
+            "type": "jmespath",
+            "expression": "submission.id"
+          }
+        }
+      },
+      "nextStepId": "notify_approved"
+    },
+    {
+      "id": "notify_approved",
+      "name": "Notify Approved",
+      "description": "Notify author their content was approved",
+      "type": "tool-call",
+      "params": {
+        "toolName": "send-notification",
+        "toolInput": {
+          "userId": {
+            "type": "jmespath",
+            "expression": "submission.userId"
+          },
+          "message": {
+            "type": "literal",
+            "value": "Your submission has been approved and published."
+          }
+        }
+      }
+    },
+    {
+      "id": "quarantine_rejected",
+      "name": "Quarantine Rejected",
+      "description": "Quarantine content that violates policies",
+      "type": "tool-call",
+      "params": {
+        "toolName": "quarantine-content",
+        "toolInput": {
+          "submissionId": {
+            "type": "jmespath",
+            "expression": "submission.id"
+          },
+          "reason": {
+            "type": "jmespath",
+            "expression": "analyze_content.reason"
+          }
+        }
+      },
+      "nextStepId": "notify_rejected"
+    },
+    {
+      "id": "notify_rejected",
+      "name": "Notify Rejected",
+      "description": "Notify author their content was rejected",
+      "type": "tool-call",
+      "params": {
+        "toolName": "send-notification",
+        "toolInput": {
+          "userId": {
+            "type": "jmespath",
+            "expression": "submission.userId"
+          },
+          "message": {
+            "type": "literal",
+            "value": "Your submission has been removed for policy violations."
+          }
+        }
+      }
+    },
+    {
+      "id": "quarantine_review",
+      "name": "Quarantine for Review",
+      "description": "Quarantine borderline content for manual review",
+      "type": "tool-call",
+      "params": {
+        "toolName": "quarantine-content",
+        "toolInput": {
+          "submissionId": {
+            "type": "jmespath",
+            "expression": "submission.id"
+          },
+          "reason": {
+            "type": "literal",
+            "value": "Flagged for manual review"
+          }
+        }
+      }
+    },
+    {
+      "id": "rate_limit",
+      "name": "Rate Limit Pause",
+      "description": "Brief pause between submissions to respect API rate limits",
+      "type": "sleep",
+      "params": {
+        "durationMs": { "type": "literal", "value": 500 }
+      }
+    },
+    {
+      "id": "generate_report",
+      "name": "Generate Report",
+      "description": "Generate a moderation summary report",
+      "type": "llm-prompt",
+      "params": {
+        "prompt": "Generate a moderation summary for batch ${input.batchId}. ${length(moderate_all)} submissions were processed.",
+        "outputFormat": {
+          "type": "object",
+          "properties": {
+            "totalProcessed": { "type": "number" },
+            "summary": { "type": "string" }
+          },
+          "required": ["totalProcessed", "summary"]
+        }
+      },
+      "nextStepId": "moderation_done"
+    },
+    {
+      "id": "moderation_done",
+      "name": "Done",
+      "description": "End of moderation workflow",
+      "type": "end",
+      "params": {
+        "output": {
+          "type": "jmespath",
+          "expression": "generate_report"
+        }
+      }
+    }
+  ]
 }

@@ -1,79 +1,79 @@
 import type { WorkflowStep } from "../../types";
 
 export function buildStepIndex(steps: WorkflowStep[]): {
-	index: Map<string, WorkflowStep>;
-	duplicates: string[];
+  index: Map<string, WorkflowStep>;
+  duplicates: string[];
 } {
-	const index = new Map<string, WorkflowStep>();
-	const duplicates: string[] = [];
+  const index = new Map<string, WorkflowStep>();
+  const duplicates: string[] = [];
 
-	for (const step of steps) {
-		if (index.has(step.id)) {
-			duplicates.push(step.id);
-		} else {
-			index.set(step.id, step);
-		}
-	}
+  for (const step of steps) {
+    if (index.has(step.id)) {
+      duplicates.push(step.id);
+    } else {
+      index.set(step.id, step);
+    }
+  }
 
-	return { index, duplicates };
+  return { index, duplicates };
 }
 
 export function computeSuccessors(
-	stepIndex: Map<string, WorkflowStep>,
+  stepIndex: Map<string, WorkflowStep>,
 ): Map<string, Set<string>> {
-	const successors = new Map<string, Set<string>>();
+  const successors = new Map<string, Set<string>>();
 
-	for (const [id, step] of stepIndex) {
-		const succs = new Set<string>();
+  for (const [id, step] of stepIndex) {
+    const succs = new Set<string>();
 
-		if (step.nextStepId) {
-			succs.add(step.nextStepId);
-		}
+    if (step.nextStepId) {
+      succs.add(step.nextStepId);
+    }
 
-		if (step.type === "switch-case") {
-			for (const c of step.params.cases) {
-				succs.add(c.branchBodyStepId);
-			}
-		}
+    if (step.type === "switch-case") {
+      for (const c of step.params.cases) {
+        succs.add(c.branchBodyStepId);
+      }
+    }
 
-		if (step.type === "for-each") {
-			succs.add(step.params.loopBodyStepId);
-		}
+    if (step.type === "for-each") {
+      succs.add(step.params.loopBodyStepId);
+    }
 
-		if (step.type === "wait-for-condition") {
-			succs.add(step.params.conditionStepId);
-		}
+    if (step.type === "wait-for-condition") {
+      succs.add(step.params.conditionStepId);
+    }
 
-		successors.set(id, succs);
-	}
+    successors.set(id, succs);
+  }
 
-	return successors;
+  return successors;
 }
 
 export function computeReachability(
-	initialStepId: string,
-	successors: Map<string, Set<string>>,
+  initialStepId: string,
+  successors: Map<string, Set<string>>,
 ): Set<string> {
-	const reachable = new Set<string>();
-	const queue = [initialStepId];
+  const reachable = new Set<string>();
+  const queue = [initialStepId];
 
-	while (queue.length > 0) {
-		const current = queue.shift();
-		if (current === undefined) break;
-		if (reachable.has(current)) continue;
-		reachable.add(current);
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined) break;
+    if (reachable.has(current)) continue;
+    reachable.add(current);
 
-		const succs = successors.get(current);
-		if (succs) {
-			for (const s of succs) {
-				if (!reachable.has(s)) {
-					queue.push(s);
-				}
-			}
-		}
-	}
+    const succs = successors.get(current);
+    if (succs) {
+      for (const s of succs) {
+        if (!reachable.has(s)) {
+          queue.push(s);
+        }
+      }
+    }
+  }
 
-	return reachable;
+  return reachable;
 }
 
 /**
@@ -81,55 +81,55 @@ export function computeReachability(
  * Returns arrays of step IDs forming each detected cycle.
  */
 export function detectCycles(
-	stepIndex: Map<string, WorkflowStep>,
-	successors: Map<string, Set<string>>,
+  stepIndex: Map<string, WorkflowStep>,
+  successors: Map<string, Set<string>>,
 ): string[][] {
-	const WHITE = 0;
-	const GRAY = 1;
-	const BLACK = 2;
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
 
-	const color = new Map<string, number>();
-	for (const id of stepIndex.keys()) {
-		color.set(id, WHITE);
-	}
+  const color = new Map<string, number>();
+  for (const id of stepIndex.keys()) {
+    color.set(id, WHITE);
+  }
 
-	const cycles: string[][] = [];
-	const path: string[] = [];
+  const cycles: string[][] = [];
+  const path: string[] = [];
 
-	function dfs(node: string) {
-		if (!stepIndex.has(node)) return;
+  function dfs(node: string) {
+    if (!stepIndex.has(node)) return;
 
-		color.set(node, GRAY);
-		path.push(node);
+    color.set(node, GRAY);
+    path.push(node);
 
-		const succs = successors.get(node);
-		if (succs) {
-			for (const next of succs) {
-				if (!stepIndex.has(next)) continue;
+    const succs = successors.get(node);
+    if (succs) {
+      for (const next of succs) {
+        if (!stepIndex.has(next)) continue;
 
-				const c = color.get(next);
-				if (c === undefined) continue;
-				if (c === GRAY) {
-					// Found a cycle — extract the cycle from the path
-					const cycleStart = path.indexOf(next);
-					cycles.push(path.slice(cycleStart));
-				} else if (c === WHITE) {
-					dfs(next);
-				}
-			}
-		}
+        const c = color.get(next);
+        if (c === undefined) continue;
+        if (c === GRAY) {
+          // Found a cycle — extract the cycle from the path
+          const cycleStart = path.indexOf(next);
+          cycles.push(path.slice(cycleStart));
+        } else if (c === WHITE) {
+          dfs(next);
+        }
+      }
+    }
 
-		path.pop();
-		color.set(node, BLACK);
-	}
+    path.pop();
+    color.set(node, BLACK);
+  }
 
-	for (const id of stepIndex.keys()) {
-		if (color.get(id) === WHITE) {
-			dfs(id);
-		}
-	}
+  for (const id of stepIndex.keys()) {
+    if (color.get(id) === WHITE) {
+      dfs(id);
+    }
+  }
 
-	return cycles;
+  return cycles;
 }
 
 /**
@@ -141,35 +141,35 @@ export function detectCycles(
  * union of all steps that can reach it via successor edges.
  */
 export function computePredecessors(
-	topologicalOrder: string[],
-	successors: Map<string, Set<string>>,
+  topologicalOrder: string[],
+  successors: Map<string, Set<string>>,
 ): Map<string, Set<string>> {
-	const predecessors = new Map<string, Set<string>>();
+  const predecessors = new Map<string, Set<string>>();
 
-	for (const id of topologicalOrder) {
-		predecessors.set(id, new Set());
-	}
+  for (const id of topologicalOrder) {
+    predecessors.set(id, new Set());
+  }
 
-	for (const id of topologicalOrder) {
-		const succs = successors.get(id);
-		if (!succs) continue;
+  for (const id of topologicalOrder) {
+    const succs = successors.get(id);
+    if (!succs) continue;
 
-		for (const succ of succs) {
-			const predSet = predecessors.get(succ);
-			if (!predSet) continue;
+    for (const succ of succs) {
+      const predSet = predecessors.get(succ);
+      if (!predSet) continue;
 
-			// succ's predecessors include id and all of id's predecessors
-			predSet.add(id);
-			const idPreds = predecessors.get(id);
-			if (idPreds) {
-				for (const p of idPreds) {
-					predSet.add(p);
-				}
-			}
-		}
-	}
+      // succ's predecessors include id and all of id's predecessors
+      predSet.add(id);
+      const idPreds = predecessors.get(id);
+      if (idPreds) {
+        for (const p of idPreds) {
+          predSet.add(p);
+        }
+      }
+    }
+  }
 
-	return predecessors;
+  return predecessors;
 }
 
 /**
@@ -177,52 +177,52 @@ export function computePredecessors(
  * Returns null if cycles exist.
  */
 export function topologicalSort(
-	stepIds: string[],
-	successors: Map<string, Set<string>>,
+  stepIds: string[],
+  successors: Map<string, Set<string>>,
 ): string[] | null {
-	const inDegree = new Map<string, number>();
-	const stepIdSet = new Set(stepIds);
+  const inDegree = new Map<string, number>();
+  const stepIdSet = new Set(stepIds);
 
-	for (const id of stepIds) {
-		inDegree.set(id, 0);
-	}
+  for (const id of stepIds) {
+    inDegree.set(id, 0);
+  }
 
-	for (const id of stepIds) {
-		const succs = successors.get(id);
-		if (!succs) continue;
-		for (const s of succs) {
-			if (stepIdSet.has(s)) {
-				inDegree.set(s, (inDegree.get(s) ?? 0) + 1);
-			}
-		}
-	}
+  for (const id of stepIds) {
+    const succs = successors.get(id);
+    if (!succs) continue;
+    for (const s of succs) {
+      if (stepIdSet.has(s)) {
+        inDegree.set(s, (inDegree.get(s) ?? 0) + 1);
+      }
+    }
+  }
 
-	const queue: string[] = [];
-	for (const [id, deg] of inDegree) {
-		if (deg === 0) queue.push(id);
-	}
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) queue.push(id);
+  }
 
-	const order: string[] = [];
-	while (queue.length > 0) {
-		const node = queue.shift();
-		if (node === undefined) break;
-		order.push(node);
+  const order: string[] = [];
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (node === undefined) break;
+    order.push(node);
 
-		const succs = successors.get(node);
-		if (!succs) continue;
-		for (const s of succs) {
-			if (!stepIdSet.has(s)) continue;
-			const currentDeg = inDegree.get(s);
-			if (currentDeg === undefined) continue;
-			const newDeg = currentDeg - 1;
-			inDegree.set(s, newDeg);
-			if (newDeg === 0) {
-				queue.push(s);
-			}
-		}
-	}
+    const succs = successors.get(node);
+    if (!succs) continue;
+    for (const s of succs) {
+      if (!stepIdSet.has(s)) continue;
+      const currentDeg = inDegree.get(s);
+      if (currentDeg === undefined) continue;
+      const newDeg = currentDeg - 1;
+      inDegree.set(s, newDeg);
+      if (newDeg === 0) {
+        queue.push(s);
+      }
+    }
+  }
 
-	return order.length === stepIds.length ? order : null;
+  return order.length === stepIds.length ? order : null;
 }
 
 /**
@@ -230,62 +230,62 @@ export function topologicalSort(
  * are in scope at each step, and which steps belong to a body (loop or branch).
  */
 export function computeLoopScopesAndOwnership(
-	initialStepId: string,
-	stepIndex: Map<string, WorkflowStep>,
+  initialStepId: string,
+  stepIndex: Map<string, WorkflowStep>,
 ): {
-	loopVariablesInScope: Map<string, Set<string>>;
-	bodyOwnership: Map<string, string>;
+  loopVariablesInScope: Map<string, Set<string>>;
+  bodyOwnership: Map<string, string>;
 } {
-	const loopVariablesInScope = new Map<string, Set<string>>();
-	const bodyOwnership = new Map<string, string>();
+  const loopVariablesInScope = new Map<string, Set<string>>();
+  const bodyOwnership = new Map<string, string>();
 
-	function walkChain(
-		startId: string,
-		loopVars: Set<string>,
-		ownerStepId: string | null,
-	) {
-		// First pass: claim all steps on this chain (following nextStepId only)
-		// This ensures the main chain is claimed before body sub-chains,
-		// so body chains can't accidentally claim main-chain steps.
-		let currentId: string | undefined = startId;
-		const chainSteps: import("../../types").WorkflowStep[] = [];
+  function walkChain(
+    startId: string,
+    loopVars: Set<string>,
+    ownerStepId: string | null,
+  ) {
+    // First pass: claim all steps on this chain (following nextStepId only)
+    // This ensures the main chain is claimed before body sub-chains,
+    // so body chains can't accidentally claim main-chain steps.
+    let currentId: string | undefined = startId;
+    const chainSteps: import("../../types").WorkflowStep[] = [];
 
-		while (currentId) {
-			if (loopVariablesInScope.has(currentId)) break;
+    while (currentId) {
+      if (loopVariablesInScope.has(currentId)) break;
 
-			const step = stepIndex.get(currentId);
-			if (!step) break;
+      const step = stepIndex.get(currentId);
+      if (!step) break;
 
-			loopVariablesInScope.set(currentId, new Set(loopVars));
-			if (ownerStepId !== null) {
-				bodyOwnership.set(currentId, ownerStepId);
-			}
+      loopVariablesInScope.set(currentId, new Set(loopVars));
+      if (ownerStepId !== null) {
+        bodyOwnership.set(currentId, ownerStepId);
+      }
 
-			chainSteps.push(step);
-			currentId = step.nextStepId;
-		}
+      chainSteps.push(step);
+      currentId = step.nextStepId;
+    }
 
-		// Second pass: recurse into control flow sub-chains (bodies)
-		for (const step of chainSteps) {
-			if (step.type === "for-each") {
-				const innerVars = new Set(loopVars);
-				innerVars.add(step.params.itemName);
-				walkChain(step.params.loopBodyStepId, innerVars, step.id);
-			}
+    // Second pass: recurse into control flow sub-chains (bodies)
+    for (const step of chainSteps) {
+      if (step.type === "for-each") {
+        const innerVars = new Set(loopVars);
+        innerVars.add(step.params.itemName);
+        walkChain(step.params.loopBodyStepId, innerVars, step.id);
+      }
 
-			if (step.type === "switch-case") {
-				for (const c of step.params.cases) {
-					walkChain(c.branchBodyStepId, loopVars, step.id);
-				}
-			}
+      if (step.type === "switch-case") {
+        for (const c of step.params.cases) {
+          walkChain(c.branchBodyStepId, loopVars, step.id);
+        }
+      }
 
-			if (step.type === "wait-for-condition") {
-				walkChain(step.params.conditionStepId, loopVars, step.id);
-			}
-		}
-	}
+      if (step.type === "wait-for-condition") {
+        walkChain(step.params.conditionStepId, loopVars, step.id);
+      }
+    }
+  }
 
-	walkChain(initialStepId, new Set(), null);
+  walkChain(initialStepId, new Set(), null);
 
-	return { loopVariablesInScope, bodyOwnership };
+  return { loopVariablesInScope, bodyOwnership };
 }

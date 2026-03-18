@@ -3,11 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workflow Viewer</title>
+  <title>Remora Flow Demo</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div id="root"></div>
+  <script>
+    // Patch ResizeObserver to defer callbacks via requestAnimationFrame.
+    // This prevents the "ResizeObserver loop completed with undelivered notifications"
+    // error by breaking the synchronous observation cycle that React Flow's node
+    // measurement triggers.
+    // biome-ignore: must be a regular function (not arrow) so it works with `new`
+    var _RO = ResizeObserver;
+    window.ResizeObserver = function PatchedResizeObserver(callback) {
+      return new _RO(function(entries, observer) {
+        requestAnimationFrame(function() { callback(entries, observer); });
+      });
+    };
+    window.ResizeObserver.prototype = _RO.prototype;
+  </script>
   <script type="module" src="./app.tsx"></script>
 </body>
 </html>

@@ -1,28 +1,28 @@
 {
-	"name": "remora-monorepo",
-	"private": true,
-	"workspaces": [
-		"packages/*",
-		"apps/*"
-	],
-	"scripts": {
-		"build": "cd packages/core && bun run build && cd ../ui && bun run build",
-		"test": "bun test",
-		"lint": "biome check .",
-		"lint:fix": "biome check --fix --unsafe .",
-		"typecheck": "tsgo --noEmit",
-		"viewer": "bun run --filter demo dev",
-		"docs:dev": "bun run --filter docs dev",
-		"docs:build": "bun run --filter docs build",
-		"changeset": "changeset",
-		"version-packages": "changeset version",
-		"ci:release": "bun run build && cd packages/core && npm publish --provenance --access public && cd ../ui && npm publish --provenance --access public"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "2.4.4",
-		"@changesets/cli": "^2.30.0",
-		"@types/bun": "latest",
-		"@typescript/native-preview": "^7.0.0-dev.20260301.1",
-		"typescript": "^5.8.0"
-	}
+  "name": "remora-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "cd packages/core && bun run build && cd ../ui && bun run build",
+    "test": "bun test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix --unsafe .",
+    "typecheck": "tsgo --noEmit",
+    "viewer": "bun run --filter demo dev",
+    "docs:dev": "bun run --filter docs dev",
+    "docs:build": "bun run --filter docs build",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "ci:release": "bun run build && cd packages/core && npm publish --provenance --access public && cd ../ui && npm publish --provenance --access public"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@changesets/cli": "^2.30.0",
+    "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20260301.1",
+    "typescript": "^5.8.0"
+  }
 }

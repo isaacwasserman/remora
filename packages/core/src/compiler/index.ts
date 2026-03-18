@@ -8,14 +8,16 @@ import { validateControlFlow } from "./passes/validate-control-flow";
 import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateLimits } from "./passes/validate-limits";
+import { validateOutputSchemas } from "./passes/validate-output-schemas";
 import { validateReferences } from "./passes/validate-references";
+import { validateToolInputTypes } from "./passes/validate-tool-input-types";
 import { validateTools } from "./passes/validate-tools";
 import type {
-	CompilerLimits,
-	CompilerResult,
-	ConstrainedToolSchemaMap,
-	Diagnostic,
-	ToolDefinitionMap,
+  CompilerLimits,
+  CompilerResult,
+  ConstrainedToolSchemaMap,
+  Diagnostic,
+  ToolDefinitionMap,
 } from "./types";
 
 /**
@@ -35,102 +37,113 @@ import type {
  *   constrained tool schemas (if tools were provided).
  */
 export async function compileWorkflow(
-	workflow: WorkflowDefinition,
-	options?: {
-		tools?: ToolSet;
-		limits?: CompilerLimits;
-	},
+  workflow: WorkflowDefinition,
+  options?: {
+    tools?: ToolSet;
+    limits?: CompilerLimits;
+  },
 ): Promise<CompilerResult> {
-	const diagnostics: Diagnostic[] = [];
+  const diagnostics: Diagnostic[] = [];
 
-	// Pass 1: Build execution graph
-	const graphResult = buildGraph(workflow);
-	diagnostics.push(...graphResult.diagnostics);
+  // Pass 1: Build execution graph
+  const graphResult = buildGraph(workflow);
+  diagnostics.push(...graphResult.diagnostics);
 
-	// Pass 2: Validate step references
-	const refDiagnostics = validateReferences(workflow);
-	// Deduplicate MISSING_INITIAL_STEP (emitted by both build-graph and validate-references)
-	for (const d of refDiagnostics) {
-		if (
-			d.code === "MISSING_INITIAL_STEP" &&
-			diagnostics.some((e) => e.code === "MISSING_INITIAL_STEP")
-		) {
-			continue;
-		}
-		diagnostics.push(d);
-	}
+  // Pass 2: Validate step references
+  const refDiagnostics = validateReferences(workflow);
+  // Deduplicate MISSING_INITIAL_STEP (emitted by both build-graph and validate-references)
+  for (const d of refDiagnostics) {
+    if (
+      d.code === "MISSING_INITIAL_STEP" &&
+      diagnostics.some((e) => e.code === "MISSING_INITIAL_STEP")
+    ) {
+      continue;
+    }
+    diagnostics.push(d);
+  }
 
-	// Pass 2b: Validate sleep/wait literal values against configured limits
-	diagnostics.push(...validateLimits(workflow, options?.limits));
+  // Pass 2b: Validate sleep/wait literal values against configured limits
+  diagnostics.push(...validateLimits(workflow, options?.limits));
 
-	// Pass 3: Extract tool schemas (needed by control flow and for-each validation)
-	let constrainedToolSchemas: ConstrainedToolSchemaMap | null = null;
-	let toolSchemas: ToolDefinitionMap | null = null;
-	if (options?.tools) {
-		toolSchemas = await extractToolSchemas(options.tools);
-		diagnostics.push(...validateTools(workflow, toolSchemas));
-		constrainedToolSchemas = generateConstrainedToolSchemas(
-			workflow,
-			toolSchemas,
-		);
-	}
+  // Pass 2c: Warn about unsupported JSON Schema keywords in outputFormat
+  diagnostics.push(...validateOutputSchemas(workflow));
 
-	// Pass 4+: Only proceed with graph-dependent passes if we have a valid graph
-	if (graphResult.graph) {
-		diagnostics.push(
-			...validateControlFlow(workflow, graphResult.graph, toolSchemas),
-		);
+  // Pass 3: Extract tool schemas (needed by control flow and for-each validation)
+  let constrainedToolSchemas: ConstrainedToolSchemaMap | null = null;
+  let toolSchemas: ToolDefinitionMap | null = null;
+  if (options?.tools) {
+    toolSchemas = await extractToolSchemas(options.tools);
+    diagnostics.push(...validateTools(workflow, toolSchemas));
+    constrainedToolSchemas = generateConstrainedToolSchemas(
+      workflow,
+      toolSchemas,
+    );
+  }
 
-		diagnostics.push(...validateJmespath(workflow, graphResult.graph));
+  // Pass 4+: Only proceed with graph-dependent passes if we have a valid graph
+  if (graphResult.graph) {
+    diagnostics.push(
+      ...validateControlFlow(workflow, graphResult.graph, toolSchemas),
+    );
 
-		// Validate for-each targets resolve to array types
-		if (toolSchemas) {
-			diagnostics.push(
-				...validateForeachTarget(workflow, graphResult.graph, toolSchemas),
-			);
-		}
-	}
+    diagnostics.push(...validateJmespath(workflow, graphResult.graph));
 
-	// Final pass: apply best-practice transformations (non-destructive)
-	const hasErrors = diagnostics.some((d) => d.severity === "error");
-	let optimizedWorkflow: WorkflowDefinition | null = null;
-	if (graphResult.graph && !hasErrors) {
-		const bpResult = applyBestPractices(workflow, graphResult.graph);
-		optimizedWorkflow = bpResult.workflow;
-		diagnostics.push(...bpResult.diagnostics);
-	}
+    // Validate for-each targets resolve to array types
+    if (toolSchemas) {
+      diagnostics.push(
+        ...validateForeachTarget(workflow, graphResult.graph, toolSchemas),
+      );
+      diagnostics.push(
+        ...validateToolInputTypes(workflow, graphResult.graph, toolSchemas),
+      );
+    }
+  }
 
-	return {
-		diagnostics,
-		graph: graphResult.graph,
-		workflow: optimizedWorkflow,
-		constrainedToolSchemas,
-	};
+  // Final pass: apply best-practice transformations (non-destructive)
+  const hasErrors = diagnostics.some((d) => d.severity === "error");
+  let optimizedWorkflow: WorkflowDefinition | null = null;
+  if (graphResult.graph && !hasErrors) {
+    const bpResult = applyBestPractices(workflow, graphResult.graph);
+    optimizedWorkflow = bpResult.workflow;
+    diagnostics.push(...bpResult.diagnostics);
+  }
+
+  return {
+    diagnostics,
+    graph: graphResult.graph,
+    workflow: optimizedWorkflow,
+    constrainedToolSchemas,
+  };
 }
 
-async function extractToolSchemas(tools: ToolSet): Promise<ToolDefinitionMap> {
-	const schemas: ToolDefinitionMap = {};
-	for (const [name, toolDef] of Object.entries(tools)) {
-		const jsonSchema = await asSchema(toolDef.inputSchema).jsonSchema;
-		schemas[name] = {
-			inputSchema: jsonSchema as ToolDefinitionMap[string]["inputSchema"],
-		};
-		if (toolDef.outputSchema) {
-			schemas[name].outputSchema = (await asSchema(toolDef.outputSchema)
-				.jsonSchema) as Record<string, unknown>;
-		}
-	}
-	return schemas;
+export async function extractToolSchemas(
+  tools: ToolSet,
+): Promise<ToolDefinitionMap> {
+  const schemas: ToolDefinitionMap = {};
+  for (const [name, toolDef] of Object.entries(tools)) {
+    const jsonSchema = await asSchema(toolDef.inputSchema).jsonSchema;
+    schemas[name] = {
+      description: toolDef.description,
+      inputSchema: jsonSchema as ToolDefinitionMap[string]["inputSchema"],
+    };
+    if (toolDef.outputSchema) {
+      schemas[name].outputSchema = (await asSchema(toolDef.outputSchema)
+        .jsonSchema) as Record<string, unknown>;
+    }
+  }
+  return schemas;
 }
 
 export type {
-	CompilerLimits,
-	CompilerResult,
-	ConstrainedToolSchema,
-	ConstrainedToolSchemaMap,
-	Diagnostic,
-	DiagnosticCode,
-	DiagnosticLocation,
-	DiagnosticSeverity,
-	ExecutionGraph,
+  CompilerLimits,
+  CompilerResult,
+  ConstrainedToolSchema,
+  ConstrainedToolSchemaMap,
+  Diagnostic,
+  DiagnosticCode,
+  DiagnosticLocation,
+  DiagnosticSeverity,
+  ExecutionGraph,
+  ToolDefinitionMap,
+  ToolSchemaDefinition,
 } from "./types";
