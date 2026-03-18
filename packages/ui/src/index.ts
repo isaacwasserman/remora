@@ -1,3 +1,4 @@
+/** @module viewer */
 // shadcn/ui components
 export { Button } from "./components/ui/button";
 export {
