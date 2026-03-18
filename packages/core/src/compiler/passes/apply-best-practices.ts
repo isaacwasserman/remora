@@ -2,8 +2,8 @@ import type { WorkflowDefinition, WorkflowStep } from "../../types";
 import type { Diagnostic, ExecutionGraph } from "../types";
 
 interface BestPracticeRuleResult {
-	workflow: WorkflowDefinition;
-	diagnostics: Diagnostic[];
+  workflow: WorkflowDefinition;
+  diagnostics: Diagnostic[];
 }
 
 /**
@@ -12,8 +12,8 @@ interface BestPracticeRuleResult {
  * and returns the (possibly modified) workflow along with any diagnostics.
  */
 export type BestPracticeRule = (
-	workflow: WorkflowDefinition,
-	graph: ExecutionGraph,
+  workflow: WorkflowDefinition,
+  graph: ExecutionGraph,
 ) => BestPracticeRuleResult;
 
 /**
@@ -27,19 +27,19 @@ const rules: BestPracticeRule[] = [addMissingStartStep, addMissingEndSteps];
  * The original workflow is never mutated.
  */
 export function applyBestPractices(
-	workflow: WorkflowDefinition,
-	graph: ExecutionGraph,
+  workflow: WorkflowDefinition,
+  graph: ExecutionGraph,
 ): BestPracticeRuleResult {
-	let result = structuredClone(workflow);
-	const allDiagnostics: Diagnostic[] = [];
+  let result = structuredClone(workflow);
+  const allDiagnostics: Diagnostic[] = [];
 
-	for (const rule of rules) {
-		const ruleResult = rule(result, graph);
-		result = ruleResult.workflow;
-		allDiagnostics.push(...ruleResult.diagnostics);
-	}
+  for (const rule of rules) {
+    const ruleResult = rule(result, graph);
+    result = ruleResult.workflow;
+    allDiagnostics.push(...ruleResult.diagnostics);
+  }
 
-	return { workflow: result, diagnostics: allDiagnostics };
+  return { workflow: result, diagnostics: allDiagnostics };
 }
 
 /**
@@ -47,39 +47,39 @@ export function applyBestPractices(
  * auto-inserted with an empty input schema.
  */
 function addMissingStartStep(
-	workflow: WorkflowDefinition,
-	_graph: ExecutionGraph,
+  workflow: WorkflowDefinition,
+  _graph: ExecutionGraph,
 ): BestPracticeRuleResult {
-	const diagnostics: Diagnostic[] = [];
+  const diagnostics: Diagnostic[] = [];
 
-	const hasStartStep = workflow.steps.some((s) => s.type === "start");
-	if (hasStartStep) {
-		return { workflow, diagnostics };
-	}
+  const hasStartStep = workflow.steps.some((s) => s.type === "start");
+  if (hasStartStep) {
+    return { workflow, diagnostics };
+  }
 
-	const startStepId = "__start";
-	const oldInitialStepId = workflow.initialStepId;
+  const startStepId = "__start";
+  const oldInitialStepId = workflow.initialStepId;
 
-	const startStep: WorkflowStep = {
-		id: startStepId,
-		name: "Start",
-		description: "Auto-generated start step",
-		type: "start",
-		nextStepId: oldInitialStepId,
-	};
+  const startStep: WorkflowStep = {
+    id: startStepId,
+    name: "Start",
+    description: "Auto-generated start step",
+    type: "start",
+    nextStepId: oldInitialStepId,
+  };
 
-	workflow.steps.unshift(startStep);
-	workflow.initialStepId = startStepId;
+  workflow.steps.unshift(startStep);
+  workflow.initialStepId = startStepId;
 
-	diagnostics.push({
-		severity: "warning",
-		location: { stepId: null, field: "initialStepId" },
-		message:
-			"Workflow has no start step; one was automatically added with an empty input schema",
-		code: "MISSING_START_STEP",
-	});
+  diagnostics.push({
+    severity: "warning",
+    location: { stepId: null, field: "initialStepId" },
+    message:
+      "Workflow has no start step; one was automatically added with an empty input schema",
+    code: "MISSING_START_STEP",
+  });
 
-	return { workflow, diagnostics };
+  return { workflow, diagnostics };
 }
 
 /**
@@ -87,25 +87,25 @@ function addMissingStartStep(
  * already an "end" step) gets an explicit "end" step appended.
  */
 function addMissingEndSteps(
-	workflow: WorkflowDefinition,
-	_graph: ExecutionGraph,
+  workflow: WorkflowDefinition,
+  _graph: ExecutionGraph,
 ): BestPracticeRuleResult {
-	const newEndSteps: WorkflowStep[] = [];
+  const newEndSteps: WorkflowStep[] = [];
 
-	for (const step of workflow.steps) {
-		if (step.type === "end") continue;
-		if (step.nextStepId) continue;
+  for (const step of workflow.steps) {
+    if (step.type === "end") continue;
+    if (step.nextStepId) continue;
 
-		const endStepId = `${step.id}_end`;
-		step.nextStepId = endStepId;
-		newEndSteps.push({
-			id: endStepId,
-			name: "End",
-			description: `End of chain after ${step.id}`,
-			type: "end",
-		});
-	}
+    const endStepId = `${step.id}_end`;
+    step.nextStepId = endStepId;
+    newEndSteps.push({
+      id: endStepId,
+      name: "End",
+      description: `End of chain after ${step.id}`,
+      type: "end",
+    });
+  }
 
-	workflow.steps.push(...newEndSteps);
-	return { workflow, diagnostics: [] };
+  workflow.steps.push(...newEndSteps);
+  return { workflow, diagnostics: [] };
 }

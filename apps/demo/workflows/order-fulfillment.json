@@ -1,277 +1,277 @@
 {
-	"initialStepId": "start",
-	"inputSchema": {
-		"type": "object",
-		"properties": {
-			"warehouseId": {
-				"type": "string",
-				"description": "The warehouse processing orders"
-			}
-		},
-		"required": ["warehouseId"]
-	},
-	"outputSchema": {
-		"type": "object",
-		"properties": {
-			"processedCount": { "type": "number" },
-			"summary": { "type": "string" }
-		},
-		"required": ["processedCount", "summary"]
-	},
-	"steps": [
-		{
-			"id": "start",
-			"name": "Start",
-			"description": "Begin order fulfillment workflow",
-			"type": "start",
-			"nextStepId": "get_orders"
-		},
-		{
-			"id": "get_orders",
-			"name": "Get Pending Orders",
-			"description": "Fetch all pending orders for the warehouse",
-			"type": "tool-call",
-			"params": {
-				"toolName": "get-pending-orders",
-				"toolInput": {
-					"warehouseId": {
-						"type": "jmespath",
-						"expression": "input.warehouseId"
-					}
-				}
-			},
-			"nextStepId": "process_orders"
-		},
-		{
-			"id": "process_orders",
-			"name": "Process Each Order",
-			"description": "Iterate over each pending order",
-			"type": "for-each",
-			"params": {
-				"target": {
-					"type": "jmespath",
-					"expression": "get_orders.orders"
-				},
-				"itemName": "order",
-				"loopBodyStepId": "check_stock"
-			},
-			"nextStepId": "generate_summary"
-		},
-		{
-			"id": "check_stock",
-			"name": "Check Inventory",
-			"description": "Check stock availability for the order items",
-			"type": "tool-call",
-			"params": {
-				"toolName": "check-inventory",
-				"toolInput": {
-					"itemId": {
-						"type": "jmespath",
-						"expression": "order.items[0].itemId"
-					}
-				}
-			},
-			"nextStepId": "stock_decision"
-		},
-		{
-			"id": "stock_decision",
-			"name": "Stock Decision",
-			"description": "Branch based on item availability",
-			"type": "switch-case",
-			"params": {
-				"switchOn": {
-					"type": "jmespath",
-					"expression": "check_stock.available"
-				},
-				"cases": [
-					{
-						"value": { "type": "literal", "value": true },
-						"branchBodyStepId": "reserve_stock"
-					},
-					{
-						"value": { "type": "default" },
-						"branchBodyStepId": "flag_order"
-					}
-				]
-			},
-			"nextStepId": "throttle_orders"
-		},
-		{
-			"id": "reserve_stock",
-			"name": "Reserve Inventory",
-			"description": "Reserve the item in inventory",
-			"type": "tool-call",
-			"params": {
-				"toolName": "reserve-inventory",
-				"toolInput": {
-					"itemId": {
-						"type": "jmespath",
-						"expression": "order.items[0].itemId"
-					},
-					"quantity": {
-						"type": "jmespath",
-						"expression": "order.items[0].quantity"
-					}
-				}
-			},
-			"nextStepId": "ship_order"
-		},
-		{
-			"id": "ship_order",
-			"name": "Create Shipment",
-			"description": "Create shipment with reservation",
-			"type": "tool-call",
-			"params": {
-				"toolName": "create-shipment",
-				"toolInput": {
-					"orderId": {
-						"type": "jmespath",
-						"expression": "order.id"
-					},
-					"reservationId": {
-						"type": "jmespath",
-						"expression": "reserve_stock.reservationId"
-					}
-				}
-			},
-			"nextStepId": "notify_shipped"
-		},
-		{
-			"id": "notify_shipped",
-			"name": "Notify Shipped",
-			"description": "Notify customer that their order shipped",
-			"type": "tool-call",
-			"params": {
-				"toolName": "notify-customer",
-				"toolInput": {
-					"email": {
-						"type": "jmespath",
-						"expression": "order.customerEmail"
-					},
-					"subject": {
-						"type": "literal",
-						"value": "Order Shipped"
-					},
-					"body": {
-						"type": "jmespath",
-						"expression": "ship_order.trackingNumber"
-					}
-				}
-			}
-		},
-		{
-			"id": "flag_order",
-			"name": "Flag for Review",
-			"description": "Flag order as out of stock and initiate restock monitoring",
-			"type": "tool-call",
-			"params": {
-				"toolName": "flag-for-review",
-				"toolInput": {
-					"orderId": {
-						"type": "jmespath",
-						"expression": "order.id"
-					},
-					"reason": {
-						"type": "literal",
-						"value": "Out of stock"
-					}
-				}
-			},
-			"nextStepId": "wait_restock"
-		},
-		{
-			"id": "wait_restock",
-			"name": "Wait for Restock",
-			"description": "Poll inventory until item is restocked or max attempts reached",
-			"type": "wait-for-condition",
-			"params": {
-				"conditionStepId": "check_restock",
-				"condition": {
-					"type": "jmespath",
-					"expression": "check_restock.available"
-				},
-				"maxAttempts": { "type": "literal", "value": 5 },
-				"intervalMs": { "type": "literal", "value": 3000 },
-				"backoffMultiplier": { "type": "literal", "value": 2 }
-			},
-			"nextStepId": "notify_backorder"
-		},
-		{
-			"id": "check_restock",
-			"name": "Check Restock Status",
-			"description": "Check if the item has been restocked",
-			"type": "tool-call",
-			"params": {
-				"toolName": "check-inventory",
-				"toolInput": {
-					"itemId": {
-						"type": "jmespath",
-						"expression": "order.items[0].itemId"
-					}
-				}
-			}
-		},
-		{
-			"id": "notify_backorder",
-			"name": "Notify Backorder",
-			"description": "Notify customer about backorder status",
-			"type": "tool-call",
-			"params": {
-				"toolName": "notify-customer",
-				"toolInput": {
-					"email": {
-						"type": "jmespath",
-						"expression": "order.customerEmail"
-					},
-					"subject": {
-						"type": "literal",
-						"value": "Backorder Update"
-					},
-					"body": {
-						"type": "literal",
-						"value": "Your order item was out of stock. We will update you when it ships."
-					}
-				}
-			}
-		},
-		{
-			"id": "throttle_orders",
-			"name": "Throttle Processing",
-			"description": "Brief pause between orders to avoid overwhelming downstream systems",
-			"type": "sleep",
-			"params": {
-				"durationMs": { "type": "literal", "value": 1000 }
-			}
-		},
-		{
-			"id": "generate_summary",
-			"name": "Generate Summary",
-			"description": "Generate fulfillment summary report",
-			"type": "llm-prompt",
-			"params": {
-				"prompt": "Generate a fulfillment summary for warehouse ${input.warehouseId}. ${length(process_orders)} orders were processed.",
-				"outputFormat": {
-					"type": "object",
-					"properties": {
-						"processedCount": { "type": "number" },
-						"summary": { "type": "string" }
-					},
-					"required": ["processedCount", "summary"]
-				}
-			},
-			"nextStepId": "done"
-		},
-		{
-			"id": "done",
-			"name": "Done",
-			"description": "End of order fulfillment workflow",
-			"type": "end",
-			"params": {
-				"output": {
-					"type": "jmespath",
-					"expression": "generate_summary"
-				}
-			}
-		}
-	]
+  "initialStepId": "start",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "warehouseId": {
+        "type": "string",
+        "description": "The warehouse processing orders"
+      }
+    },
+    "required": ["warehouseId"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "processedCount": { "type": "number" },
+      "summary": { "type": "string" }
+    },
+    "required": ["processedCount", "summary"]
+  },
+  "steps": [
+    {
+      "id": "start",
+      "name": "Start",
+      "description": "Begin order fulfillment workflow",
+      "type": "start",
+      "nextStepId": "get_orders"
+    },
+    {
+      "id": "get_orders",
+      "name": "Get Pending Orders",
+      "description": "Fetch all pending orders for the warehouse",
+      "type": "tool-call",
+      "params": {
+        "toolName": "get-pending-orders",
+        "toolInput": {
+          "warehouseId": {
+            "type": "jmespath",
+            "expression": "input.warehouseId"
+          }
+        }
+      },
+      "nextStepId": "process_orders"
+    },
+    {
+      "id": "process_orders",
+      "name": "Process Each Order",
+      "description": "Iterate over each pending order",
+      "type": "for-each",
+      "params": {
+        "target": {
+          "type": "jmespath",
+          "expression": "get_orders.orders"
+        },
+        "itemName": "order",
+        "loopBodyStepId": "check_stock"
+      },
+      "nextStepId": "generate_summary"
+    },
+    {
+      "id": "check_stock",
+      "name": "Check Inventory",
+      "description": "Check stock availability for the order items",
+      "type": "tool-call",
+      "params": {
+        "toolName": "check-inventory",
+        "toolInput": {
+          "itemId": {
+            "type": "jmespath",
+            "expression": "order.items[0].itemId"
+          }
+        }
+      },
+      "nextStepId": "stock_decision"
+    },
+    {
+      "id": "stock_decision",
+      "name": "Stock Decision",
+      "description": "Branch based on item availability",
+      "type": "switch-case",
+      "params": {
+        "switchOn": {
+          "type": "jmespath",
+          "expression": "check_stock.available"
+        },
+        "cases": [
+          {
+            "value": { "type": "literal", "value": true },
+            "branchBodyStepId": "reserve_stock"
+          },
+          {
+            "value": { "type": "default" },
+            "branchBodyStepId": "flag_order"
+          }
+        ]
+      },
+      "nextStepId": "throttle_orders"
+    },
+    {
+      "id": "reserve_stock",
+      "name": "Reserve Inventory",
+      "description": "Reserve the item in inventory",
+      "type": "tool-call",
+      "params": {
+        "toolName": "reserve-inventory",
+        "toolInput": {
+          "itemId": {
+            "type": "jmespath",
+            "expression": "order.items[0].itemId"
+          },
+          "quantity": {
+            "type": "jmespath",
+            "expression": "order.items[0].quantity"
+          }
+        }
+      },
+      "nextStepId": "ship_order"
+    },
+    {
+      "id": "ship_order",
+      "name": "Create Shipment",
+      "description": "Create shipment with reservation",
+      "type": "tool-call",
+      "params": {
+        "toolName": "create-shipment",
+        "toolInput": {
+          "orderId": {
+            "type": "jmespath",
+            "expression": "order.id"
+          },
+          "reservationId": {
+            "type": "jmespath",
+            "expression": "reserve_stock.reservationId"
+          }
+        }
+      },
+      "nextStepId": "notify_shipped"
+    },
+    {
+      "id": "notify_shipped",
+      "name": "Notify Shipped",
+      "description": "Notify customer that their order shipped",
+      "type": "tool-call",
+      "params": {
+        "toolName": "notify-customer",
+        "toolInput": {
+          "email": {
+            "type": "jmespath",
+            "expression": "order.customerEmail"
+          },
+          "subject": {
+            "type": "literal",
+            "value": "Order Shipped"
+          },
+          "body": {
+            "type": "jmespath",
+            "expression": "ship_order.trackingNumber"
+          }
+        }
+      }
+    },
+    {
+      "id": "flag_order",
+      "name": "Flag for Review",
+      "description": "Flag order as out of stock and initiate restock monitoring",
+      "type": "tool-call",
+      "params": {
+        "toolName": "flag-for-review",
+        "toolInput": {
+          "orderId": {
+            "type": "jmespath",
+            "expression": "order.id"
+          },
+          "reason": {
+            "type": "literal",
+            "value": "Out of stock"
+          }
+        }
+      },
+      "nextStepId": "wait_restock"
+    },
+    {
+      "id": "wait_restock",
+      "name": "Wait for Restock",
+      "description": "Poll inventory until item is restocked or max attempts reached",
+      "type": "wait-for-condition",
+      "params": {
+        "conditionStepId": "check_restock",
+        "condition": {
+          "type": "jmespath",
+          "expression": "check_restock.available"
+        },
+        "maxAttempts": { "type": "literal", "value": 5 },
+        "intervalMs": { "type": "literal", "value": 3000 },
+        "backoffMultiplier": { "type": "literal", "value": 2 }
+      },
+      "nextStepId": "notify_backorder"
+    },
+    {
+      "id": "check_restock",
+      "name": "Check Restock Status",
+      "description": "Check if the item has been restocked",
+      "type": "tool-call",
+      "params": {
+        "toolName": "check-inventory",
+        "toolInput": {
+          "itemId": {
+            "type": "jmespath",
+            "expression": "order.items[0].itemId"
+          }
+        }
+      }
+    },
+    {
+      "id": "notify_backorder",
+      "name": "Notify Backorder",
+      "description": "Notify customer about backorder status",
+      "type": "tool-call",
+      "params": {
+        "toolName": "notify-customer",
+        "toolInput": {
+          "email": {
+            "type": "jmespath",
+            "expression": "order.customerEmail"
+          },
+          "subject": {
+            "type": "literal",
+            "value": "Backorder Update"
+          },
+          "body": {
+            "type": "literal",
+            "value": "Your order item was out of stock. We will update you when it ships."
+          }
+        }
+      }
+    },
+    {
+      "id": "throttle_orders",
+      "name": "Throttle Processing",
+      "description": "Brief pause between orders to avoid overwhelming downstream systems",
+      "type": "sleep",
+      "params": {
+        "durationMs": { "type": "literal", "value": 1000 }
+      }
+    },
+    {
+      "id": "generate_summary",
+      "name": "Generate Summary",
+      "description": "Generate fulfillment summary report",
+      "type": "llm-prompt",
+      "params": {
+        "prompt": "Generate a fulfillment summary for warehouse ${input.warehouseId}. ${length(process_orders)} orders were processed.",
+        "outputFormat": {
+          "type": "object",
+          "properties": {
+            "processedCount": { "type": "number" },
+            "summary": { "type": "string" }
+          },
+          "required": ["processedCount", "summary"]
+        }
+      },
+      "nextStepId": "done"
+    },
+    {
+      "id": "done",
+      "name": "Done",
+      "description": "End of order fulfillment workflow",
+      "type": "end",
+      "params": {
+        "output": {
+          "type": "jmespath",
+          "expression": "generate_summary"
+        }
+      }
+    }
+  ]
 }

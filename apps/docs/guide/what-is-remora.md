@@ -20,9 +20,11 @@ A multi-pass compiler that takes a raw workflow definition and produces a valida
 
 - **Graph construction** — builds the DAG, detects cycles and duplicate step IDs
 - **Reference validation** — verifies all step references resolve
+- **Limits validation** — checks literal sleep/wait values against configured limits
+- **Output schema validation** — warns about JSON Schema keywords unsupported by LLM structured output APIs
+- **Tool validation** — ensures tool call parameters match available tool schemas, including type checking
 - **Control flow validation** — checks branching and looping logic
 - **JMESPath validation** — parses and validates all expressions
-- **Tool validation** — ensures tool call parameters match available tool schemas
 - **For-each target validation** — confirms loop targets resolve to arrays
 - **Constrained schema generation** — produces narrowed tool input schemas
 - **Best practices** — applies non-destructive transformations (e.g., adding missing end steps)
@@ -47,9 +49,11 @@ The executor is compatible with the [Vercel AI SDK](https://ai-sdk.dev/) and sup
 
 An LLM-driven workflow generator that takes a natural language task description and produces a validated workflow definition. The generator uses a tool call loop — if compilation fails, diagnostics are fed back to the LLM for correction, up to a configurable number of retries.
 
-### Viewer
+### Viewer / Editor
 
-A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Click any node to see step details and diagnostics in a side panel.
+A React-based workflow component built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Click any node to see step details and diagnostics in a side panel.
+
+Set `isEditing` to enable a full canvas editor: users can add steps via a right-click context menu or step palette, connect steps by dragging edges, delete nodes, and edit step parameters in a type-specific side panel. Pass `workflow={null}` to start with an empty canvas.
 
 ## Constrained Tool Schemas
 

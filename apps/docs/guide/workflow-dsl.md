@@ -2,6 +2,36 @@
 
 Workflows are defined as JSON objects with an `initialStepId` and an array of `steps`. Each step has a type, a `nextStepId` for sequencing, and type-specific parameters. Data flows between steps through JMESPath expressions that reference previous step outputs.
 
+## Workflow-Level Fields
+
+| Field | Required | Description |
+|---|---|---|
+| `initialStepId` | Yes | ID of the first step to execute. |
+| `steps` | Yes | Array of step definitions (order doesn't matter — execution order is determined by `nextStepId` and branching). |
+| `inputSchema` | No | JSON Schema object declaring the inputs required to run the workflow. The executor validates provided inputs against it. Inputs are available in scope via the `input` identifier (e.g. `input.userId`). |
+| `outputSchema` | No | JSON Schema object declaring the shape of the workflow's final output. When present, the value produced by the `end` step's `output` expression is validated against it. |
+
+```json
+{
+  "initialStepId": "start_step",
+  "inputSchema": {
+    "type": "object",
+    "required": ["userId"],
+    "properties": {
+      "userId": { "type": "string" }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": ["result"],
+    "properties": {
+      "result": { "type": "string" }
+    }
+  },
+  "steps": [...]
+}
+```
+
 ## Step Types
 
 ### `start`
@@ -143,6 +173,94 @@ Iterates over an array and executes a chain of steps for each item. The current 
   "nextStepId": "done"
 }
 ```
+
+### `sleep`
+
+Pauses workflow execution for a specified duration.
+
+```json
+{
+  "id": "wait_a_bit",
+  "name": "Wait",
+  "description": "Pause before retrying",
+  "type": "sleep",
+  "params": {
+    "durationMs": { "type": "literal", "value": 5000 }
+  },
+  "nextStepId": "retry_step"
+}
+```
+
+`durationMs` is an expression that must evaluate to a non-negative number (milliseconds).
+
+### `wait-for-condition`
+
+Repeatedly executes a condition-check chain and polls until a condition expression evaluates to truthy, or until a timeout or attempt limit is reached.
+
+```json
+{
+  "id": "wait_for_job",
+  "name": "Wait for job",
+  "description": "Poll until the job is done",
+  "type": "wait-for-condition",
+  "params": {
+    "conditionStepId": "check_job_status",
+    "condition": { "type": "jmespath", "expression": "check_job_status.done" },
+    "maxAttempts": { "type": "literal", "value": 20 },
+    "intervalMs": { "type": "literal", "value": 3000 },
+    "backoffMultiplier": { "type": "literal", "value": 1.5 },
+    "timeoutMs": { "type": "literal", "value": 120000 }
+  },
+  "nextStepId": "process_result"
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `conditionStepId` | Yes | ID of the first step in the condition-check chain. The chain runs until a step with no `nextStepId`. |
+| `condition` | Yes | Expression evaluated after each run of the chain. If truthy, the wait completes with that value as output. |
+| `maxAttempts` | No | Maximum polling attempts before failing (default: `10`). |
+| `intervalMs` | No | Milliseconds between attempts (default: `1000`). |
+| `backoffMultiplier` | No | Multiplier applied to the interval after each attempt (default: `1`, no backoff). |
+| `timeoutMs` | No | Hard timeout in milliseconds. If elapsed time exceeds this, the step fails regardless of remaining attempts. |
+
+### `agent-loop`
+
+Delegates work to an autonomous agent with its own tool-calling loop. The agent receives instructions, calls tools as needed, and produces structured output.
+
+::: warning Use sparingly
+`agent-loop` sacrifices the determinism that is the core value of the workflow DSL. Prefer explicit `tool-call`, `llm-prompt`, and control flow steps whenever the task can be decomposed into predictable operations.
+:::
+
+```json
+{
+  "id": "research",
+  "name": "Research topic",
+  "description": "Agent researches the topic autonomously",
+  "type": "agent-loop",
+  "params": {
+    "instructions": "Research ${input.topic} and return a structured summary with key findings and sources.",
+    "tools": ["web-search", "fetch-url"],
+    "outputFormat": {
+      "type": "object",
+      "required": ["summary", "sources"],
+      "properties": {
+        "summary": { "type": "string" },
+        "sources": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "maxSteps": { "type": "literal", "value": 15 }
+  },
+  "nextStepId": "done"
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `instructions` | Yes | Template string with task instructions. Supports `${...}` JMESPath expressions for data interpolation. |
+| `tools` | Yes | Array of tool names from the workflow's tool set the agent may use. |
+| `outputFormat` | Yes | JSON Schema specifying the structured output format. |
+| `maxSteps` | No | Maximum tool-calling steps the agent may take (default: `10`). |
 
 ### `end`
 

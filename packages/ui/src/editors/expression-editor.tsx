@@ -1,211 +1,418 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "../components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "../components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { JsonCodeEditor } from "./json-code-editor";
 
 type Expression =
-	| { type: "literal"; value: unknown }
-	| { type: "jmespath"; expression: string }
-	| { type: "template"; template: string };
+  | { type: "literal"; value: unknown }
+  | { type: "jmespath"; expression: string }
+  | { type: "template"; template: string };
 
 export interface ExpressionEditorProps {
-	value: Expression;
-	onChange: (value: Expression) => void;
-	label?: string;
+  value: Expression;
+  onChange: (value: Expression) => void;
+  label?: string;
+  /** Optional JSON Schema hint to constrain literal mode. */
+  schemaHint?: {
+    type?: string;
+    enum?: unknown[];
+  };
 }
-
-const TAB_CLASSES =
-	"px-2 py-1 text-[11px] font-medium rounded transition-colors";
-const ACTIVE_TAB = "bg-foreground text-background";
-const INACTIVE_TAB =
-	"text-muted-foreground hover:text-foreground hover:bg-muted/50";
 
 type LiteralType = "string" | "number" | "boolean" | "json";
 
 function inferLiteralType(value: unknown): LiteralType {
-	if (typeof value === "string") return "string";
-	if (typeof value === "number") return "number";
-	if (typeof value === "boolean") return "boolean";
-	return "json";
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  return "json";
+}
+
+function schemaTypeToLiteralType(t: string | undefined): LiteralType | null {
+  switch (t) {
+    case "string":
+      return "string";
+    case "number":
+    case "integer":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "object":
+    case "array":
+      return "json";
+    default:
+      return null;
+  }
+}
+
+function defaultValueForSchemaType(t: string | undefined): unknown {
+  switch (t) {
+    case "string":
+      return "";
+    case "number":
+    case "integer":
+      return 0;
+    case "boolean":
+      return false;
+    case "array":
+      return [];
+    case "object":
+      return {};
+    default:
+      return "";
+  }
 }
 
 export function ExpressionEditor({
-	value,
-	onChange,
-	label,
+  value,
+  onChange,
+  label,
+  schemaHint,
 }: ExpressionEditorProps) {
-	const [literalType, setLiteralType] = useState<LiteralType>(
-		value.type === "literal" ? inferLiteralType(value.value) : "string",
-	);
+  const hintedLiteralType = schemaTypeToLiteralType(schemaHint?.type);
+  const hasEnum = schemaHint?.enum && schemaHint.enum.length > 0;
+  const allowTemplate = !schemaHint?.type || schemaHint.type === "string";
 
-	useEffect(() => {
-		if (value.type === "literal") {
-			setLiteralType(inferLiteralType(value.value));
-		}
-	}, [value]);
+  const [literalType, setLiteralType] = useState<LiteralType>(
+    hintedLiteralType ??
+      (value.type === "literal" ? inferLiteralType(value.value) : "string"),
+  );
 
-	const handleTypeChange = useCallback(
-		(newType: Expression["type"]) => {
-			switch (newType) {
-				case "literal":
-					onChange({ type: "literal", value: "" });
-					break;
-				case "jmespath":
-					onChange({
-						type: "jmespath",
-						expression: value.type === "jmespath" ? value.expression : "",
-					});
-					break;
-				case "template":
-					onChange({
-						type: "template",
-						template: value.type === "template" ? value.template : "",
-					});
-					break;
-			}
-		},
-		[value, onChange],
-	);
+  // Only sync literalType from value when the expression type changes to
+  // literal from a different type. We must NOT re-infer on every value change,
+  // because that would fight the user's tab selection (e.g. switching to JSON
+  // sets an empty object, but inferLiteralType would call that "json" only if
+  // it's not a string/number/boolean — and the initial default value could
+  // be misclassified).
+  const prevExprType = useRef(value.type);
+  useEffect(() => {
+    if (value.type === "literal" && prevExprType.current !== "literal") {
+      setLiteralType(hintedLiteralType ?? inferLiteralType(value.value));
+    }
+    prevExprType.current = value.type;
+  }, [value, hintedLiteralType]);
 
-	const handleLiteralChange = useCallback(
-		(raw: string, type: LiteralType) => {
-			let parsed: unknown;
-			switch (type) {
-				case "string":
-					parsed = raw;
-					break;
-				case "number":
-					parsed = raw === "" ? 0 : Number(raw);
-					break;
-				case "boolean":
-					parsed = raw === "true";
-					break;
-				case "json":
-					try {
-						parsed = JSON.parse(raw);
-					} catch {
-						parsed = raw;
-					}
-					break;
-			}
-			onChange({ type: "literal", value: parsed });
-		},
-		[onChange],
-	);
+  const handleTypeChange = useCallback(
+    (newType: string) => {
+      switch (newType) {
+        case "literal":
+          if (hasEnum) {
+            onChange({
+              type: "literal",
+              value: schemaHint?.enum?.[0],
+            });
+          } else {
+            onChange({
+              type: "literal",
+              value: defaultValueForSchemaType(schemaHint?.type),
+            });
+          }
+          break;
+        case "jmespath":
+          onChange({
+            type: "jmespath",
+            expression: value.type === "jmespath" ? value.expression : "",
+          });
+          break;
+        case "template":
+          onChange({
+            type: "template",
+            template: value.type === "template" ? value.template : "",
+          });
+          break;
+      }
+    },
+    [value, onChange, hasEnum, schemaHint],
+  );
 
-	return (
-		<div className="space-y-1.5">
-			{label && (
-				<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-					{label}
-				</div>
-			)}
-			<div className="flex gap-1">
-				{(["literal", "jmespath", "template"] as const).map((t) => (
-					<button
-						key={t}
-						type="button"
-						onClick={() => handleTypeChange(t)}
-						className={`${TAB_CLASSES} ${value.type === t ? ACTIVE_TAB : INACTIVE_TAB}`}
-					>
-						{t === "jmespath"
-							? "JMESPath"
-							: t === "literal"
-								? "Literal"
-								: "Template"}
-					</button>
-				))}
-			</div>
+  const handleLiteralChange = useCallback(
+    (raw: string, type: LiteralType) => {
+      let parsed: unknown;
+      switch (type) {
+        case "string":
+          parsed = raw;
+          break;
+        case "number":
+          parsed = raw === "" ? 0 : Number(raw);
+          break;
+        case "boolean":
+          parsed = raw === "true";
+          break;
+        case "json":
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            parsed = raw;
+          }
+          break;
+      }
+      onChange({ type: "literal", value: parsed });
+    },
+    [onChange],
+  );
 
-			{value.type === "literal" && (
-				<div className="space-y-1">
-					<div className="flex gap-1">
-						{(["string", "number", "boolean", "json"] as const).map((lt) => (
-							<button
-								key={lt}
-								type="button"
-								onClick={() => {
-									setLiteralType(lt);
-									handleLiteralChange(
-										lt === "boolean" ? "false" : lt === "number" ? "0" : "",
-										lt,
-									);
-								}}
-								className={`${TAB_CLASSES} ${literalType === lt ? "bg-muted text-foreground" : INACTIVE_TAB}`}
-							>
-								{lt}
-							</button>
-						))}
-					</div>
-					{literalType === "boolean" ? (
-						<Select
-							value={value.value === true ? "true" : "false"}
-							onValueChange={(val) =>
-								onChange({
-									type: "literal",
-									value: val === "true",
-								})
-							}
-						>
-							<SelectTrigger className="h-8 text-xs font-mono w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="true">true</SelectItem>
-								<SelectItem value="false">false</SelectItem>
-							</SelectContent>
-						</Select>
-					) : literalType === "json" ? (
-						<JsonCodeEditor
-							value={
-								typeof value.value === "string"
-									? value.value
-									: JSON.stringify(value.value, null, 2)
-							}
-							onChange={(val) => handleLiteralChange(val, "json")}
-							placeholderText='{"key": "value"}'
-						/>
-					) : (
-						<Input
-							type={literalType === "number" ? "number" : "text"}
-							value={String(value.value ?? "")}
-							onChange={(e) => handleLiteralChange(e.target.value, literalType)}
-							className="h-8 text-xs font-mono"
-							placeholder={literalType === "number" ? "0" : "Enter value..."}
-						/>
-					)}
-				</div>
-			)}
+  const handleLiteralTypeChange = useCallback(
+    (lt: string) => {
+      const newType = lt as LiteralType;
+      setLiteralType(newType);
+      switch (newType) {
+        case "boolean":
+          onChange({ type: "literal", value: false });
+          break;
+        case "number":
+          onChange({ type: "literal", value: 0 });
+          break;
+        case "json":
+          onChange({ type: "literal", value: {} });
+          break;
+        case "string":
+          onChange({ type: "literal", value: "" });
+          break;
+      }
+    },
+    [onChange],
+  );
 
-			{value.type === "jmespath" && (
-				<Input
-					value={value.expression}
-					onChange={(e) =>
-						onChange({ type: "jmespath", expression: e.target.value })
-					}
-					className="h-8 text-xs font-mono"
-					placeholder="stepId.outputKey"
-				/>
-			)}
+  return (
+    <div className="space-y-1.5">
+      {label && (
+        <div className="text-[11px] font-medium text-muted-foreground mb-1">
+          {label}
+        </div>
+      )}
+      {(() => {
+        // Extract literal value once so TabsContent children (which are
+        // always mounted) can reference it without TS narrowing issues.
+        const litVal = value.type === "literal" ? value.value : undefined;
 
-			{value.type === "template" && (
-				<Textarea
-					value={value.template}
-					onChange={(e) =>
-						onChange({ type: "template", template: e.target.value })
-					}
-					rows={3}
-					className="text-xs font-mono resize-y"
-					placeholder="Hello ${stepId.name}, your total is ${order.total}"
-				/>
-			)}
-		</div>
-	);
+        return (
+          <Tabs value={value.type} onValueChange={handleTypeChange}>
+            <TabsList>
+              <TabsTrigger value="literal">Literal</TabsTrigger>
+              <TabsTrigger value="jmespath">Expression</TabsTrigger>
+              {allowTemplate && (
+                <TabsTrigger value="template">String Template</TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="literal">
+              {hasEnum ? (
+                <Select
+                  value={String(litVal ?? "")}
+                  onValueChange={(val) => {
+                    // Try to preserve the original type of the enum value
+                    const match = schemaHint?.enum?.find(
+                      (e) => String(e) === val,
+                    );
+                    onChange({
+                      type: "literal",
+                      value: match ?? val,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs font-mono w-full">
+                    <SelectValue placeholder="-- select --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schemaHint?.enum?.map((v) => (
+                      <SelectItem key={String(v)} value={String(v)}>
+                        {String(v)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : hintedLiteralType ? (
+                <LiteralWidget
+                  type={hintedLiteralType}
+                  value={litVal}
+                  onChange={(raw) =>
+                    handleLiteralChange(raw, hintedLiteralType)
+                  }
+                  onValueChange={onChange}
+                />
+              ) : (
+                <Tabs
+                  value={literalType}
+                  onValueChange={handleLiteralTypeChange}
+                >
+                  <TabsList>
+                    <TabsTrigger value="string">string</TabsTrigger>
+                    <TabsTrigger value="number">number</TabsTrigger>
+                    <TabsTrigger value="boolean">boolean</TabsTrigger>
+                    <TabsTrigger value="json">json</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="string">
+                    <Input
+                      type="text"
+                      value={String(litVal ?? "")}
+                      onChange={(e) =>
+                        handleLiteralChange(e.target.value, "string")
+                      }
+                      className="h-8 text-xs font-mono"
+                      placeholder="Enter value..."
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="number">
+                    <Input
+                      type="number"
+                      value={String(litVal ?? "")}
+                      onChange={(e) =>
+                        handleLiteralChange(e.target.value, "number")
+                      }
+                      className="h-8 text-xs font-mono"
+                      placeholder="0"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="boolean">
+                    <Select
+                      value={litVal === true ? "true" : "false"}
+                      onValueChange={(val) =>
+                        onChange({
+                          type: "literal",
+                          value: val === "true",
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs font-mono w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">true</SelectItem>
+                        <SelectItem value="false">false</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TabsContent>
+
+                  <TabsContent value="json">
+                    <JsonCodeEditor
+                      value={
+                        typeof litVal === "string"
+                          ? litVal
+                          : JSON.stringify(litVal, null, 2)
+                      }
+                      onChange={(val) => handleLiteralChange(val, "json")}
+                      placeholderText='{"key": "value"}'
+                    />
+                  </TabsContent>
+                </Tabs>
+              )}
+            </TabsContent>
+
+            <TabsContent value="jmespath">
+              <Input
+                value={value.type === "jmespath" ? value.expression : ""}
+                onChange={(e) =>
+                  onChange({
+                    type: "jmespath",
+                    expression: e.target.value,
+                  })
+                }
+                className="h-8 text-xs font-mono"
+                placeholder="stepId.outputKey"
+              />
+            </TabsContent>
+
+            {allowTemplate && (
+              <TabsContent value="template">
+                <Textarea
+                  value={value.type === "template" ? value.template : ""}
+                  onChange={(e) =>
+                    onChange({
+                      type: "template",
+                      template: e.target.value,
+                    })
+                  }
+                  rows={3}
+                  className="text-xs font-mono resize-y"
+                  placeholder="Hello ${stepId.name}, your total is ${order.total}"
+                />
+              </TabsContent>
+            )}
+          </Tabs>
+        );
+      })()}
+    </div>
+  );
+}
+
+/** Renders a single literal input widget without the type sub-tabs. */
+function LiteralWidget({
+  type,
+  value,
+  onChange,
+  onValueChange,
+}: {
+  type: LiteralType;
+  value: unknown;
+  onChange: (raw: string) => void;
+  onValueChange: (expr: Expression) => void;
+}) {
+  switch (type) {
+    case "string":
+      return (
+        <Input
+          type="text"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-xs font-mono"
+          placeholder="Enter value..."
+        />
+      );
+    case "number":
+      return (
+        <Input
+          type="number"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-xs font-mono"
+          placeholder="0"
+        />
+      );
+    case "boolean":
+      return (
+        <Select
+          value={value === true ? "true" : "false"}
+          onValueChange={(val) =>
+            onValueChange({
+              type: "literal",
+              value: val === "true",
+            })
+          }
+        >
+          <SelectTrigger className="h-8 text-xs font-mono w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">true</SelectItem>
+            <SelectItem value="false">false</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    case "json":
+      return (
+        <JsonCodeEditor
+          value={
+            typeof value === "string" ? value : JSON.stringify(value, null, 2)
+          }
+          onChange={onChange}
+          placeholderText='{"key": "value"}'
+        />
+      );
+  }
 }

@@ -1,54 +1,54 @@
 {
-	"name": "@remoraflow/core",
-	"version": "0.1.0",
-	"description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
-	"publishConfig": {
-		"access": "public"
-	},
-	"homepage": "https://isaacwasserman.github.io/remora/",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/isaacwasserman/remora",
-		"directory": "packages/core"
-	},
-	"license": "GPL-3.0",
-	"type": "module",
-	"exports": {
-		".": {
-			"import": "./dist/lib.js",
-			"types": "./dist/lib.d.ts"
-		}
-	},
-	"files": [
-		"dist",
-		"README.md",
-		"LICENSE"
-	],
-	"scripts": {
-		"build": "bun scripts/build.ts",
-		"prepublishOnly": "bun run build",
-		"test": "bun test",
-		"test:e2e": "bun test src/e2e.ts"
-	},
-	"dependencies": {
-		"arktype": "^2.1.29",
-		"@jmespath-community/jmespath": "^1.3.0"
-	},
-	"peerDependencies": {
-		"ai": "^6.0.0",
-		"@ai-sdk/provider-utils": "^4.0.0"
-	},
-	"peerDependenciesMeta": {
-		"ai": {
-			"optional": true
-		},
-		"@ai-sdk/provider-utils": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@ai-sdk/anthropic": "^3.0.50",
-		"@ai-sdk/openai": "^3.0.37",
-		"ai": "^6.0.105"
-	}
+  "name": "@remoraflow/core",
+  "version": "0.1.0",
+  "description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://isaacwasserman.github.io/remora/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/isaacwasserman/remora",
+    "directory": "packages/core"
+  },
+  "license": "GPL-3.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/lib.js",
+      "types": "./dist/lib.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "test:e2e": "bun test src/e2e.ts"
+  },
+  "dependencies": {
+    "arktype": "^2.1.29",
+    "@jmespath-community/jmespath": "^1.3.0"
+  },
+  "peerDependencies": {
+    "ai": "^6.0.0",
+    "@ai-sdk/provider-utils": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
+    "@ai-sdk/provider-utils": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "^3.0.50",
+    "@ai-sdk/openai": "^3.0.37",
+    "ai": "^6.0.105"
+  }
 }

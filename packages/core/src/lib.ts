@@ -1,65 +1,66 @@
 export type {
-	CompilerLimits,
-	CompilerResult,
-	ConstrainedToolSchema,
-	ConstrainedToolSchemaMap,
-	Diagnostic,
-	DiagnosticCode,
-	DiagnosticLocation,
-	DiagnosticSeverity,
-	ExecutionGraph,
-	ToolDefinitionMap,
-	ToolSchemaDefinition,
+  CompilerLimits,
+  CompilerResult,
+  ConstrainedToolSchema,
+  ConstrainedToolSchemaMap,
+  Diagnostic,
+  DiagnosticCode,
+  DiagnosticLocation,
+  DiagnosticSeverity,
+  ExecutionGraph,
+  ToolDefinitionMap,
+  ToolSchemaDefinition,
 } from "./compiler";
 export { compileWorkflow, extractToolSchemas } from "./compiler";
 export type {
-	ExecuteWorkflowOptions,
-	ExecutionResult,
-	ExecutorLimits,
+  ExecuteWorkflowOptions,
+  ExecutionResult,
+  ExecutorLimits,
 } from "./executor";
 export { executeWorkflow } from "./executor";
 export type {
-	DurableContext,
-	WaitForConditionOptions,
+  DurableContext,
+  WaitForConditionOptions,
 } from "./executor/context";
 export { createDefaultDurableContext } from "./executor/context";
 export type {
-	ErrorCategory,
-	ErrorCode,
-	RecoveryStrategy,
+  ErrorCategory,
+  ErrorCode,
+  RecoveryStrategy,
 } from "./executor/errors";
 export {
-	ConfigurationError,
-	ExpressionError,
-	ExternalServiceError,
-	OutputQualityError,
-	StepExecutionError,
-	ValidationError,
+  ConfigurationError,
+  ExpressionError,
+  ExternalServiceError,
+  OutputQualityError,
+  StepExecutionError,
+  ValidationError,
 } from "./executor/errors";
+export { hashWorkflow } from "./executor/hash";
 export type {
-	ErrorSnapshot,
-	ExecutionDelta,
-	ExecutionPathSegment,
-	ExecutionState,
-	RetryRecord,
-	RunStatus,
-	StepExecutionRecord,
-	StepStatus,
-	TraceEntry,
+  ErrorSnapshot,
+  ExecutionDelta,
+  ExecutionPathSegment,
+  ExecutionState,
+  RetryRecord,
+  RunStatus,
+  StepExecutionRecord,
+  StepStatus,
+  TraceEntry,
 } from "./executor/state";
 export { applyDelta, snapshotError } from "./executor/state";
 export type {
-	GenerateWorkflowOptions,
-	GenerateWorkflowResult,
-	WorkflowGeneratorToolOptions,
+  GenerateWorkflowOptions,
+  GenerateWorkflowResult,
+  WorkflowGeneratorToolOptions,
 } from "./generator";
 export { createWorkflowGeneratorTool, generateWorkflow } from "./generator";
 export {
-	buildWorkflowGenerationPrompt,
-	serializeToolsForPrompt,
+  buildWorkflowGenerationPrompt,
+  serializeToolsForPrompt,
 } from "./generator/prompt";
 export {
-	type WorkflowDefinition,
-	type WorkflowStep,
-	workflowDefinitionSchema,
+  type WorkflowDefinition,
+  type WorkflowStep,
+  workflowDefinitionSchema,
 } from "./types";

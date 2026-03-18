@@ -1,6 +1,10 @@
-# 🦈 Remora
+<p align="center">
+  <img src="apps/docs/public/remoraflow-logo.svg" alt="Remoraflow Logo" width="400" />
+</p>
 
-Workflows by agents, for agents.
+<h1 align="center">Remora</h1>
+
+<p align="center">Workflows by agents, for agents.</p>
 
 **[Documentation](https://isaacwasserman.github.io/remora/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
 

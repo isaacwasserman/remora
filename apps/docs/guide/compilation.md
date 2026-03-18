@@ -143,6 +143,8 @@ Every diagnostic has a machine-readable `code` for programmatic handling. The fu
 | `UNKNOWN_TOOL` | error | `tool-call` references a tool not in the provided `ToolSet` |
 | `MISSING_TOOL_INPUT_KEY` | warning | Required tool input key is missing from `toolInput` |
 | `EXTRA_TOOL_INPUT_KEY` | warning | `toolInput` contains a key not in the tool's schema |
+| `TOOL_INPUT_TYPE_MISMATCH` | warning | A literal `toolInput` value has a type that doesn't match the tool's input schema |
+| `UNSUPPORTED_SCHEMA_KEYWORD` | warning | An `outputFormat` / `outputSchema` field contains a JSON Schema keyword not supported by LLM structured output APIs (e.g. `minimum`, `maximum`, `minLength`, `pattern`) |
 | `MISSING_START_STEP` | warning | Workflow has no `start` step |
 | `END_STEP_MISSING_OUTPUT` | warning | Workflow has an `outputSchema` but the `end` step has no output expression |
 | `END_STEP_UNEXPECTED_OUTPUT` | warning | `end` step has an output expression but the workflow has no `outputSchema` |
@@ -260,12 +262,13 @@ The compiler runs passes in this order:
 1. **Graph construction** — builds the DAG, detects cycles, duplicate step IDs, computes topological order and reachability
 2. **Reference validation** — verifies all `nextStepId`, `branchBodyStepId`, `loopBodyStepId`, and `conditionStepId` references resolve to existing steps
 3. **Limits validation** — checks literal sleep/wait values against configured `CompilerLimits`
-4. **Tool validation** — validates `tool-call` step inputs match the provided tool schemas (requires `tools` option)
-5. **Control flow validation** — checks that branch bodies and loop bodies don't escape their boundaries, validates `switch-case` and `for-each` structure
-6. **JMESPath validation** — parses all JMESPath expressions, validates root references against available step IDs and loop variables, detects forward references
-7. **For-each target validation** — uses tool output schemas to verify that `for-each` targets resolve to array types
-8. **Constrained schema generation** — produces narrowed tool input schemas from all call sites
-9. **Best practices** — applies non-destructive transformations (e.g., adding missing end steps)
+4. **Output schema validation** — warns about JSON Schema keywords in `outputFormat` and `outputSchema` fields that LLM structured output APIs don't support (e.g. `minimum`, `maxLength`, `pattern`). These keywords are silently dropped at runtime; the warning lets you catch mismatches at compile time.
+5. **Tool validation** — validates `tool-call` step inputs match the provided tool schemas (requires `tools` option), including type checking of literal values
+6. **Control flow validation** — checks that branch bodies and loop bodies don't escape their boundaries, validates `switch-case` and `for-each` structure
+7. **JMESPath validation** — parses all JMESPath expressions, validates root references against available step IDs and loop variables, detects forward references
+8. **For-each target validation** — uses tool output schemas to verify that `for-each` targets resolve to array types
+9. **Constrained schema generation** — produces narrowed tool input schemas from all call sites
+10. **Best practices** — applies non-destructive transformations (e.g., adding missing end steps)
 
 If a pass produces errors, later passes that depend on a valid graph are skipped. Warnings never prevent subsequent passes from running.
 

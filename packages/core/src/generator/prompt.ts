@@ -2,25 +2,25 @@ import { asSchema, type ToolSet } from "ai";
 import type { Diagnostic } from "../compiler/types";
 
 export async function serializeToolsForPrompt(tools: ToolSet): Promise<string> {
-	return JSON.stringify(
-		await Promise.all(
-			Object.entries(tools).map(async ([toolName, toolDef]) => ({
-				name: toolName,
-				description: toolDef.description,
-				inputSchema: await asSchema(toolDef.inputSchema).jsonSchema,
-				outputSchema: toolDef.outputSchema
-					? await asSchema(toolDef.outputSchema).jsonSchema
-					: undefined,
-			})),
-		),
-	);
+  return JSON.stringify(
+    await Promise.all(
+      Object.entries(tools).map(async ([toolName, toolDef]) => ({
+        name: toolName,
+        description: toolDef.description,
+        inputSchema: await asSchema(toolDef.inputSchema).jsonSchema,
+        outputSchema: toolDef.outputSchema
+          ? await asSchema(toolDef.outputSchema).jsonSchema
+          : undefined,
+      })),
+    ),
+  );
 }
 
 export function buildWorkflowGenerationPrompt(
-	serializedTools: string,
-	additionalInstructions?: string,
+  serializedTools: string,
+  additionalInstructions?: string,
 ): string {
-	return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. You MUST call the createWorkflow tool with a valid workflow definition.
+  return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. You MUST call the createWorkflow tool with a valid workflow definition.
 
 ## Workflow Structure
 
@@ -256,14 +256,14 @@ ${serializedTools}
 }
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {
-	const errors = diagnostics.filter((d) => d.severity === "error");
-	if (errors.length === 0) return "No errors.";
-	return errors
-		.map((d) => {
-			const loc = d.location
-				? ` (at step ${d.location.stepId}${d.location.field ? `, field ${d.location.field}` : ""})`
-				: "";
-			return `- [${d.code}] ${d.message}${loc}`;
-		})
-		.join("\n");
+  const errors = diagnostics.filter((d) => d.severity === "error");
+  if (errors.length === 0) return "No errors.";
+  return errors
+    .map((d) => {
+      const loc = d.location
+        ? ` (at step ${d.location.stepId}${d.location.field ? `, field ${d.location.field}` : ""})`
+        : "";
+      return `- [${d.code}] ${d.message}${loc}`;
+    })
+    .join("\n");
 }
