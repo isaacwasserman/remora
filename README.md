@@ -2,113 +2,175 @@
   <img src="apps/docs/public/remoraflow-logo.svg" alt="Remoraflow Logo" width="400" />
 </p>
 
-<h1 align="center">Remora</h1>
-
 <p align="center">Workflows by agents, for agents.</p>
 
 **[Documentation](https://isaacwasserman.github.io/remora/)** · **[Demo](https://isaacwasserman.github.io/remora/demo/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
 
-Remora is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using Remora's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is well-defined, repeatable, and auditable.
+RemoraFlow is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using RemoraFlow's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is **well-defined, repeatable, and auditable**.
 
-> Unlike unstructured instructions, a Remora workflow is a concrete artifact that can be inspected, versioned, and re-run deterministically.
+Most AI "workflows" are just long prompts that *describe logic but don't guarantee it*. RemoraFlow is a language for defining workflows that guarantee an outcome through careful validation and deterministic behavior.
 
-The workflow definition is a JSON object, which means agents can produce it via a single tool call. The compiler returns structured diagnostics — errors and warnings with specific codes and locations — so the agent gets immediate feedback on whether its logic is sound and can fix issues before anything runs.
+> The name comes from the remora fish, which attaches to sharks and other large animals. RemoraFlow workflows work alongside agents in a similar way: rather than constraining behavior through guardrails, the agent authors its own concrete, inspectable plan.
 
-> An agent can author a workflow, compile it, read the diagnostics, and iterate — all within a single conversation turn.
+## Features
 
-The name comes from the remora fish, which attaches to sharks and other large animals. Remora workflows work alongside agents in a similar way: rather than constraining behavior through guardrails, the agent authors its own concrete, inspectable plan using familiar primitives — tool calls, loops, switch statements, and data extraction steps — connected by JMESPath expressions for data flow.
-
-## 🔒 Constrained Tool Schemas
-
-When the compiler analyzes a workflow, it determines exactly which tool parameters are static (known at compile time) versus dynamic (resolved at runtime). This produces a narrowed input schema for each tool.
-
-This matters for safety: a human supervisor can review the constrained schemas and approve a limited set of behaviors ahead of time. The compiler makes this distinction explicit, enabling workflows to run without human-in-the-loop supervision where appropriate.
+- **JSON-based syntax** — Flows can be generated via agent tool calls. We provide a reference `create-workflow` tool you can hand directly to your agents.
+- **Deterministic execution** — Tool calls and branching logic glued together with JMESPath expressions. LLM-based steps provide intelligence with strong guarantees through validation, retries, and access control.
+- **Ahead-of-time validation** — A multi-pass compiler provides traceable diagnostics that agents can fix before the workflow ever runs.
+- **Constrained tool schemas** — The compiler distinguishes static vs. dynamic tool parameters, producing narrowed input schemas. A human supervisor can review and approve a limited set of behaviors ahead of time.
+- **Durable execution** — Compatible with leading durable execution environments, allowing workflows to sleep or block without consuming serverless resources.
 
 > A workflow that only ever calls `sendEmail` with a specific template and a dynamic recipient is meaningfully different from one with unconstrained access to the email API.
 
-## 🏗️ Architecture
+## Use Cases
 
-Remora has three main components:
-
-### Compiler
-
-A multi-pass compiler that takes a raw workflow definition and produces a validated execution graph. Passes include:
-
-- **Graph construction** — builds the DAG, detects cycles and duplicate step IDs
-- **Reference validation** — verifies all step references resolve
-- **Control flow validation** — checks branching and looping logic
-- **JMESPath validation** — parses and validates all expressions
-- **Tool validation** — ensures tool call parameters match available tool schemas
-- **Constrained schema generation** — produces narrowed tool input schemas
-- **Best practices** — applies non-destructive transformations (e.g., adding missing end steps)
-
-Diagnostics are emitted as structured errors and warnings with specific codes, step locations, and field paths.
-
-### Executor
-
-A runtime engine that walks the compiled execution graph step by step. It handles:
-
-- **Tool calls** with literal or expression-based arguments
-- **LLM prompts** with template string interpolation from step outputs
-- **Data extraction** via JMESPath or LLM-based extraction
-- **Switch-case** branching on step output values
-- **For-each** loops over arrays with scoped iteration variables
-
-Each step's output is stored in a scope that subsequent steps can reference via JMESPath expressions, providing structured data flow without arbitrary code.
-
-The executor is compatible with the [Vercel AI SDK](https://ai-sdk.dev/) and will eventually support any agent implementing the AI SDK's agent interface.
-
-### Viewer
-
-A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Available as an npm import (`remora/viewer`) or via the [shadcn component registry](https://isaacwasserman.github.io/remora/guide/component-registry) for full customization:
-
-```bash
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
-```
-
-### Component Registry
-
-The viewer components are available via a [shadcn-compatible component registry](https://isaacwasserman.github.io/remora/guide/component-registry), giving you full control over the source code and styling. See the [component registry docs](https://isaacwasserman.github.io/remora/guide/component-registry) for details.
-
-## The DSL
-
-Workflows are defined as a list of steps with an initial step ID. Each step has a type (`tool-call`, `llm-prompt`, `extract-data`, `switch-case`, `for-each`, or `end`), a `nextStepId` for sequencing, and type-specific parameters. Data flows between steps through JMESPath expressions that reference previous step outputs.
-
-See [`src/example-tasks.ts`](src/example-tasks.ts) for complete workflow examples including support ticket triage, order fulfillment, content moderation, and student course assignment.
-
-See [`src/types.ts`](src/types.ts) for the full type definitions.
+- **Unsupervised jobs** — Agents construct repeatable workflows for cron jobs, webhook handlers, etc. with predictable execution and audit trails.
+- **Agent plans** — Workflows replace text-based plans with behavioral guarantees. Unlike a text plan, a compiled workflow can't deviate from its defined logic during execution.
 
 ## Getting Started
 
-```bash
-bun install
-```
-
-Run the workflow viewer:
+### Installation
 
 ```bash
-bun run viewer
+bun add @remoraflow/core
 ```
 
-Run tests:
+Peer dependencies (install as needed):
 
 ```bash
-bun test
+# For LLM steps (llm-prompt, extract-data) and workflow generation
+bun add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
+
+# For the workflow viewer/editor component
+bun add @remoraflow/ui react react-dom @xyflow/react
 ```
 
-Lint:
+### Compile a Workflow
+
+```ts
+import { compileWorkflow } from "@remoraflow/core";
+
+const workflow = {
+  initialStepId: "get_tickets",
+  steps: [
+    {
+      id: "get_tickets",
+      name: "Get tickets",
+      description: "Fetch all open support tickets",
+      type: "tool-call",
+      params: {
+        toolName: "get-open-tickets",
+        toolInput: {},
+      },
+      nextStepId: "end_step",
+    },
+    {
+      id: "end_step",
+      name: "Done",
+      description: "End the workflow",
+      type: "end",
+    },
+  ],
+};
+
+const result = await compileWorkflow(workflow, { tools: myTools });
+
+const errors = result.diagnostics.filter((d) => d.severity === "error");
+if (errors.length > 0) {
+  console.error("Compilation errors:", errors);
+} else {
+  console.log("Workflow is valid!");
+}
+```
+
+### Execute a Workflow
+
+```ts
+import { executeWorkflow } from "@remoraflow/core";
+
+const result = await executeWorkflow(workflow, {
+  tools: myTools,
+  model: anthropic("claude-sonnet-4-20250514"),
+  inputs: { userId: "123" },
+  onStepStart: (stepId) => console.log(`Starting: ${stepId}`),
+  onStepComplete: (stepId, output) =>
+    console.log(`Completed: ${stepId}`, output),
+});
+
+if (result.success) {
+  console.log("Workflow output:", result.output);
+} else {
+  console.error("Execution failed:", result.error);
+}
+```
+
+### Generate a Workflow
+
+```ts
+import { generateWorkflow } from "@remoraflow/core";
+import { anthropic } from "@ai-sdk/anthropic";
+
+const result = await generateWorkflow({
+  model: anthropic("claude-sonnet-4-20250514"),
+  tools: myTools,
+  task: "Fetch all open support tickets, classify each by severity, and page the on-call engineer for critical ones",
+});
+
+if (result.workflow) {
+  console.log(`Generated in ${result.attempts} attempt(s)`);
+} else {
+  console.error("Generation failed:", result.diagnostics);
+}
+```
+
+### Visualize a Workflow
+
+```tsx
+import { WorkflowViewer, StepDetailPanel } from "@remoraflow/ui";
+import type { WorkflowStep, Diagnostic } from "@remoraflow/core";
+import { useState } from "react";
+
+function App() {
+  const [step, setStep] = useState<WorkflowStep | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+
+  return (
+    <div style={{ display: "flex", height: "100vh" }}>
+      <div style={{ flex: 1 }}>
+        <WorkflowViewer
+          workflow={myWorkflow}
+          diagnostics={compileResult.diagnostics}
+          onStepSelect={(s, d) => { setStep(s); setDiagnostics(d); }}
+        />
+      </div>
+      {step && (
+        <StepDetailPanel
+          step={step}
+          diagnostics={diagnostics}
+          onClose={() => setStep(null)}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+The viewer components are also available via the [shadcn registry](https://isaacwasserman.github.io/remora/guide/component-registry) for full customization:
 
 ```bash
-bun run lint
+bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
 ```
 
-Type check:
+## Architecture
 
-```bash
-bun run typecheck
-```
+RemoraFlow has four main components:
 
-## ⚠️ Status
+- **Compiler** — Multi-pass validation producing a DAG with structured diagnostics (graph construction, reference validation, JMESPath validation, tool validation, constrained schema generation, and more).
+- **Executor** — Runtime engine handling tool calls, LLM prompts, data extraction, switch-case branching, and for-each loops. Compatible with the [Vercel AI SDK](https://ai-sdk.dev/).
+- **Generator** — LLM-driven workflow creator from natural language, with automatic retry on compilation failure.
+- **Viewer / Editor** — React-based interactive DAG visualization built on [React Flow](https://reactflow.dev/). Supports both read-only viewing and full canvas editing.
+
+## Status
 
 Early prototype. The core compiler, executor, and viewer are functional, but the API is unstable and breaking changes should be expected.
