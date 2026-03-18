@@ -393,103 +393,16 @@ const recordStatusColors: Record<string, string> = {
   skipped: "bg-muted text-muted-foreground border border-border",
 };
 
-function AgentStepEntry({
-  step,
-  index,
-}: {
-  step: Record<string, unknown>;
-  index: number;
-}) {
-  const text = typeof step.text === "string" ? step.text : undefined;
-  const toolCalls = Array.isArray(step.toolCalls) ? step.toolCalls : undefined;
-  const toolResults = Array.isArray(step.toolResults)
-    ? step.toolResults
-    : undefined;
-
-  return (
-    <div className="border-l-2 border-border pl-2.5 py-1 space-y-1">
-      <div className="text-[10px] font-medium text-muted-foreground">
-        Step {index + 1}
-      </div>
-      {toolCalls &&
-        toolCalls.length > 0 &&
-        toolCalls.map((tc: Record<string, unknown>, i: number) => (
-          <div
-            key={typeof tc.toolCallId === "string" ? tc.toolCallId : i}
-            className="space-y-0.5"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400">
-                tool call
-              </span>
-              <span className="text-[11px] font-mono font-medium text-foreground">
-                {typeof tc.toolName === "string" ? tc.toolName : "unknown"}
-              </span>
-            </div>
-            {tc.args !== undefined && (
-              <pre className="text-[11px] font-mono text-muted-foreground bg-muted/40 rounded px-1.5 py-1 whitespace-pre-wrap overflow-auto max-h-[100px]">
-                {typeof tc.args === "string"
-                  ? tc.args
-                  : JSON.stringify(tc.args, null, 2)}
-              </pre>
-            )}
-          </div>
-        ))}
-      {toolResults &&
-        toolResults.length > 0 &&
-        toolResults.map((tr: Record<string, unknown>, i: number) => (
-          <div
-            key={typeof tr.toolCallId === "string" ? tr.toolCallId : i}
-            className="space-y-0.5"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                tool result
-              </span>
-              <span className="text-[11px] font-mono font-medium text-foreground">
-                {typeof tr.toolName === "string" ? tr.toolName : "unknown"}
-              </span>
-            </div>
-            <pre className="text-[11px] font-mono text-muted-foreground bg-muted/40 rounded px-1.5 py-1 whitespace-pre-wrap overflow-auto max-h-[100px]">
-              {typeof tr.result === "string"
-                ? tr.result
-                : JSON.stringify(tr.result, null, 2)}
-            </pre>
-          </div>
-        ))}
-      {text && (
-        <div className="space-y-0.5">
-          <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-            response
-          </span>
-          <pre className="text-[11px] font-mono text-muted-foreground bg-muted/40 rounded px-1.5 py-1 whitespace-pre-wrap overflow-auto max-h-[150px]">
-            {text}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TraceSection({ trace }: { trace: TraceEntry[] }) {
-  const agentSteps = trace.filter((t) => t.type === "agent-step");
-  if (agentSteps.length === 0) return null;
+  if (trace.length === 0) return null;
 
   return (
     <details className="text-xs group">
       <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
-        Agent Trace ({agentSteps.length}{" "}
-        {agentSteps.length === 1 ? "step" : "steps"})
+        Agent Trace ({trace.length} {trace.length === 1 ? "entry" : "entries"})
       </summary>
-      <div className="mt-1.5 space-y-1.5">
-        {agentSteps.map((entry, i) => (
-          <AgentStepEntry
-            // biome-ignore lint/suspicious/noArrayIndexKey: trace entries have no stable unique ID
-            key={i}
-            step={entry.step as Record<string, unknown>}
-            index={i}
-          />
-        ))}
+      <div className="mt-1.5">
+        <JsonViewer value={JSON.stringify(trace, null, 2)} />
       </div>
     </details>
   );

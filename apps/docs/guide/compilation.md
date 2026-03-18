@@ -31,7 +31,7 @@ import { z } from "zod";
 
 const tools = {
   "send-email": tool({
-    parameters: z.object({
+    inputSchema: z.object({
       to: z.string(),
       subject: z.string(),
       body: z.string(),
