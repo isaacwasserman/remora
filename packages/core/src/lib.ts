@@ -1,3 +1,4 @@
+/** @module lib */
 export type {
   CompilerLimits,
   CompilerResult,
