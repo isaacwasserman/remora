@@ -6,7 +6,7 @@
 
 <p align="center">Workflows by agents, for agents.</p>
 
-**[Documentation](https://isaacwasserman.github.io/remora/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
+**[Documentation](https://isaacwasserman.github.io/remora/)** · **[Demo](https://isaacwasserman.github.io/remora/demo/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
 
 Remora is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using Remora's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is well-defined, repeatable, and auditable.
 

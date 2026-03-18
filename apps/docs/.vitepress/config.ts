@@ -24,6 +24,7 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/what-is-remora" },
       { text: "API Reference", link: "/api/lib/" },
+      { text: "Demo", link: "/demo/", target: "_blank" },
     ],
 
     sidebar: {

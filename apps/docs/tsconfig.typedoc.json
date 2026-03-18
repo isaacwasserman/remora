@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": [
+    "../../packages/core/src/**/*.ts",
+    "../../packages/core/src/**/*.tsx",
+    "../../packages/ui/src/**/*.ts",
+    "../../packages/ui/src/**/*.tsx"
+  ],
+  "exclude": [
+    "../../packages/core/src/**/*.test.ts",
+    "../../packages/core/src/e2e.ts",
+    "../../packages/ui/src/**/*.test.ts"
+  ]
+}
