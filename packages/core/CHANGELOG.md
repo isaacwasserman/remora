@@ -1,5 +1,18 @@
 # @remoraflow/core
 
+## 0.2.0
+
+### Minor Changes
+
+- 4d432fc: Add output schema validation, tool input type validation, and output sanitization to prevent invalid workflow compilations. New utilities for step hashing and schema inference improvements.
+- 46dda57: Restructure into Bun workspace monorepo with independent package directories. Rename packages to @remoraflow/core and @remoraflow/ui, both starting at 0.1.0 with synchronized versioning via changesets `fixed` configuration.
+
+### Patch Changes
+
+- be08d81: Publish interactive demo app to GitHub Pages alongside documentation. Add demo links to docs navbar, homepage, and README.
+- f70ce65: Fix AI SDK tool() syntax in docs and simplify step-detail-panel component. Updated documentation examples from 'parameters' to 'inputSchema' to match AI SDK v6 API. Removed unused code from step-detail-panel.tsx.
+- 8b4d516: Fix typedoc module names to generate correct API documentation paths. Added @module JSDoc tags to entry points so docs links resolve correctly.
+
 ## 0.3.0
 
 ### Minor Changes
