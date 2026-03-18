@@ -234,8 +234,8 @@ export function WorkflowViewer({
     let needsRelayout = false;
     const newDims = new Map<string, { width: number; height: number }>();
     for (const n of measurable) {
-      const w = n.measured.width;
-      const h = n.measured.height;
+      const w = n.measured?.width ?? 0;
+      const h = n.measured?.height ?? 0;
       newDims.set(n.id, { width: w, height: h });
       const used = usedDimensionsRef.current.get(n.id);
       if (!used || used.width !== w || used.height !== h) {
