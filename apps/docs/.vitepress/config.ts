@@ -21,6 +21,9 @@ export default defineConfig({
   },
 
   themeConfig: {
+    logo: "/remoraflow-logo.svg",
+    siteTitle: false,
+
     nav: [
       { text: "Guide", link: "/guide/what-is-remora" },
       { text: "API Reference", link: "/api/lib/" },

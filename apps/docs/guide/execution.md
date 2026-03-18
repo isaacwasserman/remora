@@ -52,7 +52,7 @@ import { z } from "zod";
 
 const tools = {
   "get-user": tool({
-    parameters: z.object({ id: z.string() }),
+    inputSchema: z.object({ id: z.string() }),
     execute: async ({ id }) => {
       return await db.users.findById(id);
     },

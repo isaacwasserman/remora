@@ -1,4 +1,4 @@
-# Workflow DSL
+# Workflow Definition Language
 
 Workflows are defined as JSON objects with an `initialStepId` and an array of `steps`. Each step has a type, a `nextStepId` for sequencing, and type-specific parameters. Data flows between steps through JMESPath expressions that reference previous step outputs.
 

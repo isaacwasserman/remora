@@ -1,18 +1,60 @@
-# What is Remora?
+# What is RemoraFlow?
 
-Remora is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using Remora's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is well-defined, repeatable, and auditable.
+RemoraFlow is a DSL for agents to write workflows for themselves. It allows an agent to produce a **well-defined, repeatable, and auditable** workflow from a task and toolset. 
 
-> Unlike unstructured instructions, a Remora workflow is a concrete artifact that can be inspected, versioned, and re-run deterministically.
+These days, **most AI "workflows" are actually just long prompts that *describe logic but don't guarantee this logic***.
 
-The workflow definition is a JSON object, which means agents can produce it via a single tool call. The compiler returns structured diagnostics — errors and warnings with specific codes and locations — so the agent gets immediate feedback on whether its logic is sound and can fix issues before anything runs.
+RemoraFlow is a language for defining workflows that guarantee an outcome through careful validation and deterministic behavior.
 
-> An agent can author a workflow, compile it, read the diagnostics, and iterate — all within a single conversation turn.
+## Features
 
-The name comes from the remora fish, which attaches to sharks and other large animals. Remora workflows work alongside agents in a similar way: rather than constraining behavior through guardrails, the agent authors its own concrete, inspectable plan using familiar primitives — tool calls, loops, switch statements, and data extraction steps — connected by JMESPath expressions for data flow.
+### Workflows by Agents, for Agents
+
+The RemoraFlow syntax is JSON-based. This means flows can be easily generated via agent tool calls.
+
+Flows consist of the same tool calls that your agent is used to, glued together deterministically with JMESPath expressions referencing each other.
+
+As part of the `@remoraflow/core` package, we provide a reference `create-workflow` tool that you can immediately hand to your agents as well as a prompt to help you create your own workflow creation tool.
+
+### Deterministic Execution (when you want it)
+
+While many flows can be constructed entirely from sequences of [tool calls](./workflow-dsl.md#tool-call) and [branching logic](./workflow-dsl.md#switch-case), the most useful flows require the intelligence of an LLM. RemoraFlow provides LLM-based steps that make strong guarantees about their behavior through validation, intelligent retries, and access control (see [LLM Prompt Step](./workflow-dsl.md#llm-prompt), [Extract Data Step](./workflow-dsl.md#extract-data), [Agent Loop Step](./workflow-dsl.md#agent-loop)).
+
+### Ahead-of-Time Validation
+
+Through careful ahead-of-time validation, the agent (or user) authoring a flow is provided deterministic diagnostics and feedback on whether its workflow works. The compiler provides traceable diagnostics that the agent can fix before the workflow ever runs.
+
+### Durable Execution
+
+RemoraFlow is compatible with leading durable execution environments, allowing workflows to sleep or block on conditions for long-periods without consuming serverless resources.
+
+## Constrained Tool Schemas
+
+When the compiler analyzes a workflow, it determines exactly which tool parameters are static (known at compile time) versus dynamic (resolved at runtime). This produces a narrowed input schema for each tool.
+
+This matters for safety: a human supervisor can review the constrained schemas and approve a limited set of behaviors ahead of time. The compiler makes this distinction explicit, enabling workflows to run without human-in-the-loop supervision where appropriate.
+
+> A workflow that only ever calls `sendEmail` with a specific template and a dynamic recipient is meaningfully different from one with unconstrained access to the email API.
+
+## Use Cases
+
+### Unsupervised Jobs
+
+Agents can construct repeatable workflows to be run as cron jobs, webhook handlers, etc. With RemoraFlow, the execution is predictable and can be easily audited.
+
+### Agent Plans
+
+Workflows can be constructed interactively as an alternative to agent "plans".
+
+Traditionally, agents like Claude Code present text-based plans that outline how they're going to complete a task, including subtasks, subtask dependency, logic, and subagent use.
+
+However, text-based plans don't provide any guarantees of the agent's behavior; an agent can present a plan and decide to do something completely different during execution.
+
+Using RemoraFlow, agents can construct a workflows instead of a text-based plan, and the resultant workflow can be run with behavioral guarantees and an audit trail.
 
 ## Architecture
 
-Remora has four main components:
+RemoraFlow has four main components:
 
 ### Compiler
 
@@ -51,17 +93,7 @@ An LLM-driven workflow generator that takes a natural language task description 
 
 ### Viewer / Editor
 
-A React-based workflow component built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Click any node to see step details and diagnostics in a side panel.
-
-Set `isEditing` to enable a full canvas editor: users can add steps via a right-click context menu or step palette, connect steps by dragging edges, delete nodes, and edit step parameters in a type-specific side panel. Pass `workflow={null}` to start with an empty canvas.
-
-## Constrained Tool Schemas
-
-When the compiler analyzes a workflow, it determines exactly which tool parameters are static (known at compile time) versus dynamic (resolved at runtime). This produces a narrowed input schema for each tool.
-
-This matters for safety: a human supervisor can review the constrained schemas and approve a limited set of behaviors ahead of time. The compiler makes this distinction explicit, enabling workflows to run without human-in-the-loop supervision where appropriate.
-
-> A workflow that only ever calls `sendEmail` with a specific template and a dynamic recipient is meaningfully different from one with unconstrained access to the email API.
+A React-based workflow component built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Click any node to see step details and diagnostics in a side panel. This is available in the `@remoraflow/ui` package or via the [shadcn compatible registry](./component-registry.md).
 
 ## Status
 

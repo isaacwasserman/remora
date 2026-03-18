@@ -2,11 +2,10 @@
 layout: home
 
 hero:
-  name: Remora
   text: Workflows by agents, for agents.
   image:
     src: /remoraflow-logo.svg
-    alt: Remoraflow Logo
+    alt: Remora
   tagline: A JSON-based workflow DSL where AI agents define, compile, and execute structured workflows.
   actions:
     - theme: brand
