@@ -24,6 +24,8 @@ export interface StepNodeData {
   outputSchema?: object;
   /** Execution summary for this step, when executionState is provided. */
   executionSummary?: StepExecutionSummary;
+  /** Whether the workflow execution is currently paused. */
+  paused?: boolean;
 }
 
 const NODE_WIDTH = 300;
@@ -194,6 +196,7 @@ export function buildLayout(
   diagnostics: Diagnostic[] = [],
   executionState?: ExecutionState,
   nodeDimensions?: Map<string, { width: number; height: number }>,
+  paused?: boolean,
 ): { nodes: Node[]; edges: Edge[] } {
   if (!workflow || workflow.steps.length === 0) {
     return { nodes: [], edges: [] };
@@ -338,7 +341,7 @@ export function buildLayout(
     const contentHeight = maxY - minY;
     computedSizes.set(groupId, {
       w: contentWidth + GROUP_PADDING * 2,
-      h: contentHeight + GROUP_HEADER + GROUP_PADDING,
+      h: contentHeight + GROUP_HEADER + GROUP_PADDING * 2,
     });
   }
 
@@ -469,6 +472,7 @@ export function buildLayout(
           groupHeight: size.h,
           ...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
           executionSummary: stepSummaries?.get(id),
+          paused,
         },
         style: { width: size.w, height: size.h },
         ...(parentId ? { parentId, extent: "parent" as const } : {}),

@@ -4,7 +4,7 @@ import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
 export function AgentLoopNode({ data, selected }: NodeProps) {
-  const { step, diagnostics, hasSourceEdge, executionSummary } =
+  const { step, diagnostics, hasSourceEdge, executionSummary, paused } =
     data as unknown as StepNodeData;
   if (step.type !== "agent-loop") return null;
 
@@ -21,6 +21,7 @@ export function AgentLoopNode({ data, selected }: NodeProps) {
       selected={selected}
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
+      paused={paused}
     >
       <div className="text-[11px] text-muted-foreground italic line-clamp-2 bg-muted rounded p-1.5 font-mono">
         {step.params.instructions}

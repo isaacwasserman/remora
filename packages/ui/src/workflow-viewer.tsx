@@ -92,6 +92,8 @@ export interface WorkflowViewerProps {
   minimapWidth?: number;
   /** Height of the minimap in pixels. @default 150 */
   minimapHeight?: number;
+  /** Whether the workflow execution is currently paused. */
+  paused?: boolean;
   /** Enable editing mode. When true, nodes are draggable and editable. */
   isEditing?: boolean;
   /** Called when the workflow is modified in edit mode. */
@@ -114,6 +116,7 @@ export function WorkflowViewer({
   diagnostics = EMPTY_DIAGNOSTICS,
   onStepSelect,
   executionState,
+  paused = false,
   showMinimap = true,
   minimapWidth = 200,
   minimapHeight = 150,
@@ -194,6 +197,21 @@ export function WorkflowViewer({
       .join("|")}|init:${activeWorkflow.initialStepId}`;
   }, [isEditing, activeWorkflow]);
 
+  // Structural key for view mode — changes only when the workflow graph shape changes,
+  // not when execution state updates. This lets us skip full layout rebuilds during execution.
+  const viewStructuralKey = useMemo(() => {
+    if (isEditing || !activeWorkflow) return "";
+    return `${activeWorkflow.steps
+      .map(
+        (s) =>
+          `${s.id}:${s.type}:${s.nextStepId ?? ""}${groupStructuralKey(s)}`,
+      )
+      .join("|")}|init:${activeWorkflow.initialStepId}`;
+  }, [isEditing, activeWorkflow]);
+
+  const prevViewStructuralKeyRef = useRef(viewStructuralKey);
+  const prevIsEditingRef = useRef(isEditing);
+
   const layout = useMemo(() => {
     if (isEditing) {
       return buildEditableLayout(
@@ -204,77 +222,66 @@ export function WorkflowViewer({
         dimensionOverridesRef.current,
       );
     }
-    return buildLayout(activeWorkflow, activeDiagnostics, executionState);
-  }, [activeWorkflow, activeDiagnostics, executionState, isEditing]);
+    return buildLayout(
+      activeWorkflow,
+      activeDiagnostics,
+      executionState,
+      undefined,
+      paused,
+    );
+  }, [activeWorkflow, activeDiagnostics, executionState, isEditing, paused]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
 
-  // --- Two-pass layout: re-layout after React Flow measures actual node heights ---
-  const usedDimensionsRef = useRef<
-    Map<string, { width: number; height: number }>
-  >(new Map());
-
-  // Reset when the base layout changes so we re-measure
-  useEffect(() => {
-    usedDimensionsRef.current = new Map();
-  }, []);
-
-  useEffect(() => {
-    // Only consider step nodes (skip __start__ and __header__* nodes)
-    const measurable = nodes.filter(
-      (n) =>
-        !n.id.startsWith("__") &&
-        n.measured?.width != null &&
-        n.measured?.height != null,
-    );
-    if (measurable.length === 0) return;
-
-    // Check if any dimensions differ from what was last used
-    let needsRelayout = false;
-    const newDims = new Map<string, { width: number; height: number }>();
-    for (const n of measurable) {
-      const w = n.measured?.width ?? 0;
-      const h = n.measured?.height ?? 0;
-      newDims.set(n.id, { width: w, height: h });
-      const used = usedDimensionsRef.current.get(n.id);
-      if (!used || used.width !== w || used.height !== h) {
-        needsRelayout = true;
-      }
-    }
-
-    if (!needsRelayout) return;
-    usedDimensionsRef.current = newDims;
-
-    const newLayout = isEditing
-      ? buildEditableLayout(
-          activeWorkflow,
-          activeDiagnostics,
-          undefined,
-          positionOverridesRef.current,
-          dimensionOverridesRef.current,
-          newDims,
-        )
-      : buildLayout(activeWorkflow, activeDiagnostics, executionState, newDims);
-
-    setNodes(newLayout.nodes);
-    setEdges(newLayout.edges);
-  }, [
-    nodes,
-    isEditing,
-    activeWorkflow,
-    activeDiagnostics,
-    executionState,
-    setNodes,
-    setEdges,
-  ]);
-
   const prevEditStructuralKeyRef = useRef(editStructuralKey);
 
   useEffect(() => {
+    const wasEditing = prevIsEditingRef.current;
+    prevIsEditingRef.current = isEditing;
+
     if (!isEditing) {
-      setNodes(layout.nodes);
-      setEdges(layout.edges);
+      const justLeftEditMode = wasEditing;
+      const viewStructureChanged =
+        viewStructuralKey !== prevViewStructuralKeyRef.current;
+      prevViewStructuralKeyRef.current = viewStructuralKey;
+
+      if (justLeftEditMode) {
+        // Leaving edit mode — clear drag/resize overrides and do a full
+        // auto-layout so the graph snaps back to clean Dagre positions.
+        positionOverridesRef.current.clear();
+        dimensionOverridesRef.current.clear();
+        const fresh = buildLayout(
+          activeWorkflow,
+          activeDiagnostics,
+          executionState,
+          undefined,
+          paused,
+        );
+        setNodes(fresh.nodes);
+        setEdges(fresh.edges);
+      } else if (viewStructureChanged) {
+        // Workflow graph shape changed — full layout reset needed
+        setNodes(layout.nodes);
+        setEdges(layout.edges);
+      } else {
+        // Structure is the same — only update node data (execution summaries)
+        // and edge data (executed flags) to avoid position recalculation flicker
+        const dataMap = new Map(layout.nodes.map((n) => [n.id, n.data]));
+        setNodes((prev) =>
+          prev.map((n) => {
+            const newData = dataMap.get(n.id);
+            return newData ? { ...n, data: newData } : n;
+          }),
+        );
+        const edgeDataMap = new Map(layout.edges.map((e) => [e.id, e.data]));
+        setEdges((prev) =>
+          prev.map((e) => {
+            const newData = edgeDataMap.get(e.id);
+            return newData ? { ...e, data: newData } : e;
+          }),
+        );
+      }
       return;
     }
 
@@ -283,13 +290,13 @@ export function WorkflowViewer({
     prevEditStructuralKeyRef.current = editStructuralKey;
 
     if (structureChanged) {
+      // Clear user drag/resize overrides — old positions are meaningless
+      // for the new structure. Don't store dagre positions as overrides;
+      // overrides should only come from explicit user actions (drag/resize).
+      positionOverridesRef.current.clear();
+      dimensionOverridesRef.current.clear();
       setNodes(layout.nodes);
       setEdges(layout.edges);
-      for (const node of layout.nodes) {
-        if (!node.parentId) {
-          positionOverridesRef.current.set(node.id, node.position);
-        }
-      }
     } else {
       const dataMap = new Map(layout.nodes.map((n) => [n.id, n.data]));
       setNodes((prev) =>
@@ -299,7 +306,18 @@ export function WorkflowViewer({
         }),
       );
     }
-  }, [layout, setNodes, setEdges, isEditing, editStructuralKey]);
+  }, [
+    layout,
+    setNodes,
+    setEdges,
+    isEditing,
+    editStructuralKey,
+    viewStructuralKey,
+    activeWorkflow,
+    activeDiagnostics,
+    executionState,
+    paused,
+  ]);
 
   // --- Container resize ---
   useEffect(() => {
@@ -590,17 +608,9 @@ export function WorkflowViewer({
       undefined,
       undefined,
       undefined,
-      usedDimensionsRef.current.size > 0
-        ? usedDimensionsRef.current
-        : undefined,
     );
     setNodes(fresh.nodes);
     setEdges(fresh.edges);
-    for (const node of fresh.nodes) {
-      if (!node.parentId) {
-        positionOverridesRef.current.set(node.id, node.position);
-      }
-    }
   }, [activeWorkflow, activeDiagnostics, setNodes, setEdges]);
 
   // --- Edit context ---

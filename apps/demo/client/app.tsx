@@ -1,9 +1,5 @@
 import type { ExecutionState, WorkflowDefinition } from "@remoraflow/core";
-import {
-  executeWorkflow,
-  generateWorkflow,
-  hashWorkflow,
-} from "@remoraflow/core";
+import { hashWorkflow } from "@remoraflow/core";
 import {
   Button,
   DropdownMenu,
@@ -33,18 +29,12 @@ import {
   Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
 import { DEFAULT_WORKFLOW } from "./default-workflow";
 import { EXAMPLE_WORKFLOWS } from "./example-workflows";
 import { NewWorkflowDialog } from "./new-workflow-dialog";
-import {
-  createOpenRouterModel,
-  loadApiKey,
-  loadModelId,
-  saveApiKey,
-  saveModelId,
-} from "./openrouter";
+import { loadApiKey, loadModelId, saveApiKey, saveModelId } from "./openrouter";
 import { RemoraflowLogo } from "./remoraflow-logo";
+import { orpc } from "./rpc-client";
 import { randomizeTheme } from "./theme-randomizer";
 import { DEMO_TOOLS } from "./tools";
 import { WorkflowInputDialog, WorkflowOutputPanel } from "./workflow-io-panels";
@@ -66,7 +56,7 @@ import {
   saveWorkflow,
 } from "./workflow-store";
 
-function App() {
+export function App() {
   const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(
     () => loadWorkflow() ?? DEFAULT_WORKFLOW,
   );
@@ -87,6 +77,7 @@ function App() {
 
   // Input/output state
   const [awaitingInputs, setAwaitingInputs] = useState(false);
+  const lastInputsRef = useRef<Record<string, unknown>>({});
 
   // Pause/resume state
   const [pausedState, setPausedState] = useState<ExecutionState | null>(() => {
@@ -134,6 +125,7 @@ function App() {
       }
       setRunError(null);
       setAwaitingInputs(false);
+      lastInputsRef.current = inputs;
       setIsRunning(true);
       setIsEditing(false);
       setPausedState(null);
@@ -147,27 +139,33 @@ function App() {
       const wfHash = hashWorkflow(workflow);
 
       try {
-        await executeWorkflow(workflow, {
-          tools: DEMO_TOOLS,
-          model: apiKey ? createOpenRouterModel(apiKey, modelId) : undefined,
+        const iterator = await orpc.workflow.execute.call({
+          workflow,
           inputs,
+          apiKey: apiKey || undefined,
+          modelId,
           initialState,
-          onStateChange: (state) => {
-            if (ac.signal.aborted) return;
-            setStateHistory((prev) => [...prev, state]);
-            setReplayIndex((idx) => {
-              if (idx === null) setExecutionState(state);
-              return idx;
-            });
-          },
         });
-      } catch {
-        // Error is surfaced via executionState in the output panel
+        for await (const state of iterator as AsyncIterable<ExecutionState>) {
+          if (ac.signal.aborted) break;
+          setStateHistory((prev) => [...prev, state]);
+          setReplayIndex((idx) => {
+            if (idx === null) setExecutionState(state);
+            return idx;
+          });
+        }
+      } catch (err) {
+        if (!ac.signal.aborted) {
+          console.error("Execution error:", err);
+        }
       } finally {
-        setIsRunning(false);
+        // Only update state if this execution wasn't paused (aborted).
+        // handlePause already manages state when pausing.
+        if (!ac.signal.aborted) {
+          setIsRunning(false);
+          clearExecutionState(wfHash);
+        }
         abortRef.current = null;
-        // Clear persisted execution state on completion (no need to resume a finished run)
-        clearExecutionState(wfHash);
       }
     },
     [workflow, isRunning, apiKey, modelId],
@@ -214,7 +212,7 @@ function App() {
       clearExecutionState(wfHash);
       return;
     }
-    startExecution({}, pausedState);
+    startExecution(lastInputsRef.current, pausedState);
   }, [workflow, pausedState, isRunning, startExecution]);
 
   const handleReset = useCallback(() => {
@@ -299,11 +297,10 @@ function App() {
       setIsGenerating(true);
       setGenerateError(null);
       try {
-        const model = createOpenRouterModel(apiKey, modelId);
-        const result = await generateWorkflow({
-          model,
-          tools: DEMO_TOOLS,
+        const result = await orpc.workflow.generate.call({
           task,
+          apiKey,
+          modelId,
           maxRetries: 3,
         });
         if (result.workflow) {
@@ -611,6 +608,7 @@ function App() {
             onWorkflowChange={handleWorkflowChange}
             tools={DEMO_TOOLS}
             executionState={executionState ?? undefined}
+            paused={!!pausedState}
           />
         </div>
 
@@ -729,10 +727,4 @@ function App() {
       )}
     </div>
   );
-}
-
-const container = document.getElementById("root");
-if (container) {
-  const root = createRoot(container);
-  root.render(<App />);
 }

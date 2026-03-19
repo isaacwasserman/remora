@@ -26,6 +26,7 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
     groupHeight,
     hasSourceEdge,
     executionSummary,
+    paused,
   } = data as unknown as StepNodeData & {
     isGroup?: boolean;
     groupWidth?: number;
@@ -42,7 +43,9 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
     if (executionSummary) {
       switch (executionSummary.status) {
         case "running":
-          ringClass = "ring-2 ring-blue-400 animate-pulse";
+          ringClass = paused
+            ? "ring-2 ring-amber-400"
+            : "ring-2 ring-blue-400 animate-pulse";
           break;
         case "completed":
           ringClass = "ring-2 ring-green-400";
@@ -120,6 +123,7 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
       selected={selected}
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
+      paused={paused}
     >
       <div className="flex gap-1.5 text-[11px]">
         <span className="text-muted-foreground shrink-0">until:</span>

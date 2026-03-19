@@ -15,7 +15,7 @@ function renderExpr(
 }
 
 export function SleepNode({ data, selected }: NodeProps) {
-  const { step, diagnostics, hasSourceEdge, executionSummary } =
+  const { step, diagnostics, hasSourceEdge, executionSummary, paused } =
     data as unknown as StepNodeData;
   if (step.type !== "sleep") return null;
 
@@ -32,6 +32,7 @@ export function SleepNode({ data, selected }: NodeProps) {
       selected={selected}
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
+      paused={paused}
     >
       <div className="flex gap-1.5 text-[11px]">
         <span className="text-muted-foreground shrink-0">duration:</span>

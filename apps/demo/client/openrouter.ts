@@ -1,17 +1,3 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import type { LanguageModel } from "ai";
-
-export function createOpenRouterModel(
-  apiKey: string,
-  modelId = "anthropic/claude-haiku-4.5",
-): LanguageModel {
-  const openrouter = createOpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey,
-  });
-  return openrouter.chat(modelId);
-}
-
 const API_KEY_STORAGE = "remoraflow-openrouter-key";
 const MODEL_STORAGE = "remoraflow-openrouter-model";
 
