@@ -18,7 +18,13 @@ export type {
   ExecutionResult,
   ExecutorLimits,
 } from "./executor";
-export { executeWorkflow } from "./executor";
+export {
+  DEFAULT_APPROVAL_BACKOFF_MULTIPLIER,
+  DEFAULT_APPROVAL_INTERVAL_MS,
+  DEFAULT_APPROVAL_MAX_INTERVAL_MS,
+  DEFAULT_APPROVAL_TIMEOUT_MS,
+  executeWorkflow,
+} from "./executor";
 export type {
   DurableContext,
   WaitForConditionOptions,
@@ -30,6 +36,7 @@ export type {
   RecoveryStrategy,
 } from "./executor/errors";
 export {
+  AuthorizationError,
   ConfigurationError,
   ExpressionError,
   ExternalServiceError,
@@ -38,6 +45,13 @@ export {
   ValidationError,
 } from "./executor/errors";
 export { hashWorkflow } from "./executor/hash";
+export type {
+  ApprovableAction,
+  ApprovalRequestDecision,
+  Policy,
+  PolicyDecision,
+  StaleCheckResult,
+} from "./executor/policy";
 export type {
   ErrorSnapshot,
   ExecutionDelta,

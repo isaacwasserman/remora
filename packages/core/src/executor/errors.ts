@@ -14,13 +14,15 @@ export type RecoveryStrategy =
  * - `external-service` — a tool or LLM call failed
  * - `expression` — a JMESPath or template expression failed to evaluate
  * - `output-quality` — the LLM produced output that couldn't be parsed
+ * - `authorization` — a policy denied the action
  */
 export type ErrorCategory =
   | "configuration"
   | "validation"
   | "external-service"
   | "expression"
-  | "output-quality";
+  | "output-quality"
+  | "authorization";
 
 /** Machine-readable error code identifying the specific failure. */
 export type ErrorCode =
@@ -51,7 +53,9 @@ export type ErrorCode =
   | "WAIT_CONDITION_MAX_ATTEMPTS"
   // execution limits — aggregate time bounds
   | "EXECUTION_TOTAL_TIMEOUT"
-  | "EXECUTION_ACTIVE_TIMEOUT";
+  | "EXECUTION_ACTIVE_TIMEOUT"
+  // authorization — policy denied the action
+  | "POLICY_DENIED";
 
 // ─── Base Error Class ───────────────────────────────────────────
 
@@ -133,6 +137,22 @@ export class OutputQualityError extends StepExecutionError {
     cause?: unknown,
   ) {
     super(stepId, code, "output-quality", message, cause);
+  }
+}
+
+/** Thrown when a policy denies execution of a step. Not retryable. */
+export class AuthorizationError extends StepExecutionError {
+  constructor(
+    stepId: string,
+    public readonly reason: string,
+    public readonly sourcePolicyId: string,
+  ) {
+    super(
+      stepId,
+      "POLICY_DENIED",
+      "authorization",
+      `Step denied by policy '${sourcePolicyId}': ${reason}`,
+    );
   }
 }
 

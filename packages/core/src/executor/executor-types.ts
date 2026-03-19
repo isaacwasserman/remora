@@ -3,6 +3,7 @@ import type { WorkflowStep } from "../types";
 import type { DurableContext } from "./context";
 import type { ErrorCode } from "./errors";
 import { ExternalServiceError, type StepExecutionError } from "./errors";
+import type { Policy } from "./policy";
 import type {
   ExecutionDelta,
   ExecutionPathSegment,
@@ -29,30 +30,36 @@ export interface ExecutionResult {
 }
 
 export interface ExecutorLimits {
-  /** Max wall-clock time from start to finish, including sleeps/waits. Default: 600_000 (10 min). */
+  /** Max wall-clock time from start to finish, including sleeps/waits. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   maxTotalMs?: number;
-  /** Max active execution time (inside step() + checkFn, excluding sleeps/waits). Default: 300_000 (5 min). */
+  /** Max active execution time (inside step() + checkFn, excluding sleeps/waits). @see {@link DEFAULT_EXECUTOR_LIMITS} */
   maxActiveMs?: number;
-  /** Soft cap on sleep durationMs and wait intervalMs. Clamped silently. Default: 300_000 (5 min). */
+  /** Soft cap on sleep durationMs and wait intervalMs. Clamped silently. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   maxSleepMs?: number;
-  /** Soft cap on wait-for-condition maxAttempts. Clamped silently. Default: Infinity (unbounded). */
+  /** Soft cap on wait-for-condition maxAttempts. Clamped silently. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   maxAttempts?: number;
-  /** Soft cap on backoffMultiplier upper bound. Clamped silently. Default: 2. */
+  /** Soft cap on backoffMultiplier upper bound. Clamped silently. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   maxBackoffMultiplier?: number;
-  /** Soft cap on backoffMultiplier lower bound. Clamped silently. Default: 1. */
+  /** Soft cap on backoffMultiplier lower bound. Clamped silently. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   minBackoffMultiplier?: number;
-  /** Soft cap on wait-for-condition timeoutMs. Clamped silently. Default: 600_000 (10 min). */
+  /** Soft cap on wait-for-condition timeoutMs. Clamped silently. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   maxTimeoutMs?: number;
-  /** Byte threshold above which extract-data uses probe mode instead of inline data. Default: 50_000 (50KB). */
+  /** Byte threshold above which extract-data uses probe mode instead of inline data. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   probeThresholdBytes?: number;
-  /** Maximum bytes returned per probe-data call. Default: 10_000 (10KB). */
+  /** Maximum bytes returned per probe-data call. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   probeResultMaxBytes?: number;
-  /** Maximum probe steps for extract-data probe mode. Default: 10. */
+  /** Maximum probe steps for extract-data probe mode. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   probeMaxSteps?: number;
 }
 
 /** Options for {@link executeWorkflow}. */
-export interface ExecuteWorkflowOptions {
+export interface ExecuteWorkflowOptions<
+  ExecutionContext extends Record<string, unknown> = Record<string, unknown>,
+  ApprovalRequestDecisionDetails extends Record<string, unknown> = Record<
+    string,
+    unknown
+  >,
+> {
   /** Tool definitions. Every tool referenced by a `tool-call` step must be present with an `execute` function. */
   tools: ToolSet;
   /** An AI SDK `LanguageModel` for `llm-prompt`, `extract-data`, and `agent-loop` steps. Required if the workflow contains LLM steps. */
@@ -80,6 +87,18 @@ export interface ExecuteWorkflowOptions {
   limits?: ExecutorLimits;
   /** Previous execution state to resume from. When provided, completed steps are skipped and execution continues from the first incomplete step. */
   initialState?: ExecutionState;
+  /** Authorization policies evaluated in order before each tool-call step. When absent, all steps execute freely. */
+  policies?: Policy<ExecutionContext, ApprovalRequestDecisionDetails>[];
+  /** App-defined execution context passed to policy deciders (e.g. user, organization, session). */
+  executionContext?: ExecutionContext;
+  /** Timeout in milliseconds for approval requests before treating as rejection. @see {@link DEFAULT_APPROVAL_TIMEOUT_MS} */
+  approvalTimeoutMs?: number;
+  /** Initial polling interval in milliseconds for approval condition checks. @see {@link DEFAULT_APPROVAL_INTERVAL_MS} */
+  approvalIntervalMs?: number;
+  /** Backoff multiplier applied to the polling interval after each attempt. @see {@link DEFAULT_APPROVAL_BACKOFF_MULTIPLIER} */
+  approvalBackoffMultiplier?: number;
+  /** Maximum polling interval in milliseconds. The interval will never grow beyond this. @see {@link DEFAULT_APPROVAL_MAX_INTERVAL_MS} */
+  approvalMaxIntervalMs?: number;
 }
 
 // ─── Internal Types ──────────────────────────────────────────────
@@ -300,6 +319,50 @@ export class ExecutionStateManager {
       failedAt: new Date().toISOString(),
       durationMs: Date.now() - startMs,
       error: snapshotError(error),
+    });
+  }
+
+  stepAwaitingApproval(
+    stepId: string,
+    path: ExecutionPathSegment[],
+    sourcePolicyId: string,
+  ): void {
+    this.emit({
+      type: "step-awaiting-approval",
+      stepId,
+      path,
+      sourcePolicyId,
+      requestedAt: new Date().toISOString(),
+    });
+  }
+
+  stepApproved(
+    stepId: string,
+    path: ExecutionPathSegment[],
+    sourcePolicyId: string,
+  ): void {
+    this.emit({
+      type: "step-approved",
+      stepId,
+      path,
+      sourcePolicyId,
+      approvedAt: new Date().toISOString(),
+    });
+  }
+
+  stepDenied(
+    stepId: string,
+    path: ExecutionPathSegment[],
+    sourcePolicyId: string,
+    reason?: string,
+  ): void {
+    this.emit({
+      type: "step-denied",
+      stepId,
+      path,
+      sourcePolicyId,
+      deniedAt: new Date().toISOString(),
+      reason,
     });
   }
 }

@@ -105,6 +105,10 @@ bun --hot ./index.ts
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
 
+## Code Conventions
+
+- Don't hardcode default values in JSDoc or comments. Instead, use `@see {@link CONSTANT_NAME}` to reference the source-of-truth constant. This prevents docs from drifting out of sync with actual defaults.
+
 ## Pre-push Checks
 
 Before pushing, always run these checks and fix any issues:

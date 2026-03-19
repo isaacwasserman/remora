@@ -1,6 +1,7 @@
 import type { WorkflowDefinition, WorkflowStep } from "../types";
 import { createDefaultDurableContext, type DurableContext } from "./context";
 import {
+  AuthorizationError,
   ConfigurationError,
   ExternalServiceError,
   StepExecutionError,
@@ -15,6 +16,7 @@ import {
   type ResolvedExecuteWorkflowOptions,
 } from "./executor-types";
 import { hashWorkflow } from "./hash";
+import type { ApprovableAction } from "./policy";
 import type { ExecutionPathSegment, TraceEntry } from "./state";
 
 export type {
@@ -41,6 +43,197 @@ import {
 } from "./steps/switch-case";
 import { executeToolCall, resolveToolCallInputs } from "./steps/tool-call";
 import { executeWaitForCondition } from "./steps/wait-for-condition";
+
+// ─── Policy Evaluation ───────────────────────────────────────────
+
+export const DEFAULT_APPROVAL_TIMEOUT_MS = 259_200_000; // 3 days
+export const DEFAULT_APPROVAL_INTERVAL_MS = 2_000; // 2 seconds
+export const DEFAULT_APPROVAL_BACKOFF_MULTIPLIER = 1.1;
+export const DEFAULT_APPROVAL_MAX_INTERVAL_MS = 3_600_000; // 1 hour
+
+/**
+ * Evaluate policies in order for a tool-call action. Short-circuits on
+ * `approve`, `reject`, or `request`. If all policies defer, the action
+ * is approved by default.
+ */
+async function evaluatePolicies(
+  action: ApprovableAction,
+  stepId: string,
+  options: ResolvedExecuteWorkflowOptions,
+  context: DurableContext,
+  stateManager?: ExecutionStateManager,
+  execPath: ExecutionPathSegment[] = [],
+): Promise<void> {
+  const policies = options.policies;
+  if (!policies || policies.length === 0) return;
+
+  const executionContext = options.executionContext ?? {};
+
+  for (const policy of policies) {
+    const decision = await policy.decider(executionContext, action);
+
+    switch (decision.type) {
+      case "approve":
+        return;
+
+      case "reject":
+        throw new AuthorizationError(
+          stepId,
+          "Action rejected by policy",
+          decision.sourcePolicyId,
+        );
+
+      case "defer":
+        continue;
+
+      case "request": {
+        stateManager?.stepAwaitingApproval(
+          stepId,
+          execPath,
+          decision.sourcePolicyId,
+        );
+
+        const timeoutMs =
+          options.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS;
+        const intervalMs =
+          options.approvalIntervalMs ?? DEFAULT_APPROVAL_INTERVAL_MS;
+        const backoffMultiplier =
+          options.approvalBackoffMultiplier ??
+          DEFAULT_APPROVAL_BACKOFF_MULTIPLIER;
+        const maxIntervalMs =
+          options.approvalMaxIntervalMs ?? DEFAULT_APPROVAL_MAX_INTERVAL_MS;
+
+        // Generate a synthetic callback ID for polling-only mode.
+        // In durable environments with waitForCallback, the environment
+        // provides its own callback ID via the submitter.
+        const syntheticCallbackId = `approval:${stateManager?.currentState.runId ?? "unknown"}:${stepId}`;
+
+        const hasConditionFn = !!decision.conditionFn;
+        const hasRequestFn = !!decision.requestFn;
+
+        // requestFn-only requires waitForCallback
+        if (hasRequestFn && !hasConditionFn && !context.waitForCallback) {
+          throw new AuthorizationError(
+            stepId,
+            "Policy returned requestFn without conditionFn, but no DurableContext.waitForCallback is available",
+            decision.sourcePolicyId,
+          );
+        }
+
+        // Fire the notification (if provided) with the callback ID.
+        // When waitForCallback is available, requestFn is called inside the
+        // submitter (see below) with the environment-provided callback ID.
+        if (hasRequestFn && !context.waitForCallback) {
+          await decision.requestFn(syntheticCallbackId);
+        }
+
+        let approvalResult: unknown;
+        try {
+          // Build the polling promise (if conditionFn is provided)
+          const pollingPromise = hasConditionFn
+            ? (async () => {
+                const deadline = Date.now() + timeoutMs;
+                let delay = intervalMs;
+
+                while (true) {
+                  // Check staleness before checking condition
+                  if (decision.staleFn) {
+                    const staleCheck = await decision.staleFn();
+                    if (staleCheck.stale) {
+                      return {
+                        approved: false,
+                        reason:
+                          staleCheck.reason ?? "Approval request is stale",
+                      };
+                    }
+                  }
+
+                  const result = await decision.conditionFn();
+                  if (result) return result;
+
+                  if (Date.now() + delay > deadline) {
+                    throw new Error("timeout");
+                  }
+
+                  await context.sleep(`approval:${stepId}:poll`, delay);
+                  delay = Math.min(delay * backoffMultiplier, maxIntervalMs);
+                }
+              })()
+            : null;
+
+          // Build the callback promise (if waitForCallback is available)
+          const callbackPromise = context.waitForCallback
+            ? context.waitForCallback(
+                `approval:${stepId}`,
+                async (callbackId) => {
+                  if (hasRequestFn) {
+                    await decision.requestFn(callbackId);
+                  }
+                },
+                timeoutMs,
+              )
+            : null;
+
+          // Race whichever promises are available
+          if (callbackPromise && pollingPromise) {
+            approvalResult = await Promise.race([
+              callbackPromise,
+              pollingPromise,
+            ]);
+          } else if (callbackPromise) {
+            approvalResult = await callbackPromise;
+          } else {
+            // pollingPromise is guaranteed non-null here (validated above)
+            approvalResult = await pollingPromise;
+          }
+        } catch {
+          // Timeout — treat as rejection
+          stateManager?.stepDenied(
+            stepId,
+            execPath,
+            decision.sourcePolicyId,
+            "Approval request timed out",
+          );
+          throw new AuthorizationError(
+            stepId,
+            "Approval request timed out",
+            decision.sourcePolicyId,
+          );
+        }
+
+        // Check the decision
+        const approvalDecision = approvalResult as {
+          approved: boolean;
+          reason?: string;
+        };
+
+        // Notify via onApproval callback if provided
+        if (decision.onApproval) {
+          await decision.onApproval(approvalDecision);
+        }
+
+        if (approvalDecision.approved) {
+          stateManager?.stepApproved(stepId, execPath, decision.sourcePolicyId);
+          return;
+        }
+
+        stateManager?.stepDenied(
+          stepId,
+          execPath,
+          decision.sourcePolicyId,
+          approvalDecision.reason,
+        );
+        throw new AuthorizationError(
+          stepId,
+          approvalDecision.reason ?? "Approval denied",
+          decision.sourcePolicyId,
+        );
+      }
+    }
+  }
+
+  // All policies deferred — action is approved by default
+}
 
 // ─── Input Validation ────────────────────────────────────────────
 
@@ -480,6 +673,26 @@ const executeChain: ExecuteChainFn = async function executeChain(
     const resolvedInputs = stateManager
       ? resolveStepInputs(step, scope)
       : undefined;
+
+    // Policy check for tool-call steps
+    if (step.type === "tool-call" && options.policies?.length) {
+      const action: ApprovableAction = {
+        type: "tool-call",
+        params: {
+          toolName: step.params.toolName,
+          toolInput: (resolvedInputs ?? {}) as Record<string, unknown>,
+        },
+      };
+      await evaluatePolicies(
+        action,
+        step.id,
+        options,
+        context,
+        stateManager,
+        execPath,
+      );
+    }
+
     let stepResult: StepOutput;
 
     try {

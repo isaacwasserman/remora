@@ -48,6 +48,26 @@ export interface DurableContext {
     checkFn: () => Promise<unknown>,
     options: WaitForConditionOptions,
   ) => Promise<unknown>;
+
+  /**
+   * Wait for an external callback. Creates a callback ID, calls the
+   * submitter function with it, then parks the workflow until the
+   * external system submits a result via that callback ID.
+   *
+   * In durable environments (AWS Lambda Durable, Temporal, etc.),
+   * the function terminates with zero compute cost while waiting.
+   * When the callback arrives, the environment re-invokes the function
+   * and replays to this point.
+   *
+   * Default: not available. When absent, the executor falls back to
+   * polling via `conditionFn`. When present, both `waitForCallback`
+   * and polling run concurrently — whichever resolves first wins.
+   */
+  waitForCallback?: (
+    name: string,
+    submitter: (callbackId: string) => Promise<void>,
+    timeoutMs?: number,
+  ) => Promise<unknown>;
 }
 
 // ─── Default Implementation ──────────────────────────────────────
