@@ -30,6 +30,7 @@ export interface StepExecutionSummary {
 
 const STATUS_PRIORITY: Record<StepStatus, number> = {
   failed: 4,
+  "awaiting-approval": 3,
   running: 3,
   completed: 2,
   skipped: 1,
