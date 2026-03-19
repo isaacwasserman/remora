@@ -4,7 +4,7 @@ import type { StepExecutionError } from "./errors";
 // ─── Enums ───────────────────────────────────────────────────────
 
 export const stepStatusSchema = type(
-  "'pending' | 'running' | 'completed' | 'failed' | 'skipped'",
+  "'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'awaiting-approval'",
 );
 export type StepStatus = typeof stepStatusSchema.infer;
 
@@ -150,6 +150,28 @@ export const executionDeltaSchema = type({
     failedAt: "string",
     durationMs: "number",
     error: errorSnapshotSchema,
+  })
+  .or({
+    type: "'step-awaiting-approval'",
+    stepId: "string",
+    path: [executionPathSegmentSchema, "[]"],
+    sourcePolicyId: "string",
+    requestedAt: "string",
+  })
+  .or({
+    type: "'step-approved'",
+    stepId: "string",
+    path: [executionPathSegmentSchema, "[]"],
+    sourcePolicyId: "string",
+    approvedAt: "string",
+  })
+  .or({
+    type: "'step-denied'",
+    stepId: "string",
+    path: [executionPathSegmentSchema, "[]"],
+    sourcePolicyId: "string",
+    deniedAt: "string",
+    "reason?": "string",
   });
 export type ExecutionDelta = typeof executionDeltaSchema.infer;
 
@@ -316,5 +338,43 @@ export function applyDelta(
         durationMs: delta.durationMs,
         error: delta.error,
       };
+
+    case "step-awaiting-approval": {
+      const records = [...state.stepRecords];
+      const idx = findRecordIndex(records, delta.stepId, delta.path);
+      if (idx >= 0) {
+        const existing = records[idx] as StepExecutionRecord;
+        records[idx] = { ...existing, status: "awaiting-approval" };
+      }
+      return { ...state, stepRecords: records };
+    }
+
+    case "step-approved": {
+      const records = [...state.stepRecords];
+      const idx = findRecordIndex(records, delta.stepId, delta.path);
+      if (idx >= 0) {
+        const existing = records[idx] as StepExecutionRecord;
+        records[idx] = { ...existing, status: "running" };
+      }
+      return { ...state, stepRecords: records };
+    }
+
+    case "step-denied": {
+      const records = [...state.stepRecords];
+      const idx = findRecordIndex(records, delta.stepId, delta.path);
+      if (idx >= 0) {
+        const existing = records[idx] as StepExecutionRecord;
+        records[idx] = {
+          ...existing,
+          status: "failed",
+          error: {
+            code: "POLICY_DENIED",
+            category: "authorization",
+            message: delta.reason ?? "Approval denied",
+          },
+        };
+      }
+      return { ...state, stepRecords: records };
+    }
   }
 }

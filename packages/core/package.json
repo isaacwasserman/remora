@@ -17,6 +17,10 @@
     ".": {
       "import": "./dist/lib.js",
       "types": "./dist/lib.d.ts"
+    },
+    "./adapters/aws-lambda": {
+      "import": "./dist/executor/adapters/aws-lambda.js",
+      "types": "./dist/executor/adapters/aws-lambda.d.ts"
     }
   },
   "files": [
@@ -49,6 +53,8 @@
   "devDependencies": {
     "@ai-sdk/anthropic": "^3.0.50",
     "@ai-sdk/openai": "^3.0.37",
+    "@aws/durable-execution-sdk-js": "^1.1.0",
+    "@aws/durable-execution-sdk-js-testing": "^1.1.1",
     "ai": "^6.0.105"
   }
 }

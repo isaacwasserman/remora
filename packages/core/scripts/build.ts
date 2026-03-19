@@ -3,7 +3,7 @@ import { $ } from "bun";
 await $`rm -rf dist`;
 
 const result = await Bun.build({
-  entrypoints: ["./src/lib.ts"],
+  entrypoints: ["./src/lib.ts", "./src/executor/adapters/aws-lambda.ts"],
   outdir: "./dist",
   format: "esm",
   target: "browser",
@@ -12,6 +12,7 @@ const result = await Bun.build({
     "@jmespath-community/jmespath",
     "ai",
     "@ai-sdk/provider-utils",
+    "@aws/durable-execution-sdk-js",
   ],
   splitting: true,
   sourcemap: "external",
