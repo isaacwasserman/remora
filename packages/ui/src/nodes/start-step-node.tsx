@@ -4,8 +4,14 @@ import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
 export function StartStepNode({ data, selected }: NodeProps) {
-  const { step, diagnostics, hasSourceEdge, executionSummary, inputSchema } =
-    data as unknown as StepNodeData;
+  const {
+    step,
+    diagnostics,
+    hasSourceEdge,
+    executionSummary,
+    inputSchema,
+    paused,
+  } = data as unknown as StepNodeData;
   if (step.type !== "start") return null;
 
   const schema = inputSchema as
@@ -29,6 +35,7 @@ export function StartStepNode({ data, selected }: NodeProps) {
       hasSourceEdge={hasSourceEdge}
       hasTargetEdge={false}
       executionSummary={executionSummary}
+      paused={paused}
     >
       {properties.length > 0 && (
         <div className="space-y-0.5">

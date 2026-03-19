@@ -41,3 +41,5 @@ apps/docs/.vitepress/dist
 apps/docs/.vitepress/cache
 apps/docs/api
 apps/docs/public/r
+
+apps/demo/.output

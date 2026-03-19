@@ -26,6 +26,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
     groupHeight,
     hasSourceEdge,
     executionSummary,
+    paused,
   } = data as unknown as StepNodeData & {
     isGroup?: boolean;
     groupWidth?: number;
@@ -43,8 +44,12 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
     if (executionSummary) {
       switch (executionSummary.status) {
         case "running":
-          ringClass = "ring-2 ring-blue-400 animate-pulse";
-          borderColor = "border-blue-300 dark:border-blue-700";
+          ringClass = paused
+            ? "ring-2 ring-amber-400"
+            : "ring-2 ring-blue-400 animate-pulse";
+          borderColor = paused
+            ? "border-amber-300 dark:border-amber-700"
+            : "border-blue-300 dark:border-blue-700";
           break;
         case "completed":
           ringClass = "ring-2 ring-green-400";
@@ -131,6 +136,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
       selected={selected}
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
+      paused={paused}
     >
       <div className="flex gap-1.5 text-[11px]">
         <span className="text-muted-foreground shrink-0">on:</span>

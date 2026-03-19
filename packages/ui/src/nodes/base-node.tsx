@@ -18,11 +18,27 @@ interface BaseNodeProps {
   hasSourceEdge?: boolean;
   hasTargetEdge?: boolean;
   executionSummary?: StepExecutionSummary;
+  paused?: boolean;
 }
 
-function StatusIcon({ status }: { status: string }) {
+function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
   switch (status) {
     case "running":
+      if (paused) {
+        return (
+          <svg
+            className="w-3.5 h-3.5 text-amber-500 shrink-0"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+            role="img"
+          >
+            <title>Paused</title>
+            <rect x="3" y="2" width="4" height="12" rx="1" />
+            <rect x="9" y="2" width="4" height="12" rx="1" />
+          </svg>
+        );
+      }
       return (
         <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
       );
@@ -71,6 +87,7 @@ export function BaseNode({
   hasSourceEdge = true,
   hasTargetEdge = true,
   executionSummary,
+  paused,
 }: BaseNodeProps) {
   const { isEditing, onDeleteStep } = useEditContext();
   const hasErrors = diagnostics.some((d) => d.severity === "error");
@@ -82,7 +99,9 @@ export function BaseNode({
   if (executionSummary) {
     switch (executionSummary.status) {
       case "running":
-        ringClass = "ring-2 ring-blue-400 animate-pulse";
+        ringClass = paused
+          ? "ring-2 ring-amber-400"
+          : "ring-2 ring-blue-400 animate-pulse";
         break;
       case "completed":
         ringClass = "ring-2 ring-green-400";
@@ -147,7 +166,7 @@ export function BaseNode({
               </span>
             )}
             {executionSummary && (
-              <StatusIcon status={executionSummary.status} />
+              <StatusIcon status={executionSummary.status} paused={paused} />
             )}
             {(hasErrors || hasWarnings) && (
               <span

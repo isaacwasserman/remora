@@ -23,8 +23,6 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: bun run docs:build
-      - run: cd apps/demo && bun run build
-      - run: cp -r apps/demo/dist apps/docs/.vitepress/dist/demo
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/docs/.vitepress/dist
