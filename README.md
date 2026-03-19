@@ -10,8 +10,6 @@ RemoraFlow is a DSL for agents to write workflows for themselves. An agent recei
 
 Most AI "workflows" are just long prompts that *describe logic but don't guarantee it*. RemoraFlow is a language for defining workflows that guarantee an outcome through careful validation and deterministic behavior.
 
-> The name comes from the remora fish, which attaches to sharks and other large animals. RemoraFlow workflows work alongside agents in a similar way: rather than constraining behavior through guardrails, the agent authors its own concrete, inspectable plan.
-
 ## Features
 
 - **JSON-based syntax** — Flows can be generated via agent tool calls. We provide a reference `create-workflow` tool you can hand directly to your agents.
@@ -19,8 +17,6 @@ Most AI "workflows" are just long prompts that *describe logic but don't guarant
 - **Ahead-of-time validation** — A multi-pass compiler provides traceable diagnostics that agents can fix before the workflow ever runs.
 - **Constrained tool schemas** — The compiler distinguishes static vs. dynamic tool parameters, producing narrowed input schemas. A human supervisor can review and approve a limited set of behaviors ahead of time.
 - **Durable execution** — Compatible with leading durable execution environments, allowing workflows to sleep or block without consuming serverless resources.
-
-> A workflow that only ever calls `sendEmail` with a specific template and a dynamic recipient is meaningfully different from one with unconstrained access to the email API.
 
 ## Use Cases
 
