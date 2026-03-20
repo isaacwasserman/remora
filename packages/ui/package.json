@@ -60,10 +60,14 @@
     }
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.8.4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@xyflow/react": "^12.10.1",
     "ai": "^6.0.105",
+    "happy-dom": "^20.8.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   }

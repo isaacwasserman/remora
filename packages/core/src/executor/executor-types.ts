@@ -1,5 +1,6 @@
 import type { Agent, LanguageModel, ToolSet } from "ai";
 import type { WorkflowStep } from "../types";
+import type { WorkflowExecutionStateChannel } from "./channel";
 import type { DurableContext } from "./context";
 import type { ErrorCode } from "./errors";
 import { ExternalServiceError, type StepExecutionError } from "./errors";
@@ -81,6 +82,8 @@ export interface ExecuteWorkflowOptions<
   onStepComplete?: (stepId: string, output: unknown) => void;
   /** Called on every state transition with the full execution state and the idempotent delta that produced it. */
   onStateChange?: (state: ExecutionState, delta: ExecutionDelta) => void;
+  /** Optional channel for publishing execution state snapshots. Publishes on every state transition, in addition to {@link onStateChange}. */
+  channel?: WorkflowExecutionStateChannel;
   /** Injectable durable execution context. Default: simple in-process implementation. */
   context?: DurableContext;
   /** Execution limits for sleep/wait/timeout bounds. */
