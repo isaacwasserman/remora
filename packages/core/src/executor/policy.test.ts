@@ -94,8 +94,7 @@ function createPolicy(
 ): Policy {
   return {
     id,
-    decider: (_ctx, action) =>
-      Promise.resolve({ ...decide(action), sourcePolicyId: id }),
+    decider: (_ctx, action) => Promise.resolve(decide(action)),
   };
 }
 
@@ -123,7 +122,6 @@ describe("Policy evaluation", () => {
       policies: [
         createPolicy("allow-all", () => ({
           type: "approve",
-          sourcePolicyId: "allow-all",
         })),
       ],
     });
@@ -139,7 +137,6 @@ describe("Policy evaluation", () => {
       policies: [
         createPolicy("deny-all", () => ({
           type: "reject",
-          sourcePolicyId: "deny-all",
         })),
       ],
     });
@@ -157,11 +154,9 @@ describe("Policy evaluation", () => {
       policies: [
         createPolicy("no-opinion", () => ({
           type: "defer",
-          sourcePolicyId: "no-opinion",
         })),
         createPolicy("allow-all", () => ({
           type: "approve",
-          sourcePolicyId: "allow-all",
         })),
       ],
     });
@@ -174,11 +169,9 @@ describe("Policy evaluation", () => {
       policies: [
         createPolicy("no-opinion", () => ({
           type: "defer",
-          sourcePolicyId: "no-opinion",
         })),
         createPolicy("deny-all", () => ({
           type: "reject",
-          sourcePolicyId: "deny-all",
         })),
       ],
     });
@@ -192,8 +185,8 @@ describe("Policy evaluation", () => {
     const result = await executeWorkflow(simpleToolCallWorkflow, {
       tools: testTools,
       policies: [
-        createPolicy("p1", () => ({ type: "defer", sourcePolicyId: "p1" })),
-        createPolicy("p2", () => ({ type: "defer", sourcePolicyId: "p2" })),
+        createPolicy("p1", () => ({ type: "defer" })),
+        createPolicy("p2", () => ({ type: "defer" })),
       ],
     });
     expect(result.success).toBe(true);
@@ -209,7 +202,6 @@ describe("Policy evaluation", () => {
       policies: [
         createPolicy("allow-all", () => ({
           type: "approve",
-          sourcePolicyId: "allow-all",
         })),
         {
           id: "should-not-run",
@@ -217,7 +209,6 @@ describe("Policy evaluation", () => {
             secondPolicyCalled = true;
             return {
               type: "reject" as const,
-              sourcePolicyId: "should-not-run",
             };
           },
         },
@@ -250,7 +241,7 @@ describe("Policy evaluation", () => {
           id: "tracker",
           decider: async () => {
             policyCalled = true;
-            return { type: "reject" as const, sourcePolicyId: "tracker" };
+            return { type: "reject" as const };
           },
         },
       ],
@@ -268,7 +259,7 @@ describe("Policy evaluation", () => {
           id: "capture",
           decider: async (_ctx, action) => {
             capturedAction = action;
-            return { type: "approve" as const, sourcePolicyId: "capture" };
+            return { type: "approve" as const };
           },
         },
       ],
@@ -293,7 +284,7 @@ describe("Policy evaluation", () => {
           id: "ctx-check",
           decider: async (ctx) => {
             capturedContext = ctx;
-            return { type: "approve" as const, sourcePolicyId: "ctx-check" };
+            return { type: "approve" as const };
           },
         },
       ],
@@ -310,9 +301,9 @@ describe("Policy evaluation", () => {
           id: "block-echo",
           decider: async (_ctx, action) => {
             if (action.params.toolName === "echo") {
-              return { type: "reject" as const, sourcePolicyId: "block-echo" };
+              return { type: "reject" as const };
             }
-            return { type: "approve" as const, sourcePolicyId: "block-echo" };
+            return { type: "approve" as const };
           },
         },
       ],
@@ -338,7 +329,6 @@ describe("Approval request flow", () => {
           id: "needs-approval",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "needs-approval",
             requestFn: async () => {},
             conditionFn: () => ({ approved: true, reason: "Looks good" }),
           }),
@@ -360,7 +350,6 @@ describe("Approval request flow", () => {
           id: "needs-approval",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "needs-approval",
             requestFn: async () => {},
             conditionFn: () => ({ approved: false, reason: "Not allowed" }),
           }),
@@ -384,7 +373,6 @@ describe("Approval request flow", () => {
           id: "delayed-approval",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "delayed-approval",
             requestFn: async () => {},
             conditionFn: () => {
               pollCount++;
@@ -409,7 +397,6 @@ describe("Approval request flow", () => {
           id: "never-responds",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "never-responds",
             requestFn: async () => {},
             conditionFn: () => null, // always pending
           }),
@@ -431,7 +418,6 @@ describe("Approval request flow", () => {
           id: "stale-check",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "stale-check",
             requestFn: async () => {},
             staleFn: () => {
               callOrder.push("stale");
@@ -464,7 +450,6 @@ describe("Approval request flow", () => {
           id: "stale-then-approve",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "stale-then-approve",
             requestFn: async () => {},
             staleFn: () => {
               staleChecks++;
@@ -489,7 +474,6 @@ describe("Approval request flow", () => {
           id: "late-stale",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "late-stale",
             requestFn: async () => {},
             staleFn: () => {
               pollCount++;
@@ -519,7 +503,6 @@ describe("Approval request flow", () => {
           id: "on-approval",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "on-approval",
             requestFn: async () => {},
             conditionFn: () => ({
               approved: true,
@@ -549,7 +532,6 @@ describe("Approval request flow", () => {
           id: "on-denial",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "on-denial",
             requestFn: async () => {},
             conditionFn: () => ({
               approved: false,
@@ -579,7 +561,6 @@ describe("Approval request flow", () => {
           id: "backoff-test",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "backoff-test",
             requestFn: async () => {},
             conditionFn: () => {
               pollTimes.push(Date.now());
@@ -612,7 +593,6 @@ describe("Approval request flow", () => {
           id: "order-check",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "order-check",
             requestFn: async (_callbackId) => {
               callOrder.push("request");
             },
@@ -644,7 +624,6 @@ describe("Policy state deltas", () => {
           id: "approve-policy",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "approve-policy",
             requestFn: async () => {},
             conditionFn: () => ({ approved: true }),
           }),
@@ -685,7 +664,6 @@ describe("Policy state deltas", () => {
           id: "deny-policy",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "deny-policy",
             requestFn: async () => {},
             conditionFn: () => ({ approved: false, reason: "Nope" }),
           }),
@@ -716,7 +694,6 @@ describe("Policy state deltas", () => {
       policies: [
         createPolicy("deny", () => ({
           type: "reject",
-          sourcePolicyId: "deny",
         })),
       ],
     });
@@ -747,7 +724,6 @@ describe("Policy state deltas", () => {
           id: "approval",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "approval",
             requestFn: async () => {},
             conditionFn: () => ({ approved: true }),
           }),
@@ -780,7 +756,6 @@ describe("waitForCallback integration", () => {
           id: "callback-policy",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "callback-policy",
             conditionFn: () => null, // polling never resolves
           }),
         },
@@ -812,7 +787,6 @@ describe("waitForCallback integration", () => {
           id: "capture-id",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "capture-id",
             requestFn: async (callbackId: string) => {
               capturedCallbackId = callbackId;
             },
@@ -845,7 +819,6 @@ describe("waitForCallback integration", () => {
           id: "poll-wins",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "poll-wins",
             conditionFn: () => ({
               approved: true,
               reason: "Polling resolved first",
@@ -877,7 +850,6 @@ describe("waitForCallback integration", () => {
           id: "no-double-call",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "no-double-call",
             requestFn: async (_callbackId: string) => {
               requestCallCount++;
             },
@@ -902,7 +874,6 @@ describe("waitForCallback integration", () => {
           id: "synthetic-id",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "synthetic-id",
             requestFn: async (callbackId: string) => {
               capturedCallbackId = callbackId;
             },
@@ -934,7 +905,6 @@ describe("waitForCallback integration", () => {
           id: "event-only",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "event-only",
             requestFn: async (_callbackId: string) => {},
           }),
         },
@@ -954,7 +924,6 @@ describe("waitForCallback integration", () => {
           id: "event-only-no-ctx",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "event-only-no-ctx",
             requestFn: async (_callbackId: string) => {},
           }),
         },
@@ -976,7 +945,6 @@ describe("waitForCallback integration", () => {
           id: "poll-only",
           decider: async () => ({
             type: "request" as const,
-            sourcePolicyId: "poll-only",
             conditionFn: () => ({ approved: true }),
           }),
         },

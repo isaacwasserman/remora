@@ -81,6 +81,7 @@ async function evaluatePolicies(
 
   for (const policy of policies) {
     const decision = await policy.decider(executionContext, action);
+    const sourcePolicyId = policy.id;
 
     switch (decision.type) {
       case "approve":
@@ -90,18 +91,14 @@ async function evaluatePolicies(
         throw new AuthorizationError(
           stepId,
           "Action rejected by policy",
-          decision.sourcePolicyId,
+          sourcePolicyId,
         );
 
       case "defer":
         continue;
 
       case "request": {
-        stateManager?.stepAwaitingApproval(
-          stepId,
-          execPath,
-          decision.sourcePolicyId,
-        );
+        stateManager?.stepAwaitingApproval(stepId, execPath, sourcePolicyId);
 
         const timeoutMs =
           options.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS;
@@ -126,7 +123,7 @@ async function evaluatePolicies(
           throw new AuthorizationError(
             stepId,
             "Policy returned requestFn without conditionFn, but no DurableContext.waitForCallback is available",
-            decision.sourcePolicyId,
+            sourcePolicyId,
           );
         }
 
@@ -201,13 +198,13 @@ async function evaluatePolicies(
           stateManager?.stepDenied(
             stepId,
             execPath,
-            decision.sourcePolicyId,
+            sourcePolicyId,
             "Approval request timed out",
           );
           throw new AuthorizationError(
             stepId,
             "Approval request timed out",
-            decision.sourcePolicyId,
+            sourcePolicyId,
           );
         }
 
@@ -223,20 +220,20 @@ async function evaluatePolicies(
         }
 
         if (approvalDecision.approved) {
-          stateManager?.stepApproved(stepId, execPath, decision.sourcePolicyId);
+          stateManager?.stepApproved(stepId, execPath, sourcePolicyId);
           return;
         }
 
         stateManager?.stepDenied(
           stepId,
           execPath,
-          decision.sourcePolicyId,
+          sourcePolicyId,
           approvalDecision.reason,
         );
         throw new AuthorizationError(
           stepId,
           approvalDecision.reason ?? "Approval denied",
-          decision.sourcePolicyId,
+          sourcePolicyId,
         );
       }
     }

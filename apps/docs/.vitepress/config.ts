@@ -45,6 +45,10 @@ export default defineConfig({
             { text: "Compilation", link: "/guide/compilation" },
             { text: "Execution", link: "/guide/execution" },
             {
+              text: "Policies & Approvals",
+              link: "/guide/policies",
+            },
+            {
               text: "Execution State",
               link: "/guide/execution-state",
             },

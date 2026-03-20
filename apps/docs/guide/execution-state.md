@@ -35,7 +35,7 @@ Each step execution produces a `StepExecutionRecord`:
 ```ts
 interface StepExecutionRecord {
   stepId: string;
-  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  status: "pending" | "running" | "completed" | "failed" | "skipped" | "awaiting-approval";
   startedAt?: string;
   completedAt?: string;
   durationMs?: number;
@@ -228,6 +228,12 @@ type ExecutionDelta =
       durationMs: number; output?: unknown }
   | { type: "run-failed"; runId: string; failedAt: string;
       durationMs: number; error: ErrorSnapshot }
+  | { type: "step-awaiting-approval"; stepId: string; path: ExecutionPathSegment[];
+      sourcePolicyId: string; requestedAt: string }
+  | { type: "step-approved"; stepId: string; path: ExecutionPathSegment[];
+      sourcePolicyId: string; approvedAt: string }
+  | { type: "step-denied"; stepId: string; path: ExecutionPathSegment[];
+      sourcePolicyId: string; deniedAt: string; reason?: string }
 ```
 
 ### Delta Lifecycle
@@ -239,6 +245,14 @@ A typical successful execution produces deltas in this order:
 3. `run-completed` — execution finishes
 
 A failed execution ends with `run-failed` instead of `run-completed`.
+
+When a step is gated by a [policy](/guide/policies), the sequence includes [approval deltas](/guide/policies#observing-approval-state):
+
+1. `step-started` — step begins
+2. `step-awaiting-approval` — policy requested external approval; step status becomes `awaiting-approval`
+3. `step-approved` or `step-denied` — the decision arrives
+4. If approved: step executes and emits `step-completed` as normal
+5. If denied: `step-failed` with error code `POLICY_DENIED`, followed by `run-failed`
 
 ### Collecting State History
 
@@ -279,6 +293,15 @@ for (const delta of deltas) {
       break;
     case "run-failed":
       console.log(`  [${delta.failedAt}] Run failed: ${delta.error.message}`);
+      break;
+    case "step-awaiting-approval":
+      console.log(`  [${delta.requestedAt}] Step "${delta.stepId}" awaiting approval (policy: ${delta.sourcePolicyId})`);
+      break;
+    case "step-approved":
+      console.log(`  [${delta.approvedAt}] Step "${delta.stepId}" approved`);
+      break;
+    case "step-denied":
+      console.log(`  [${delta.deniedAt}] Step "${delta.stepId}" denied: ${delta.reason}`);
       break;
   }
 }
