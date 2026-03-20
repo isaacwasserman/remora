@@ -1,4 +1,5 @@
 import { PostHogProvider } from "@posthog/react";
+import { initBotId } from "botid/client/core";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
@@ -8,6 +9,15 @@ const POSTHOG_OPTIONS = {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: "2026-01-30",
 } as const;
+
+initBotId({
+  protect: [
+    {
+      path: "/",
+      method: "*",
+    },
+  ],
+});
 
 const container = document.getElementById("root");
 if (container) {
