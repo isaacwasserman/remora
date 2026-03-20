@@ -5,6 +5,11 @@ export type { ReplaySliderProps } from "./components/replay-slider";
 export { ReplaySlider } from "./components/replay-slider";
 export { Button } from "./components/ui/button";
 export {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./components/ui/collapsible";
+export {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
