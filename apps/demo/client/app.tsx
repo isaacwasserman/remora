@@ -20,10 +20,12 @@ import {
 } from "@remoraflow/ui";
 import {
   BookOpen,
+  Check,
   ChevronDown,
   Download,
   FolderOpen,
   Github,
+  Link,
   Moon,
   Palette,
   Pause,
@@ -46,10 +48,12 @@ import { WorkflowInputDialog, WorkflowOutputPanel } from "./workflow-io-panels";
 import {
   clearExecutionState,
   clearWorkflow,
+  encodeWorkflowToUrl,
   exportWorkflowJson,
   importWorkflowJson,
   loadExecutionState,
   loadWorkflow,
+  loadWorkflowFromUrl,
   saveExecutionState,
   saveWorkflow,
 } from "./workflow-store";
@@ -86,6 +90,7 @@ export function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Execution hook
   const persist = useMemo(
@@ -112,6 +117,16 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
+
+  // Load workflow from URL query param on mount
+  useEffect(() => {
+    loadWorkflowFromUrl().then((wf) => {
+      if (wf) {
+        setWorkflow(wf);
+        saveWorkflow(wf);
+      }
+    });
+  }, []);
 
   const handleWorkflowChange = useCallback((wf: WorkflowDefinition) => {
     setWorkflow(wf);
@@ -180,6 +195,15 @@ export function App() {
       saveWorkflow(imported);
     }
   }, [posthog]);
+
+  const handleShare = useCallback(async () => {
+    if (!workflow) return;
+    const url = await encodeWorkflowToUrl(workflow);
+    await navigator.clipboard.writeText(url);
+    posthog.capture("workflow_share");
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  }, [workflow, posthog]);
 
   const handleClear = useCallback(() => {
     clearWorkflow();
@@ -396,6 +420,22 @@ export function App() {
           >
             <Download className="h-3.5 w-3.5" />
             Export
+          </Button>
+
+          {/* Share */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleShare}
+            disabled={!workflow}
+            className="text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            {shareCopied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Link className="h-3.5 w-3.5" />
+            )}
+            {shareCopied ? "Copied!" : "Share"}
           </Button>
 
           {/* New — opens the new-workflow dialog */}
