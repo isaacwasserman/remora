@@ -5,6 +5,7 @@ import {
   AuthorizationError,
   ConfigurationError,
   ExternalServiceError,
+  ExtractionError,
   StepExecutionError,
   ValidationError,
 } from "./errors";
@@ -579,6 +580,9 @@ async function retryStep(
         errorCode: e instanceof StepExecutionError ? e.code : "UNKNOWN",
         errorMessage: e instanceof Error ? e.message : String(e),
       });
+      // If the retry produced a non-retryable error (e.g. the LLM called
+      // give-up), stop retrying immediately instead of masking it.
+      if (e instanceof ExtractionError) throw e;
       if (attempt === maxRetries) throw originalError;
     }
   }
@@ -630,6 +634,9 @@ async function recoverFromError(
           execPath,
         );
       }
+      throw error;
+
+    case "EXTRACTION_GAVE_UP":
       throw error;
 
     default:

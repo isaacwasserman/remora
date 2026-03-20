@@ -3394,12 +3394,14 @@ describe("extract-data probe mode", () => {
     });
   });
 
-  test("inline mode give-up throws ExtractionError", async () => {
+  test("inline mode give-up throws ExtractionError without retrying", async () => {
     const workflow = makeExtractWorkflow("The weather today is sunny and warm");
 
+    let callCount = 0;
     const mockModel = new MockLanguageModelV3({
-      doGenerate: async () =>
-        ({
+      doGenerate: async () => {
+        callCount++;
+        return {
           content: [
             {
               type: "tool-call" as const,
@@ -3417,12 +3419,15 @@ describe("extract-data probe mode", () => {
           },
           usage: defaultUsage,
           warnings: [],
-        }) as LanguageModelV3GenerateResult,
+        } as LanguageModelV3GenerateResult;
+      },
     });
 
     const result = await executeWorkflow(workflow, {
       tools: testTools,
       model: mockModel,
+      maxRetries: 3,
+      retryDelayMs: 0,
     });
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe("EXTRACTION_GAVE_UP");
@@ -3430,6 +3435,49 @@ describe("extract-data probe mode", () => {
     expect((result.error as ExtractionError).reason).toBe(
       "The source data contains weather information, not user data",
     );
+    // Must not retry — give-up is a deliberate decision, not a transient failure
+    expect(callCount).toBe(1);
+  });
+
+  test("give-up during retry stops retrying immediately", async () => {
+    let callCount = 0;
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: transient error that triggers retry
+          throw new Error("Temporary failure");
+        }
+        // Second call (retry): model calls give-up
+        return {
+          content: [
+            {
+              type: "tool-call" as const,
+              toolCallId: "giveup-1",
+              toolName: "give-up",
+              input: JSON.stringify({ reason: "Data not found" }),
+            },
+          ],
+          finishReason: { unified: "tool-calls" as const, raw: undefined },
+          usage: defaultUsage,
+          warnings: [],
+        } as LanguageModelV3GenerateResult;
+      },
+    });
+
+    const workflow = makeExtractWorkflow("Some source data");
+    const result = await executeWorkflow(workflow, {
+      tools: testTools,
+      model,
+      maxRetries: 3,
+      retryDelayMs: 0,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe("EXTRACTION_GAVE_UP");
+    expect(result.error).toBeInstanceOf(ExtractionError);
+    // Should have stopped after first retry (2 calls total), not exhausted all 3 retries
+    expect(callCount).toBe(2);
   });
 
   test("large data activates probe mode, model submits with data", async () => {
