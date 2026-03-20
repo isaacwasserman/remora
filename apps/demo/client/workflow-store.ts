@@ -59,6 +59,71 @@ export function clearExecutionState(workflowHash: string): void {
   localStorage.removeItem(`${EXEC_STATE_PREFIX}${workflowHash}`);
 }
 
+/**
+ * Compress a workflow definition into a base64url-encoded string suitable for URL query params.
+ * Uses DeflateRaw via CompressionStream for smaller output (no zlib headers).
+ */
+export async function encodeWorkflowToUrl(
+  workflow: WorkflowDefinition,
+): Promise<string> {
+  const json = JSON.stringify(workflow);
+  const input = new Blob([json]);
+  const cs = new CompressionStream("deflate-raw");
+  const stream = input.stream().pipeThrough(cs);
+  const compressed = await new Response(stream).arrayBuffer();
+  // base64url encode (no padding)
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(compressed)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("workflow", base64);
+  return url.toString();
+}
+
+/**
+ * Decode a workflow definition from a base64url-encoded query param.
+ */
+export async function decodeWorkflowFromUrl(
+  encoded: string,
+): Promise<WorkflowDefinition | null> {
+  try {
+    // base64url decode
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+
+    const input = new Blob([bytes]);
+    const ds = new DecompressionStream("deflate-raw");
+    const stream = input.stream().pipeThrough(ds);
+    const json = await new Response(stream).text();
+    return JSON.parse(json) as WorkflowDefinition;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check the current URL for a ?workflow= query param and decode it.
+ * Clears the param from the URL after reading to keep it clean.
+ */
+export async function loadWorkflowFromUrl(): Promise<WorkflowDefinition | null> {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get("workflow");
+  if (!encoded) return null;
+
+  const workflow = await decodeWorkflowFromUrl(encoded);
+  if (workflow) {
+    // Clean the URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete("workflow");
+    window.history.replaceState({}, "", url.toString());
+  }
+  return workflow;
+}
+
 export function importWorkflowJson(): Promise<WorkflowDefinition | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
