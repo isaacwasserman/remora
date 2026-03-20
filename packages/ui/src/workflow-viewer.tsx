@@ -100,6 +100,8 @@ export interface WorkflowViewerProps {
   onWorkflowChange?: (workflow: WorkflowDefinition) => void;
   /** Tool definitions (AI SDK ToolSet). Used for tool name autocomplete in the editor. Execute functions are optional. */
   tools?: ToolSet;
+  /** Pre-extracted tool schemas. When provided, skips extracting schemas from `tools`. */
+  toolSchemas?: ToolDefinitionMap;
 }
 
 /**
@@ -123,6 +125,7 @@ export function WorkflowViewer({
   isEditing = false,
   onWorkflowChange,
   tools,
+  toolSchemas: toolSchemasProp,
 }: WorkflowViewerProps) {
   const theme = useThemeColors();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,6 +155,10 @@ export function WorkflowViewer({
   // --- Tool schemas ---
   const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
   useEffect(() => {
+    if (toolSchemasProp) {
+      setToolSchemas(toolSchemasProp);
+      return;
+    }
     if (!tools) {
       setToolSchemas({});
       return;
@@ -163,7 +170,7 @@ export function WorkflowViewer({
     return () => {
       cancelled = true;
     };
-  }, [tools]);
+  }, [tools, toolSchemasProp]);
 
   // --- Live diagnostics ---
   const [editDiagnostics, setEditDiagnostics] = useState<Diagnostic[]>([]);
@@ -340,8 +347,13 @@ export function WorkflowViewer({
 
   // --- Derived data ---
   const availableToolNames = useMemo(
-    () => (tools ? Object.keys(tools) : []),
-    [tools],
+    () =>
+      toolSchemasProp
+        ? Object.keys(toolSchemasProp)
+        : tools
+          ? Object.keys(tools)
+          : [],
+    [tools, toolSchemasProp],
   );
 
   const allStepIds = useMemo(
