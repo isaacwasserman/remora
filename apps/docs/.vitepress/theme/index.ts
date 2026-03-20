@@ -5,7 +5,13 @@ import "./custom.css";
 
 export default {
   ...Theme,
-  enhanceApp({ app }: EnhanceAppContext) {
+  enhanceApp({ app, router }: EnhanceAppContext) {
     enhanceAppWithTabs(app);
+    router.onBeforeRouteChange = (to) => {
+      if (to.startsWith("/demo")) {
+        window.location.href = to;
+        return false;
+      }
+    };
   },
 };
