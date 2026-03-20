@@ -37,6 +37,12 @@ interface ExecuteWorkflowOptions {
   onStateChange?: (state: ExecutionState, delta: ExecutionDelta) => void;
   context?: DurableContext;
   limits?: ExecutorLimits;
+  policies?: Policy[];
+  executionContext?: Record<string, unknown>;
+  approvalTimeoutMs?: number;
+  approvalIntervalMs?: number;
+  approvalBackoffMultiplier?: number;
+  approvalMaxIntervalMs?: number;
 }
 ```
 
@@ -303,6 +309,12 @@ const result = await executeWorkflow(workflow, {
 
 When a timeout is hit, the executor throws an `ExternalServiceError` with code `EXECUTION_TOTAL_TIMEOUT` or `EXECUTION_ACTIVE_TIMEOUT`.
 
+## Policies & Approvals
+
+The executor supports a policy system for gating tool calls behind authorization rules and human-in-the-loop approval workflows. Policies can instantly approve, reject, or defer actions — or pause execution and wait for external approval via polling, callbacks, or both.
+
+See [Policies & Approvals](/guide/policies) for the full guide.
+
 ## Error Handling
 
 All executor errors extend `StepExecutionError`, which carries the step ID, error code, error category, and optional cause:
@@ -325,6 +337,7 @@ class StepExecutionError extends Error {
 | `external-service` | A tool or LLM call failed | Sometimes |
 | `expression` | A JMESPath or template expression failed to evaluate | No |
 | `output-quality` | The LLM produced output that couldn't be parsed | Yes |
+| `authorization` | A [policy](/guide/policies) denied the action | No |
 
 ### Error Classes
 
@@ -338,6 +351,7 @@ Each category has a corresponding class:
 | `ExpressionError` | `expression` | `expression` |
 | `OutputQualityError` | `output-quality` | `rawOutput` |
 | `ExtractionError` | `output-quality` | `reason` |
+| `AuthorizationError` | `authorization` | `sourcePolicyId`, `reason` |
 
 ### Error Codes
 
@@ -363,6 +377,7 @@ Each category has a corresponding class:
 | `WAIT_CONDITION_MAX_ATTEMPTS` | external-service | `wait-for-condition` exceeded its `maxAttempts` |
 | `EXECUTION_TOTAL_TIMEOUT` | external-service | Total wall-clock time exceeded `limits.maxTotalMs` |
 | `EXECUTION_ACTIVE_TIMEOUT` | external-service | Active execution time exceeded `limits.maxActiveMs` |
+| `POLICY_DENIED` | authorization | A [policy](/guide/policies) rejected the tool call |
 
 ### Automatic Retry
 
