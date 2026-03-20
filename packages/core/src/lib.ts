@@ -17,13 +17,18 @@ export type {
   ExecuteWorkflowOptions,
   ExecutionResult,
   ExecutorLimits,
+  WorkflowExecutionStateChannel,
+  WorkflowExecutionStateChannelOptions,
 } from "./executor";
 export {
+  BaseExecutionStateChannel,
   DEFAULT_APPROVAL_BACKOFF_MULTIPLIER,
   DEFAULT_APPROVAL_INTERVAL_MS,
   DEFAULT_APPROVAL_MAX_INTERVAL_MS,
   DEFAULT_APPROVAL_TIMEOUT_MS,
   executeWorkflow,
+  executeWorkflowStream,
+  MemoryExecutionStateChannel,
 } from "./executor";
 export type {
   DurableContext,

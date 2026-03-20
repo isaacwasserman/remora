@@ -3,7 +3,7 @@ import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import {
   compileWorkflow,
-  executeWorkflow,
+  executeWorkflowStream,
   generateWorkflow,
 } from "@remoraflow/core";
 import { z } from "zod";
@@ -39,47 +39,12 @@ const executeProc = os
     }
     const validatedWorkflow = compiled.workflow ?? workflow;
 
-    // Use a queue to bridge the callback-based onStateChange to an async generator
-    type QueueItem = { state: unknown } | { done: true } | { error: unknown };
-    const queue: QueueItem[] = [];
-    let resolve: (() => void) | null = null;
-
-    function enqueue(item: QueueItem) {
-      queue.push(item);
-      if (resolve) {
-        resolve();
-        resolve = null;
-      }
-    }
-
-    const promise = executeWorkflow(validatedWorkflow, {
+    yield* executeWorkflowStream(validatedWorkflow, {
       tools: DEMO_TOOLS,
       model: apiKey ? createModel(apiKey, modelId) : undefined,
       inputs,
       initialState,
-      onStateChange: (state) => {
-        enqueue({ state: structuredClone(state) });
-      },
     });
-
-    promise.then(
-      () => enqueue({ done: true }),
-      (err) => enqueue({ error: err }),
-    );
-
-    while (true) {
-      while (queue.length === 0) {
-        await new Promise<void>((r) => {
-          resolve = r;
-        });
-      }
-
-      const item = queue.shift();
-      if (!item) continue;
-      if ("done" in item) return;
-      if ("error" in item) throw item.error;
-      yield item.state;
-    }
   });
 
 const generateProc = os
