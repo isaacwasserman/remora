@@ -14,7 +14,7 @@ const POSTHOG_OPTIONS = {
 initBotId({
   protect: [
     {
-      path: "/",
+      path: "/*",
       method: "*",
     },
   ],
