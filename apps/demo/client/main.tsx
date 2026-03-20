@@ -6,7 +6,8 @@ import { App } from "./app";
 import { QueryProvider } from "./query-provider";
 
 const POSTHOG_OPTIONS = {
-  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  api_host: "/ingest",
+  ui_host: "https://us.posthog.com",
   defaults: "2026-01-30",
 } as const;
 
