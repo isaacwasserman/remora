@@ -1,5 +1,8 @@
 /** @module viewer */
 // shadcn/ui components
+
+export type { ReplaySliderProps } from "./components/replay-slider";
+export { ReplaySlider } from "./components/replay-slider";
 export { Button } from "./components/ui/button";
 export {
   DropdownMenu,
@@ -30,6 +33,11 @@ export type { StepExecutionSummary } from "./execution-state";
 export { deriveStepSummaries } from "./execution-state";
 export type { StepNodeData } from "./graph-layout";
 export { buildEditableLayout, buildLayout } from "./graph-layout";
+export type {
+  UseWorkflowExecutionOptions,
+  WorkflowExecutionControls,
+} from "./hooks/use-workflow-execution";
+export { useWorkflowExecution } from "./hooks/use-workflow-execution";
 export type { StepDetailPanelProps } from "./panels/step-detail-panel";
 export { StepDetailPanel } from "./panels/step-detail-panel";
 export type { StepEditorPanelProps } from "./panels/step-editor-panel";

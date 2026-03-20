@@ -1,4 +1,5 @@
 import type { WorkflowDefinition, WorkflowStep } from "../types";
+import { MemoryExecutionStateChannel } from "./channel";
 import { createDefaultDurableContext, type DurableContext } from "./context";
 import {
   AuthorizationError,
@@ -17,8 +18,16 @@ import {
 } from "./executor-types";
 import { hashWorkflow } from "./hash";
 import type { ApprovableAction } from "./policy";
-import type { ExecutionPathSegment, TraceEntry } from "./state";
+import type { ExecutionPathSegment, ExecutionState, TraceEntry } from "./state";
 
+export type {
+  WorkflowExecutionStateChannel,
+  WorkflowExecutionStateChannelOptions,
+} from "./channel";
+export {
+  BaseExecutionStateChannel,
+  MemoryExecutionStateChannel,
+} from "./channel";
 export type {
   ExecuteWorkflowOptions,
   ExecutionResult,
@@ -907,8 +916,15 @@ export async function executeWorkflow(
         ),
       }
     : undefined;
+  const combinedOnChange: typeof options.onStateChange = options.channel
+    ? (state, delta) => {
+        options.channel?.publish(state);
+        options.onStateChange?.(state, delta);
+      }
+    : options.onStateChange;
+
   const stateManager = new ExecutionStateManager(
-    options.onStateChange,
+    combinedOnChange,
     cleanedInitialState,
     wfHash,
   );
@@ -978,5 +994,29 @@ export async function executeWorkflow(
       error,
       executionState: stateManager.currentState,
     };
+  } finally {
+    options.channel?.close();
   }
+}
+
+// ─── Streaming Helper ────────────────────────────────────────────
+
+/**
+ * Convenience wrapper that runs {@link executeWorkflow} and returns an
+ * `AsyncIterable<ExecutionState>` that yields every state snapshot.
+ *
+ * The workflow executes in the background (fire-and-forget). The returned
+ * iterable replays all states from the beginning and follows live updates
+ * until the run completes or fails.
+ */
+export function executeWorkflowStream(
+  workflow: WorkflowDefinition,
+  options: ExecuteWorkflowOptions,
+): AsyncIterable<ExecutionState> {
+  const channel = new MemoryExecutionStateChannel();
+
+  // Fire-and-forget — channel.close() is called by executeWorkflow's finally block.
+  executeWorkflow(workflow, { ...options, channel });
+
+  return channel.subscribe({ replay: true });
 }

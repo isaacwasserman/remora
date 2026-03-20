@@ -15,10 +15,12 @@
   "type": "module",
   "exports": {
     ".": {
+      "bun": "./src/lib.ts",
       "import": "./dist/lib.js",
       "types": "./dist/lib.d.ts"
     },
     "./adapters/aws-lambda": {
+      "bun": "./src/executor/adapters/aws-lambda.ts",
       "import": "./dist/executor/adapters/aws-lambda.js",
       "types": "./dist/executor/adapters/aws-lambda.d.ts"
     }
