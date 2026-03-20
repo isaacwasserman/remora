@@ -508,7 +508,7 @@ export function App() {
             className="text-muted-foreground hover:text-foreground"
             title="Documentation"
           >
-            <a href="/">
+            <a href={import.meta.env.DEV ? "http://localhost:5173" : "/"}>
               <BookOpen className="h-3.5 w-3.5" />
             </a>
           </Button>
