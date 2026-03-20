@@ -8,6 +8,7 @@ import {
   generateWorkflow,
 } from "@remoraflow/core";
 import { z } from "zod";
+import { logger } from "./logger";
 import { DEMO_TOOLS } from "./tools";
 
 function createModel(apiKey: string, modelId: string) {
@@ -34,11 +35,20 @@ const executeProc = os
     const compiled = await compileWorkflow(workflow, { tools: DEMO_TOOLS });
     const errors = compiled.diagnostics.filter((d) => d.severity === "error");
     if (errors.length > 0) {
+      logger.warn(
+        { errorCount: errors.length, errors: errors.map((e) => e.message) },
+        "workflow validation failed",
+      );
       throw new ORPCError("BAD_REQUEST", {
         message: `Invalid workflow: ${errors.map((e) => e.message).join("; ")}`,
       });
     }
     const validatedWorkflow = compiled.workflow ?? workflow;
+
+    logger.info(
+      { modelId, hasApiKey: !!apiKey, inputKeys: Object.keys(inputs) },
+      "workflow execution started",
+    );
 
     yield* executeWorkflowStream(validatedWorkflow, {
       tools: DEMO_TOOLS,
@@ -59,6 +69,8 @@ const generateProc = os
   )
   .handler(async ({ input }) => {
     const { task, apiKey, modelId, maxRetries } = input;
+    logger.info({ modelId, maxRetries }, "workflow generation started");
+
     const model = createModel(apiKey, modelId);
     const result = await generateWorkflow({
       model,
@@ -66,6 +78,8 @@ const generateProc = os
       task,
       maxRetries,
     });
+
+    logger.info("workflow generation completed");
     return result;
   });
 
