@@ -1,6 +1,12 @@
-import { Button } from "@remoraflow/ui";
-import { PenLine, Sparkles } from "lucide-react";
+import {
+  Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@remoraflow/ui";
+import { ChevronRight, PenLine, Sparkles, Wrench } from "lucide-react";
 import { useState } from "react";
+import { DEMO_TOOLS } from "./tools";
 
 type Step = "choose" | "generate";
 
@@ -122,6 +128,28 @@ export function NewWorkflowDialog({
                   </Button>
                 </div>
               )}
+              <Collapsible className="mb-3">
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors group w-full">
+                  <ChevronRight className="size-3 transition-transform group-data-[state=open]:rotate-90" />
+                  <Wrench className="size-3" />
+                  <span>
+                    Available tools ({Object.keys(DEMO_TOOLS).length})
+                  </span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-1.5 rounded-md border border-border bg-muted/30 divide-y divide-border overflow-hidden data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0">
+                  {Object.entries(DEMO_TOOLS).map(([name, t]) => (
+                    <div key={name} className="px-3 py-1.5">
+                      <span className="text-[11px] font-medium text-foreground font-mono">
+                        {name}
+                      </span>
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        {t.description}
+                      </p>
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+
               <textarea
                 // biome-ignore lint/a11y/noAutofocus: intentional focus for dialog
                 autoFocus
