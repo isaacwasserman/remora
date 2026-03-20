@@ -11,11 +11,11 @@
       "destination": "https://api.vercel.com/bot-protection/v1/proxy/:path*"
     },
     {
-      "source": "/ingest/static/:path(.*)",
+      "source": "/r/static/:path(.*)",
       "destination": "https://us-assets.i.posthog.com/static/:path"
     },
     {
-      "source": "/ingest/:path(.*)",
+      "source": "/r/:path(.*)",
       "destination": "https://us.i.posthog.com/:path"
     }
   ],
