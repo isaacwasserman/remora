@@ -468,11 +468,7 @@ export function App() {
             className="text-muted-foreground hover:text-foreground"
             title="Documentation"
           >
-            <a
-              href="https://isaacwasserman.github.io/remora/"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href="/">
               <BookOpen className="h-3.5 w-3.5" />
             </a>
           </Button>
