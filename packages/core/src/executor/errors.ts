@@ -14,6 +14,7 @@ export type RecoveryStrategy =
  * - `external-service` — a tool or LLM call failed
  * - `expression` — a JMESPath or template expression failed to evaluate
  * - `output-quality` — the LLM produced output that couldn't be parsed
+ * - `extraction` — the LLM determined the requested data cannot be extracted
  * - `authorization` — a policy denied the action
  */
 export type ErrorCategory =
@@ -22,6 +23,7 @@ export type ErrorCategory =
   | "external-service"
   | "expression"
   | "output-quality"
+  | "extraction"
   | "authorization";
 
 /** Machine-readable error code identifying the specific failure. */
@@ -163,6 +165,6 @@ export class ExtractionError extends StepExecutionError {
     message: string,
     public readonly reason: string,
   ) {
-    super(stepId, "EXTRACTION_GAVE_UP", "output-quality", message);
+    super(stepId, "EXTRACTION_GAVE_UP", "extraction", message);
   }
 }
