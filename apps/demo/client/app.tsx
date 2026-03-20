@@ -577,6 +577,7 @@ export function App() {
             setShowNewDialog(false);
             setShowSettings(true);
           }}
+          toolSchemas={toolSchemas}
         />
       )}
     </div>
