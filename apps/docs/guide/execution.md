@@ -424,6 +424,11 @@ interface DurableContext {
     checkFn: () => Promise<unknown>,
     options: WaitForConditionOptions,
   ): Promise<unknown>;
+  waitForCallback?(
+    name: string,
+    submitter: (callbackId: string) => Promise<void>,
+    timeoutMs?: number,
+  ): Promise<unknown>;
 }
 ```
 
@@ -432,6 +437,7 @@ interface DurableContext {
 | `step(name, fn)` | Wrap work that should execute exactly once. In durable environments, `fn` runs on the first invocation and its result is persisted; on subsequent resumes the cached result is returned. |
 | `sleep(name, durationMs)` | Sleep for a duration. In durable environments, uses a durable timer that survives process restarts. |
 | `waitForCondition(name, checkFn, options)` | Poll a condition function with backoff. In durable environments, may use `waitForCallback` or durable polling. |
+| `waitForCallback(name, submitter, timeoutMs)` | *(Optional)* Wait for an external callback. The workflow suspends with zero compute cost until the callback arrives. Used by [policy approval flows](/guide/policies#callbacks-and-durable-execution) and durable orchestrators. |
 
 ### Default Context
 

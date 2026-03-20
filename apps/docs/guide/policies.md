@@ -16,12 +16,12 @@ RemoraFlow's policy system gives you all of this out of the box.
 
 ## How It Works
 
-A **policy** is a function that runs before every tool call in your workflow. It looks at what's about to happen — which tool, with what inputs — and makes a decision:
+A **policy** is a function that runs before every [tool call](/guide/workflow-dsl#tool-call) in your workflow. It looks at what's about to happen — which tool, with what inputs — and makes a decision:
 
 | Decision | Effect |
 |---|---|
 | `approve` | Action proceeds immediately. Remaining policies are skipped. |
-| `reject` | Action is denied. An `AuthorizationError` is thrown. |
+| `reject` | Action is denied. An [`AuthorizationError`](/guide/execution#error-classes) is thrown. |
 | `defer` | No opinion. Move on to the next policy. |
 | `request` | Pause execution and wait for external approval. |
 
@@ -126,7 +126,7 @@ const emailApproval: Policy<MyContext> = {
 };
 ```
 
-The manager sees a Slack message with the tool name, recipient, and subject line. They click **Approve** or **Deny**. Your Slack bot handler writes the decision to the database. The executor's polling picks it up on the next tick and the workflow either continues or fails with an `AuthorizationError`.
+The manager sees a Slack message with the tool name, recipient, and subject line. They click **Approve** or **Deny**. Your Slack bot handler writes the decision to the database. The executor's polling picks it up on the next tick and the workflow either continues or fails with an [`AuthorizationError`](/guide/execution#error-classes).
 
 Now wire them both up:
 
@@ -140,7 +140,7 @@ const result = await executeWorkflow(compiled.workflow, {
 
 Order matters. `blocklist` runs first — if the tool is forbidden, execution stops immediately and `emailApproval` never sees it. For everything else, `blocklist` defers and `emailApproval` gets its turn. If both defer (say, for a harmless `lookup-contact` call), the action is approved by default.
 
-The `executionContext` is yours to define. User ID, org ID, role, permissions, session data, feature flags — whatever your policies need to make decisions. It's passed to every policy's `decider` function alongside the action.
+The `executionContext` is yours to define. User ID, org ID, role, permissions, session data, feature flags — whatever your policies need to make decisions. It's passed to every policy's `decider` function alongside the action. See [`ExecuteWorkflowOptions`](/guide/execution#execution-options) for the full options reference.
 
 ## Approval Requests
 
@@ -233,6 +233,10 @@ const result = await executeWorkflow(compiled.workflow, {
 
 If the timeout expires without a decision, the action is treated as rejected.
 
+::: tip Durable polling
+When you provide a [`DurableContext`](/guide/execution#durable-execution), polling runs through its `waitForCondition` method instead of in-process `setTimeout` loops. This means sleeps between polls use **durable timers** that survive process restarts — your Lambda or container can shut down between polls and pick up exactly where it left off, without burning compute while the approver is at lunch.
+:::
+
 ## Staleness Detection
 
 Here's a subtle problem: a workflow runs, requests approval, and the approver doesn't respond. The workflow times out and fails. Someone fixes the issue and re-runs the workflow. Now the approver clicks "Approve" on the *original* request. Without staleness detection, that stale approval could interfere with the new run.
@@ -290,9 +294,9 @@ return {
 
 ## Callbacks and Durable Execution
 
-Polling works, but it's not free — your process stays alive burning compute while it waits. In serverless or durable execution environments, you can do better.
+Polling works, but it's not free — your process stays alive burning compute while it waits. In serverless or [durable execution](/guide/execution#durable-execution) environments, you can do better.
 
-If your `DurableContext` implements `waitForCallback`, the executor can park the workflow with zero compute cost and resume when the callback arrives. This is the pattern used by AWS Lambda Durable, Temporal, Inngest, and similar frameworks.
+If your [`DurableContext`](/guide/execution#the-durablecontext-interface) implements `waitForCallback`, the executor can park the workflow with zero compute cost and resume when the callback arrives. This is the pattern used by AWS Lambda Durable, Temporal, Inngest, and similar frameworks.
 
 When `waitForCallback` is available and you provide both `requestFn` and `conditionFn`, the executor races them:
 
@@ -315,7 +319,7 @@ If you only provide `requestFn` (no `conditionFn`), the executor relies entirely
 
 ## Observing Approval State
 
-The policy system emits [execution state deltas](/guide/execution-state) so you can track approvals in real time:
+The policy system emits [execution state deltas](/guide/execution-state#execution-deltas) so you can track approvals in real time via the [`onStateChange`](/guide/execution#onstatechange) callback:
 
 | Delta | When | Step Status |
 |---|---|---|
@@ -344,7 +348,7 @@ const result = await executeWorkflow(compiled.workflow, {
 });
 ```
 
-When a step is denied, the executor throws an `AuthorizationError`:
+When a step is denied, the executor throws an [`AuthorizationError`](/guide/execution#error-classes):
 
 ```ts
 import { AuthorizationError } from "@remoraflow/core";
