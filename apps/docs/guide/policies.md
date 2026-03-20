@@ -443,6 +443,8 @@ const spendPolicy: Policy<MyContext> = {
 
 ### `PolicyDecision`
 
+Returned by a policy's `decider` function. You don't need to set `sourcePolicyId` — the executor fills it in automatically from the policy's `id`.
+
 | Field | Type | Description |
 |---|---|---|
 | `type` | `"approve" \| "reject" \| "defer" \| "request"` | The decision type |
