@@ -267,17 +267,17 @@ The viewer components are also available as a [shadcn registry](/guide/component
 :::tabs
 == npx
 ```bash
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 == bunx
 ```bash
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 == pnpx
 ```bash
-pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
-pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 :::

@@ -11,15 +11,15 @@ Interactive DAG visualization (and editor) for workflow definitions, built on [R
 :::tabs
 == npx
 ```bash
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
 ```
 == bunx
 ```bash
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
 ```
 == pnpx
 ```bash
-pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
 ```
 :::
 
@@ -32,15 +32,15 @@ Read-only panel that displays step parameters, resolved inputs, execution histor
 :::tabs
 == npx
 ```bash
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 == bunx
 ```bash
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 == pnpx
 ```bash
-pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 :::
 
@@ -53,15 +53,15 @@ Editable side panel with type-specific parameter editors for every step type. Pa
 :::tabs
 == npx
 ```bash
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-editor-panel.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-step-editor-panel.json
 ```
 == bunx
 ```bash
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-editor-panel.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-step-editor-panel.json
 ```
 == pnpx
 ```bash
-pnpx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-editor-panel.json
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-editor-panel.json
 ```
 :::
 
@@ -198,5 +198,5 @@ See the [Getting Started](/guide/getting-started#visualize-a-workflow) guide for
 The registry index is available at:
 
 ```
-https://isaacwasserman.github.io/remora/r/registry.json
+https://remoraflow.com/r/registry.json
 ```
