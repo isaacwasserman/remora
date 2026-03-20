@@ -1,5 +1,19 @@
 # @remoraflow/core
 
+## 0.3.0
+
+### Minor Changes
+
+- 8080391: Add WorkflowExecutionStateChannel abstraction for flexible state publishing, `executeWorkflowStream` convenience helper, `useWorkflowExecution` React hook for managing execution lifecycle with pause/resume and replay capabilities, and `ReplaySlider` component. Includes full React Testing Library integration with 10 hook tests.
+- d7bbc56: Add give-up tool to extract-data inline mode to allow LLM to fail gracefully when requested data is not available in the source, matching probe mode behavior. When the LLM calls give-up, the step throws an ExtractionError and fails the workflow.
+- 544f84f: Add policy system for workflow approval flows and AWS Lambda durable execution adapter. Implements human-in-the-loop authorization with flexible policies, extensible approval workflows, and a DurableContext interface for environment-agnostic waiting primitives (step, sleep, waitForCondition, waitForCallback).
+
+### Patch Changes
+
+- d6bcc3d: Skip full build step when running dev server by resolving workspace packages directly to source files.
+- 7611973: Fix extract-data give-up not stopping retries. When the LLM calls give-up during a retry attempt, the ExtractionError is now thrown immediately instead of being swallowed by the retry loop. Also reclassifies ExtractionError from `output-quality` to a new `extraction` error category.
+- 393630e: Rework README with documentation examples and improved structure. Align consumer-facing getting started guide with official docs, add features section, use cases, and clearer architecture overview.
+
 ## 0.2.0
 
 ### Minor Changes
