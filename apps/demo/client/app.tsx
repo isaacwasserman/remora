@@ -1,3 +1,4 @@
+import { usePostHog } from "@posthog/react";
 import type {
   ExecutionState,
   ToolDefinitionMap,
@@ -60,6 +61,7 @@ function workflowNeedsLLM(wf: WorkflowDefinition): boolean {
 }
 
 export function App() {
+  const posthog = usePostHog();
   const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
   useEffect(() => {
     orpc.tools.list.call({}).then(setToolSchemas);
@@ -136,16 +138,18 @@ export function App() {
       return;
     }
     setIsEditing(false);
+    posthog.capture("workflow_run", { workflow });
     execution.run({});
-  }, [workflow, execution, apiKey]);
+  }, [workflow, execution, apiKey, posthog]);
 
   const handleStartWithInputs = useCallback(
     (inputs: Record<string, unknown>) => {
       setAwaitingInputs(false);
       setIsEditing(false);
+      posthog.capture("workflow_run", { workflow, has_inputs: true });
       execution.run(inputs);
     },
-    [execution],
+    [execution, workflow, posthog],
   );
 
   const handlePause = useCallback(() => {
@@ -162,16 +166,20 @@ export function App() {
   }, [execution]);
 
   const handleExport = useCallback(() => {
-    if (workflow) exportWorkflowJson(workflow);
-  }, [workflow]);
+    if (workflow) {
+      posthog.capture("workflow_export");
+      exportWorkflowJson(workflow);
+    }
+  }, [workflow, posthog]);
 
   const handleImport = useCallback(async () => {
     const imported = await importWorkflowJson();
     if (imported) {
+      posthog.capture("workflow_import");
       setWorkflow(imported);
       saveWorkflow(imported);
     }
-  }, []);
+  }, [posthog]);
 
   const handleClear = useCallback(() => {
     clearWorkflow();
@@ -182,11 +190,12 @@ export function App() {
 
   const handleLoadExample = useCallback(
     (wf: WorkflowDefinition) => {
+      posthog.capture("example_loaded", { workflow: wf });
       handleReset();
       setWorkflow(wf);
       saveWorkflow(wf);
     },
-    [handleReset],
+    [handleReset, posthog],
   );
 
   const handleSaveApiKey = useCallback((key: string) => {
@@ -216,11 +225,18 @@ export function App() {
           maxRetries: 3,
         });
         if (result.workflow) {
+          posthog.capture("workflow_generated", {
+            workflow: result.workflow,
+            attempts: result.attempts,
+          });
           handleReset();
           setWorkflow(result.workflow);
           saveWorkflow(result.workflow);
           setShowNewDialog(false);
         } else {
+          posthog.capture("workflow_generation_failed", {
+            attempts: result.attempts,
+          });
           const errors = result.diagnostics
             .filter((d) => d.severity === "error")
             .map((d) => d.message)
@@ -230,12 +246,13 @@ export function App() {
           );
         }
       } catch (err) {
+        posthog.capture("workflow_generation_failed");
         setGenerateError(err instanceof Error ? err.message : String(err));
       } finally {
         setIsGenerating(false);
       }
     },
-    [apiKey, modelId, handleReset],
+    [apiKey, modelId, handleReset, posthog],
   );
 
   const isDone =

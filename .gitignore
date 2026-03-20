@@ -43,3 +43,5 @@ apps/docs/api
 apps/docs/public/r
 
 apps/demo/.output
+
+apps/*/.env
