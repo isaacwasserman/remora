@@ -4,7 +4,7 @@
 
 <p align="center">Workflows by agents, for agents.</p>
 
-**[Documentation](https://isaacwasserman.github.io/remora/)** · **[Demo](https://isaacwasserman.github.io/remora/demo/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
+**[Documentation](https://remoraflow.com/)** · **[Demo](https://remoraflow.com/demo/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
 
 RemoraFlow is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using RemoraFlow's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is **well-defined, repeatable, and auditable**.
 
@@ -151,11 +151,11 @@ function App() {
 }
 ```
 
-The viewer components are also available via the [shadcn registry](https://isaacwasserman.github.io/remora/guide/component-registry) for full customization:
+The viewer components are also available via the [shadcn registry](https://remoraflow.com/guide/component-registry) for full customization:
 
 ```bash
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
-bunx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 
 ## Architecture
