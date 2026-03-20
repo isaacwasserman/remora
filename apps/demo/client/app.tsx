@@ -1,4 +1,8 @@
-import type { ExecutionState, WorkflowDefinition } from "@remoraflow/core";
+import type {
+  ExecutionState,
+  ToolDefinitionMap,
+  WorkflowDefinition,
+} from "@remoraflow/core";
 import { hashWorkflow } from "@remoraflow/core";
 import {
   Button,
@@ -36,7 +40,6 @@ import { loadApiKey, loadModelId, saveApiKey, saveModelId } from "./openrouter";
 import { RemoraflowLogo } from "./remoraflow-logo";
 import { orpc } from "./rpc-client";
 import { randomizeTheme } from "./theme-randomizer";
-import { DEMO_TOOLS } from "./tools";
 import { WorkflowInputDialog, WorkflowOutputPanel } from "./workflow-io-panels";
 
 const LLM_STEP_TYPES = new Set(["llm-prompt", "extract-data", "agent-loop"]);
@@ -57,6 +60,11 @@ import {
 } from "./workflow-store";
 
 export function App() {
+  const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
+  useEffect(() => {
+    orpc.tools.list.call({}).then(setToolSchemas);
+  }, []);
+
   const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(
     () => loadWorkflow() ?? DEFAULT_WORKFLOW,
   );
@@ -606,7 +614,7 @@ export function App() {
             workflow={workflow}
             isEditing={isEditing}
             onWorkflowChange={handleWorkflowChange}
-            tools={DEMO_TOOLS}
+            toolSchemas={toolSchemas}
             executionState={executionState ?? undefined}
             paused={!!pausedState}
           />

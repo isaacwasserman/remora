@@ -16,6 +16,7 @@ export default defineConfig({
           runtime: "bun1.x",
         },
       },
+      plugins: ["./plugins/bot-id.ts"],
     }),
   ],
 });
