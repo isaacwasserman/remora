@@ -4,7 +4,24 @@ import { CORSPlugin } from "@orpc/server/plugins";
 import { router } from "../server/router";
 
 const handler = new RPCHandler(router, {
-  plugins: [new CORSPlugin()],
+  plugins: [
+    new CORSPlugin({
+      origin: (origin) => {
+        if (/^http:\/\/localhost(:\d+)?$/.test(origin)) {
+          return origin;
+        }
+        const allowed: string[] = [];
+        for (const host of [
+          process.env.VERCEL_URL,
+          process.env.VERCEL_BRANCH_URL,
+          process.env.VERCEL_PROJECT_PRODUCTION_URL,
+        ]) {
+          if (host) allowed.push(`https://${host}`);
+        }
+        return allowed;
+      },
+    }),
+  ],
   interceptors: [
     onError((error) => {
       console.error(error);

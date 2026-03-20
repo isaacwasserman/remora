@@ -1,6 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { executeWorkflowStream, generateWorkflow } from "@remoraflow/core";
+import {
+  compileWorkflow,
+  executeWorkflowStream,
+  generateWorkflow,
+} from "@remoraflow/core";
 import { z } from "zod";
 import { DEMO_TOOLS } from "../client/tools";
 
@@ -25,7 +30,16 @@ const executeProc = os
   .handler(async function* ({ input }) {
     const { workflow, inputs, apiKey, modelId, initialState } = input;
 
-    yield* executeWorkflowStream(workflow, {
+    const compiled = await compileWorkflow(workflow, { tools: DEMO_TOOLS });
+    const errors = compiled.diagnostics.filter((d) => d.severity === "error");
+    if (errors.length > 0) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `Invalid workflow: ${errors.map((e) => e.message).join("; ")}`,
+      });
+    }
+    const validatedWorkflow = compiled.workflow ?? workflow;
+
+    yield* executeWorkflowStream(validatedWorkflow, {
       tools: DEMO_TOOLS,
       model: apiKey ? createModel(apiKey, modelId) : undefined,
       inputs,
