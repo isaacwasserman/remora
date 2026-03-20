@@ -18,6 +18,10 @@ export default defineConfig({
 
   vite: {
     plugins: [llmstxt()],
+    server: {
+      port: 5173,
+      strictPort: true,
+    },
   },
 
   themeConfig: {

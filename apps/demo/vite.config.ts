@@ -5,6 +5,10 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   base: "/demo/",
+  server: {
+    port: 3000,
+    strictPort: true,
+  },
   resolve: {
     conditions: ["bun"],
   },
