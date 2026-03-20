@@ -4,10 +4,11 @@ import { os } from "@orpc/server";
 import {
   compileWorkflow,
   executeWorkflowStream,
+  extractToolSchemas,
   generateWorkflow,
 } from "@remoraflow/core";
 import { z } from "zod";
-import { DEMO_TOOLS } from "../client/tools";
+import { DEMO_TOOLS } from "./tools";
 
 function createModel(apiKey: string, modelId: string) {
   const openrouter = createOpenAI({
@@ -68,9 +69,16 @@ const generateProc = os
     return result;
   });
 
+const listToolsProc = os.handler(async () => {
+  return extractToolSchemas(DEMO_TOOLS);
+});
+
 export const router = {
   workflow: {
     execute: executeProc,
     generate: generateProc,
+  },
+  tools: {
+    list: listToolsProc,
   },
 };

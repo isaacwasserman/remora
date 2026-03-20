@@ -1,4 +1,8 @@
-import type { ExecutionState, WorkflowDefinition } from "@remoraflow/core";
+import type {
+  ExecutionState,
+  ToolDefinitionMap,
+  WorkflowDefinition,
+} from "@remoraflow/core";
 import {
   Button,
   DropdownMenu,
@@ -37,7 +41,6 @@ import { loadApiKey, loadModelId, saveApiKey, saveModelId } from "./openrouter";
 import { RemoraflowLogo } from "./remoraflow-logo";
 import { orpc } from "./rpc-client";
 import { randomizeTheme } from "./theme-randomizer";
-import { DEMO_TOOLS } from "./tools";
 import { WorkflowInputDialog, WorkflowOutputPanel } from "./workflow-io-panels";
 import {
   clearExecutionState,
@@ -57,6 +60,11 @@ function workflowNeedsLLM(wf: WorkflowDefinition): boolean {
 }
 
 export function App() {
+  const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
+  useEffect(() => {
+    orpc.tools.list.call({}).then(setToolSchemas);
+  }, []);
+
   const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(
     () => loadWorkflow() ?? DEFAULT_WORKFLOW,
   );
@@ -503,7 +511,7 @@ export function App() {
             workflow={workflow}
             isEditing={isEditing}
             onWorkflowChange={handleWorkflowChange}
-            tools={DEMO_TOOLS}
+            toolSchemas={toolSchemas}
             executionState={execution.executionState ?? undefined}
             paused={execution.isPaused}
           />
@@ -565,6 +573,7 @@ export function App() {
             setShowNewDialog(false);
             setShowSettings(true);
           }}
+          toolSchemas={toolSchemas}
         />
       )}
     </div>

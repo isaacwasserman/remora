@@ -1,3 +1,4 @@
+import type { ToolDefinitionMap } from "@remoraflow/core";
 import {
   Button,
   Collapsible,
@@ -6,7 +7,6 @@ import {
 } from "@remoraflow/ui";
 import { ChevronRight, PenLine, Sparkles, Wrench } from "lucide-react";
 import { useState } from "react";
-import { DEMO_TOOLS } from "./tools";
 
 type Step = "choose" | "generate";
 
@@ -18,6 +18,7 @@ export interface NewWorkflowDialogProps {
   error: string | null;
   hasApiKey: boolean;
   onOpenSettings: () => void;
+  toolSchemas: ToolDefinitionMap;
 }
 
 export function NewWorkflowDialog({
@@ -28,6 +29,7 @@ export function NewWorkflowDialog({
   error,
   hasApiKey,
   onOpenSettings,
+  toolSchemas,
 }: NewWorkflowDialogProps) {
   const [step, setStep] = useState<Step>("choose");
   const [prompt, setPrompt] = useState("");
@@ -133,11 +135,11 @@ export function NewWorkflowDialog({
                   <ChevronRight className="size-3 transition-transform group-data-[state=open]:rotate-90" />
                   <Wrench className="size-3" />
                   <span>
-                    Available tools ({Object.keys(DEMO_TOOLS).length})
+                    Available tools ({Object.keys(toolSchemas).length})
                   </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-1.5 rounded-md border border-border bg-muted/30 divide-y divide-border overflow-hidden data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0">
-                  {Object.entries(DEMO_TOOLS).map(([name, t]) => (
+                  {Object.entries(toolSchemas).map(([name, t]) => (
                     <div key={name} className="px-3 py-1.5">
                       <span className="text-[11px] font-medium text-foreground font-mono">
                         {name}
