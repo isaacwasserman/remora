@@ -1,4 +1,4 @@
 {
   "installCommand": "cd ../.. && bun install",
-  "buildCommand": "cd ../.. && bun run build && cd apps/demo && bun run build"
+  "buildCommand": "cd ../.. && bun run build && bun run docs:build && cd apps/demo && bun run build && bash scripts/merge-docs.sh"
 }

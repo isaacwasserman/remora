@@ -13,7 +13,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: Try the Demo
-      link: /remora/demo/
+      link: /demo/
     - theme: alt
       text: View on GitHub
       link: https://github.com/isaacwasserman/remora
