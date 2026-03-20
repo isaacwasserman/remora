@@ -3394,6 +3394,44 @@ describe("extract-data probe mode", () => {
     });
   });
 
+  test("inline mode give-up throws ExtractionError", async () => {
+    const workflow = makeExtractWorkflow("The weather today is sunny and warm");
+
+    const mockModel = new MockLanguageModelV3({
+      doGenerate: async () =>
+        ({
+          content: [
+            {
+              type: "tool-call" as const,
+              toolCallId: "giveup-1",
+              toolName: "give-up",
+              input: JSON.stringify({
+                reason:
+                  "The source data contains weather information, not user data",
+              }),
+            },
+          ],
+          finishReason: {
+            unified: "tool-calls" as const,
+            raw: undefined,
+          },
+          usage: defaultUsage,
+          warnings: [],
+        }) as LanguageModelV3GenerateResult,
+    });
+
+    const result = await executeWorkflow(workflow, {
+      tools: testTools,
+      model: mockModel,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe("EXTRACTION_GAVE_UP");
+    expect(result.error).toBeInstanceOf(ExtractionError);
+    expect((result.error as ExtractionError).reason).toBe(
+      "The source data contains weather information, not user data",
+    );
+  });
+
   test("large data activates probe mode, model submits with data", async () => {
     const largeData = makeLargeData(300); // > 50KB
     const workflow = makeExtractWorkflow(largeData);

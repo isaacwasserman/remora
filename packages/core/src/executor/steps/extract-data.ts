@@ -79,8 +79,10 @@ export async function executeExtractData(
   }
 
   // Inline mode: send all data in the prompt with structured output
+  const giveUp = createGiveUpTool();
   const agent = new ToolLoopAgent({
     model: model,
+    tools: { "give-up": giveUp.tool },
     output: Output.object({
       schema: jsonSchema(
         sanitizeOutputSchema(
@@ -88,15 +90,24 @@ export async function executeExtractData(
         ),
       ),
     }),
-    stopWhen: stepCountIs(1),
+    stopWhen: [() => giveUp.getReason() !== undefined, stepCountIs(1)],
   });
-  const prompt = `Extract the following structured data from the provided source data.\n\nSource data:\n${sourceStr}`;
+  const prompt = `Extract the following structured data from the provided source data. If the requested data is not present in the source data and cannot be extracted, call the give-up tool with a reason instead of guessing or hallucinating values.\n\nSource data:\n${sourceStr}`;
   try {
     const result = await agent.generate({ prompt });
     const trace: TraceEntry[] = result.steps.map((s) => ({
       type: "agent-step" as const,
       step: s,
     }));
+
+    if (giveUp.getReason() !== undefined) {
+      throw new ExtractionError(
+        step.id,
+        `LLM was unable to extract the requested data: ${giveUp.getReason()}`,
+        giveUp.getReason() as string,
+      );
+    }
+
     return { output: result.output, trace };
   } catch (e) {
     if (e instanceof StepExecutionError) throw e;
