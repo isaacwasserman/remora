@@ -4,7 +4,9 @@ import { logger } from "../server/logger";
 
 export default definePlugin((nitroApp) => {
   nitroApp.hooks.hook("request", async (event) => {
-    const verification = await checkBotId();
+    const verification = await checkBotId({
+      developmentOptions: { bypass: "ALLOWED" },
+    });
     if (verification.isBot) {
       logger.warn("bot request blocked");
       event.respondWith(
