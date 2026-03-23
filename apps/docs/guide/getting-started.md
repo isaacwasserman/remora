@@ -1,6 +1,8 @@
 # Getting Started
 
-## Installation
+In the next five minutes, you'll generate, compile, and execute your first RemoraFlow workflow — a validated, deterministic pipeline with LLM intelligence scoped to exactly the steps that need it.
+
+## Install
 
 :::tabs
 == bun
@@ -21,110 +23,68 @@ yarn add @remoraflow/core
 ```
 :::
 
-Peer dependencies (install as needed):
+RemoraFlow uses the [AI SDK](https://ai-sdk.dev/) for LLM calls and tool definitions. Install it along with your provider of choice:
 
 :::tabs
 == bun
 ```bash
-# For LLM steps (llm-prompt, extract-data) and workflow generation
 bun add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
-
-# For the workflow viewer component
-bun add react react-dom @xyflow/react
 ```
 == npm
 ```bash
-# For LLM steps (llm-prompt, extract-data) and workflow generation
-npm install ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
-
-# For the workflow viewer component
-npm install react react-dom @xyflow/react
+npm install ai @ai-sdk/anthropic
 ```
 == pnpm
 ```bash
-# For LLM steps (llm-prompt, extract-data) and workflow generation
-pnpm add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
-
-# For the workflow viewer component
-pnpm add react react-dom @xyflow/react
+pnpm add ai @ai-sdk/anthropic
 ```
 == yarn
 ```bash
-# For LLM steps (llm-prompt, extract-data) and workflow generation
-yarn add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
-
-# For the workflow viewer component
-yarn add react react-dom @xyflow/react
+yarn add ai @ai-sdk/anthropic
 ```
 :::
 
-## Compile a Workflow
+## Define Your Tools
 
-Use [`compileWorkflow`](/api/lib/functions/compileWorkflow) to validate a workflow definition and produce an execution graph:
+Tools are the primary building blocks of workflows. Before you can generate a workflow, you need to give the agent something to work with. Here's a minimal toolset using the [AI SDK `tool` helper](https://ai-sdk.dev/):
 
 ```ts
-import { compileWorkflow } from "@remoraflow/core";
+import { tool } from "ai";
+import { z } from "zod";
 
-const workflow = {
-  initialStepId: "get_tickets",
-  steps: [
-    {
-      id: "get_tickets",
-      name: "Get tickets",
-      description: "Fetch all open support tickets",
-      type: "tool-call",
-      params: {
-        toolName: "get-open-tickets",
-        toolInput: {},
-      },
-      nextStepId: "end_step",
+const tools = {
+  "get-open-tickets": tool({
+    description: "Fetch all open support tickets",
+    parameters: z.object({}),
+    execute: async () => {
+      return {
+        tickets: [
+          { id: "T-1", subject: "Login broken", body: "Can't log in since the update." },
+          { id: "T-2", subject: "Billing question", body: "Why was I charged twice?" },
+          { id: "T-3", subject: "Site down", body: "Getting 503 errors on all pages." },
+        ],
+      };
     },
-    {
-      id: "end_step",
-      name: "Done",
-      description: "End the workflow",
-      type: "end",
+  }),
+  "page-oncall": tool({
+    description: "Page the on-call engineer",
+    parameters: z.object({
+      ticketId: z.string(),
+      severity: z.string(),
+    }),
+    execute: async ({ ticketId, severity }) => {
+      console.log(`Paging on-call for ${ticketId} (${severity})`);
+      return { paged: true };
     },
-  ],
+  }),
 };
-
-const result = await compileWorkflow(workflow, { tools: myTools });
-
-// Check for errors
-const errors = result.diagnostics.filter((d) => d.severity === "error");
-if (errors.length > 0) {
-  console.error("Compilation errors:", errors);
-} else {
-  console.log("Workflow is valid!");
-}
 ```
 
-## Execute a Workflow
-
-Use [`executeWorkflow`](/api/lib/functions/executeWorkflow) to run a compiled workflow:
-
-```ts
-import { executeWorkflow } from "@remoraflow/core";
-
-const result = await executeWorkflow(workflow, {
-  tools: myTools,
-  model: anthropic("claude-sonnet-4-20250514"), // Required if the workflow has llm-prompt, extract-data, or agent-loop steps
-  inputs: { userId: "123" }, // Passed to the start step
-  onStepStart: (stepId) => console.log(`Starting: ${stepId}`),
-  onStepComplete: (stepId, output) =>
-    console.log(`Completed: ${stepId}`, output),
-});
-
-if (result.success) {
-  console.log("Workflow output:", result.output);
-} else {
-  console.error("Execution failed:", result.error);
-}
-```
+Nothing special — these are standard AI SDK tools. If you've used tool calling with any LLM provider, you already know how this works.
 
 ## Generate a Workflow
 
-Use [`generateWorkflow`](/api/lib/functions/generateWorkflow) to have an LLM create a workflow from a natural language description:
+Give the agent a task description and your tools. It'll handle the rest:
 
 ```ts
 import { generateWorkflow } from "@remoraflow/core";
@@ -132,20 +92,60 @@ import { anthropic } from "@ai-sdk/anthropic";
 
 const result = await generateWorkflow({
   model: anthropic("claude-sonnet-4-20250514"),
-  tools: myTools,
+  tools,
   task: "Fetch all open support tickets, classify each by severity, and page the on-call engineer for critical ones",
 });
 
 if (result.workflow) {
-  console.log(`Generated in ${result.attempts} attempt(s)`);
+  console.log(`Generated a valid workflow in ${result.attempts} attempt(s)`);
+  // result.workflow is already compiled and ready to execute
 } else {
   console.error("Generation failed:", result.diagnostics);
 }
 ```
 
-## Visualize a Workflow
+Under the hood, `generateWorkflow` gives the LLM your tool schemas and a structured prompt describing the [workflow definition language](/guide/workflow-definitions). The agent produces a workflow, the [compiler](/guide/compilation) validates it — checking references, types, reachability, expression syntax — and if anything's wrong, the diagnostics go back to the agent for correction. This loop runs until the workflow compiles cleanly or the retry limit is reached.
 
-Use the [`WorkflowViewer`](/api/viewer/functions/WorkflowViewer) and [`StepDetailPanel`](/api/viewer/functions/StepDetailPanel) React components to render workflows as interactive DAGs:
+The result is a compiled, validated workflow graph — ready to execute, no manual review required (unless you [want it](/guide/policies)).
+
+::: tip Other ways to generate workflows
+`generateWorkflow` is the quickest path, but it's not the only one. You can use [`createWorkflowGeneratorTool`](/api/lib/functions/createWorkflowGeneratorTool) to create an AI SDK tool that generates workflows — meaning agents (and their workflows) can generate other workflows. You can also build your own generation pipeline using the [compiler](/guide/compilation) directly, or skip generation entirely and produce the [definition JSON](/guide/workflow-definitions) by any means you like. Anything that outputs a valid workflow definition can be compiled and executed.
+:::
+
+## Run It
+
+```ts
+import { executeWorkflow } from "@remoraflow/core";
+
+const execution = await executeWorkflow(result.workflow, {
+  tools,
+  model: anthropic("claude-sonnet-4-20250514"),
+  onStateChange: (state, delta) => {
+    if (delta.type === "step-started") {
+      console.log(`Starting: ${delta.stepId}`);
+    }
+    if (delta.type === "step-completed") {
+      console.log(`Completed: ${delta.stepId} (${delta.durationMs}ms)`);
+    }
+    if (delta.type === "step-failed") {
+      console.error(`Failed: ${delta.stepId} — ${delta.error.message}`);
+    }
+  },
+});
+
+if (execution.success) {
+  console.log("Workflow output:", execution.output);
+  console.log("Step outputs:", execution.stepOutputs);
+} else {
+  console.error(`Failed at step "${execution.error?.stepId}":`, execution.error?.message);
+}
+```
+
+Every state transition is observable in real time through the `onStateChange` callback — starts, completions, failures, retries, even [approval decisions](/guide/policies). The full [execution state](/guide/execution-state) is serializable, so you can persist it, stream it to a UI, or feed it into your own observability stack.
+
+## Visualize It
+
+Want to see what the agent built? The `@remoraflow/ui` package renders workflows as interactive DAGs:
 
 ```tsx
 import { WorkflowViewer, StepDetailPanel } from "@remoraflow/ui";
@@ -160,8 +160,8 @@ function App() {
     <div style={{ display: "flex", height: "100vh" }}>
       <div style={{ flex: 1 }}>
         <WorkflowViewer
-          workflow={myWorkflow}
-          diagnostics={compileResult.diagnostics}
+          workflow={result.workflow}
+          executionState={execution.executionState}
           onStepSelect={(s, d) => { setStep(s); setDiagnostics(d); }}
         />
       </div>
@@ -177,11 +177,11 @@ function App() {
 }
 ```
 
-Requires `@xyflow/react` and `@xyflow/react/dist/style.css` imported in your app.
+The viewer highlights step status in real time during execution and lets you click into any node to inspect its inputs, outputs, and diagnostics. It also supports a full visual editor — see the [Component Registry](/guide/component-registry) for installation and the full props reference.
 
-## Edit a Workflow Visually
+## What's Next
 
-Set `isEditing` on `WorkflowViewer` to enable a full canvas editor. In editing mode, users can add steps via right-click context menu or a step palette, connect steps by dragging edges, and delete nodes. Use [`StepEditorPanel`](/api/viewer/functions/StepEditorPanel) as the side panel to let users edit step parameters:
+You've gone from a task description to a compiled, validated, executed workflow — with real-time observability and a visual DAG — in about thirty lines of code. Here's where to go deeper:
 
 ```tsx
 import {
@@ -281,3 +281,10 @@ pnpx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
 pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 :::
+
+- **[Workflow Definitions](/guide/workflow-definitions)** — every step type, expression syntax, and data flow pattern
+- **[Compilation](/guide/compilation)** — compiler passes, diagnostics, and constrained tool schemas
+- **[Execution](/guide/execution)** — retry behavior, error handling, durable execution, and resource limits
+- **[Policies & Approvals](/guide/policies)** — gate tool calls behind authorization rules and human approval workflows
+- **[Execution State](/guide/execution-state)** — the full state model, deltas, and real-time observability
+- **[Component Registry](/guide/component-registry)** — install viewer components via shadcn for full customization

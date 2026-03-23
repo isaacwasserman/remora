@@ -117,8 +117,7 @@ type RequestDecisionFns<
 // ─── Policy Decision ────────────────────────────────────────────
 
 /**
- * The result of a policy evaluation. Each decision carries the
- * `sourcePolicyId` of the policy that produced it.
+ * The result of a policy evaluation.
  *
  * - `approve` — action can definitely proceed, no further policies are checked.
  * - `reject` — action is denied, no further policies are checked.
@@ -126,21 +125,21 @@ type RequestDecisionFns<
  * - `request` — external approval is required. At least one of `requestFn`
  *   or `conditionFn` must be provided. See {@link RequestDecisionFns} for
  *   the valid combinations.
+ *
+ * Note: `sourcePolicyId` is not included in the decision. It is automatically
+ * set by the executor from the policy's `id` field during evaluation.
  */
 export type PolicyDecision<
   ApprovalRequestDecisionDetails extends Record<string, unknown> = Record<
     string,
     unknown
   >,
-> = {
-  sourcePolicyId: string;
-} & (
+> =
   | { type: "approve" }
   | { type: "reject" }
   | { type: "defer" }
   | (RequestDecisionBase<ApprovalRequestDecisionDetails> &
-      RequestDecisionFns<ApprovalRequestDecisionDetails>)
-);
+      RequestDecisionFns<ApprovalRequestDecisionDetails>);
 
 // ─── Policy ─────────────────────────────────────────────────────
 

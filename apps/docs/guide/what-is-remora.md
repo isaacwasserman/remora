@@ -18,7 +18,7 @@ As part of the `@remoraflow/core` package, we provide a reference `create-workfl
 
 ### Deterministic Execution (when you want it)
 
-While many flows can be constructed entirely from sequences of [tool calls](./workflow-dsl.md#tool-call) and [branching logic](./workflow-dsl.md#switch-case), the most useful flows require the intelligence of an LLM. RemoraFlow provides LLM-based steps that make strong guarantees about their behavior through validation, intelligent retries, and access control (see [LLM Prompt Step](./workflow-dsl.md#llm-prompt), [Extract Data Step](./workflow-dsl.md#extract-data), [Agent Loop Step](./workflow-dsl.md#agent-loop)).
+While many flows can be constructed entirely from sequences of [tool calls](./workflow-definitions.md#tool-call) and [branching logic](./workflow-definitions.md#switch-case), the most useful flows require the intelligence of an LLM. RemoraFlow provides LLM-based steps that make strong guarantees about their behavior through validation, intelligent retries, and access control (see [LLM Prompt Step](./workflow-definitions.md#llm-prompt), [Extract Data Step](./workflow-definitions.md#extract-data), [Agent Loop Step](./workflow-definitions.md#agent-loop)).
 
 ### Ahead-of-Time Validation
 
