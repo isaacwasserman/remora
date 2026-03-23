@@ -125,6 +125,13 @@ Every PR must include a changeset describing the changes. This is required for t
   - `patch` for bug fixes and minor tweaks
   - `minor` for new features and non-breaking additions
   - `major` for breaking changes
+- Valid package names for changesets (must match a workspace `package.json` `name` field exactly):
+  - `@remoraflow/core` — the core library
+  - `@remoraflow/ui` — the UI/viewer package
+  - `demo` — the demo app
+  - `docs` — the documentation site
+  - `registry` — the component registry
+  - **Do NOT use `remora`, `remoraflow`, `remora-monorepo`, or any other variation.** Using an invalid name will break the Release workflow.
 - Write a concise summary of the change aimed at package consumers.
 - Commit the generated `.changeset/*.md` file with the rest of the PR.
 - PRs without a changeset will not trigger a canary release and will not be included in the next stable release.
