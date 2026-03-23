@@ -2,7 +2,7 @@
 
 Workflows by agents, for agents.
 
-**[Documentation](https://isaacwasserman.github.io/remora/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
+**[Documentation](https://remoraflow.com/)** · **[GitHub](https://github.com/isaacwasserman/remora)**
 
 Remora is a DSL for agents to write workflows for themselves. An agent receives a task, defines a workflow using Remora's JSON-based syntax, and gets it compiled and validated — producing an executable plan that is well-defined, repeatable, and auditable.
 
@@ -56,16 +56,16 @@ The executor is compatible with the [Vercel AI SDK](https://ai-sdk.dev/) and wil
 
 ### Viewer
 
-A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Available as an npm import (`remora/viewer`) or via the [shadcn component registry](https://isaacwasserman.github.io/remora/guide/component-registry) for full customization:
+A React-based workflow visualizer built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Available as an npm import (`remora/viewer`) or via the [shadcn component registry](https://remoraflow.com/guide/component-registry) for full customization:
 
 ```bash
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json
-npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-step-detail-panel.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 ```
 
 ### Component Registry
 
-The viewer components are available via a [shadcn-compatible component registry](https://isaacwasserman.github.io/remora/guide/component-registry), giving you full control over the source code and styling. See the [component registry docs](https://isaacwasserman.github.io/remora/guide/component-registry) for details.
+The viewer components are available via a [shadcn-compatible component registry](https://remoraflow.com/guide/component-registry), giving you full control over the source code and styling. See the [component registry docs](https://remoraflow.com/guide/component-registry) for details.
 
 ## The DSL
 

@@ -139,7 +139,7 @@ async function main() {
   const registry = {
     $schema: "https://ui.shadcn.com/schema/registry.json",
     name: "remora",
-    homepage: "https://isaacwasserman.github.io/remora/",
+    homepage: "https://remoraflow.com/",
     items: [
       {
         name: viewerItem.name,

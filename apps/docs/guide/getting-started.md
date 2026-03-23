@@ -183,6 +183,105 @@ The viewer highlights step status in real time during execution and lets you cli
 
 You've gone from a task description to a compiled, validated, executed workflow — with real-time observability and a visual DAG — in about thirty lines of code. Here's where to go deeper:
 
+```tsx
+import {
+  WorkflowViewer,
+  StepEditorPanel,
+  StepDetailPanel,
+} from "@remoraflow/ui";
+import type { WorkflowDefinition, WorkflowStep, Diagnostic } from "@remoraflow/core";
+import { useState } from "react";
+
+function WorkflowEditor({ tools }) {
+  const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
+  const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+  const [stepDiagnostics, setStepDiagnostics] = useState<Diagnostic[]>([]);
+  const [isEditing, setIsEditing] = useState(true);
+
+  const availableToolNames = Object.keys(tools ?? {});
+
+  return (
+    <div style={{ display: "flex", height: "100vh" }}>
+      <div style={{ flex: 1 }}>
+        <WorkflowViewer
+          workflow={workflow}
+          isEditing={isEditing}
+          onWorkflowChange={setWorkflow}
+          tools={tools}
+          onStepSelect={(s, d) => { setSelectedStep(s); setStepDiagnostics(d); }}
+        />
+      </div>
+      {selectedStep && isEditing && (
+        <StepEditorPanel
+          step={selectedStep}
+          availableToolNames={availableToolNames}
+          allStepIds={workflow?.steps.map((s) => s.id) ?? []}
+          diagnostics={stepDiagnostics}
+          onChange={(updates) => {
+            // updates is a partial step object — merge into the workflow
+          }}
+          onClose={() => setSelectedStep(null)}
+        />
+      )}
+      {selectedStep && !isEditing && (
+        <StepDetailPanel
+          step={selectedStep}
+          diagnostics={stepDiagnostics}
+          onClose={() => setSelectedStep(null)}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+Pass `workflow={null}` to start with an empty canvas. The `onWorkflowChange` callback is called with the updated `WorkflowDefinition` whenever a step is added, removed, or modified.
+
+### `WorkflowViewer` editing props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `isEditing` | `boolean` | `false` | Enables canvas editing mode. |
+| `onWorkflowChange` | `(w: WorkflowDefinition) => void` | — | Called on every workflow mutation. |
+| `tools` | `ToolSet` | — | Provides tool name autocomplete in the step editor. |
+
+### `StepEditorPanel` props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `step` | `WorkflowStep` | Yes | The step to edit. |
+| `availableToolNames` | `string[]` | Yes | Tool names for autocomplete in `tool-call` steps. |
+| `allStepIds` | `string[]` | Yes | All step IDs for reference validation in editors. |
+| `toolSchemas` | `ToolDefinitionMap` | No | Tool schemas for parameter hints. |
+| `diagnostics` | `Diagnostic[]` | No | Diagnostics to highlight on specific fields. |
+| `workflowInputSchema` | `object` | No | Workflow-level input schema (for `start` step editor). |
+| `workflowOutputSchema` | `object` | No | Workflow-level output schema (for `end` step editor). |
+| `onChange` | `(updates: Record<string, unknown>) => void` | Yes | Called with a partial step object on any field change. |
+| `onWorkflowMetaChange` | `(updates: Record<string, unknown>) => void` | No | Called when the user edits the workflow's `inputSchema` or `outputSchema` (from start/end step editors). |
+| `onClose` | `() => void` | Yes | Called when the user closes the panel. |
+
+### Install via shadcn
+
+The viewer components are also available as a [shadcn registry](/guide/component-registry). This copies the source directly into your project, letting you customize the components:
+
+:::tabs
+== npx
+```bash
+npx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+npx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
+```
+== bunx
+```bash
+bunx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+bunx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
+```
+== pnpx
+```bash
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
+pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
+```
+:::
+
 - **[Workflow Definitions](/guide/workflow-definitions)** — every step type, expression syntax, and data flow pattern
 - **[Compilation](/guide/compilation)** — compiler passes, diagnostics, and constrained tool schemas
 - **[Execution](/guide/execution)** — retry behavior, error handling, durable execution, and resource limits

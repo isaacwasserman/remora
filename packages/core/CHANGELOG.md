@@ -49,7 +49,7 @@
   - Export `StepDetailPanel` and `StepDetailPanelProps` from `@remoraflow/core/viewer`
   - Change `onStepSelect` callback to pass full step and diagnostics instead of just step ID
   - Add registry build script that generates shadcn-compatible JSON served via GitHub Pages
-  - Components installable via `npx shadcn@latest add https://isaacwasserman.github.io/remora/r/workflow-viewer.json`
+  - Components installable via `npx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json`
 
 - 15e55e4: Add optional `trace` field to `StepExecutionRecord` for capturing intermediate processing steps. Trace entries are a discriminated union with `log` (generic debug messages) and `agent-step` (raw AI SDK step data) types. LLM-based steps (agent-loop, llm-prompt, extract-data) now automatically populate trace entries with their intermediate AI SDK steps.
 - f107949: Use AI SDK's Output.object() for structured output in LLM steps. All LLM step handlers (llm-prompt, extract-data, agent-loop) now use structured output to guarantee valid JSON from the model, eliminating parse errors. Simplifies the public API: `executeWorkflow` now accepts `model: LanguageModel` instead of `agent: Agent | LanguageModel`.
