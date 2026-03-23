@@ -6,7 +6,7 @@ import { tabsMarkdownPlugin } from "vitepress-plugin-tabs";
 
 export default defineConfig({
   title: "Remora",
-  description: "A workflow DSL for AI agents",
+  description: "A workflow language for AI agents",
   base: "/",
 
   markdown: {
@@ -37,7 +37,7 @@ export default defineConfig({
           items: [
             { text: "What is Remora?", link: "/guide/what-is-remora" },
             { text: "Getting Started", link: "/guide/getting-started" },
-            { text: "Workflow DSL", link: "/guide/workflow-dsl" },
+            { text: "Workflow Definitions", link: "/guide/workflow-definitions" },
             { text: "Compilation", link: "/guide/compilation" },
             { text: "Execution", link: "/guide/execution" },
             {

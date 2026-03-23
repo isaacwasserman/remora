@@ -6,7 +6,7 @@ hero:
   image:
     src: /remoraflow-logo.svg
     alt: Remora
-  tagline: A JSON-based workflow DSL where AI agents define, compile, and execute structured workflows.
+  tagline: A JSON-based workflow language where AI agents define, compile, and execute reliable and consistent workflows.
   actions:
     - theme: brand
       text: Get Started
@@ -22,16 +22,23 @@ hero:
       link: /llms.txt
 
 features:
-  - title: Multi-Pass Compiler
-    details: Multi-pass compiler validates workflow definitions and produces execution graphs with structured diagnostics — errors and warnings with specific codes and locations.
-  - title: Runtime Executor
-    details: Walks compiled graphs step by step, handling tool calls, LLM prompts, data extraction, branching, loops, sleeps, and agent loops with automatic retry for recoverable errors.
+  - title: By Agents, For Agents
+    icon: 🤖
+    details: Purpose-built for agents to author, not just execute. An agent solves a task once, captures the logic as a validated workflow, and that workflow runs deterministically from that point forward — no re-prompting, no drift.
+  - title: Deterministic When it Matters
+    icon: 🚠
+    details: Tool calls, branching, and data flow execute with fixed logic — no prompt drift, no hallucinated detours. LLM intelligence is scoped to the steps that need it, so the rest of your workflow behaves the same way every time.
+  - title: Ahead-of-Time Compilation
+    icon: 🤝
+    details: Validate the control-flow, data-flow, and types before the workflow is ever deployed. Through careful static analysis, RemoraFlow catches broken references, type mismatches, and unreachable steps at compile time, eliminating runtime surprises and wasted LLM calls.
   - title: Constrained Tool Schemas
+    icon: 🎛️
     details: The compiler determines which tool parameters are static vs. dynamic, enabling human supervisors to review and approve a limited set of behaviors ahead of time.
-  - title: Agent-Authored
-    details: Workflows are JSON objects that agents produce via a single tool call. The compiler gives immediate feedback so agents can iterate within a single conversation turn.
-  - title: Vercel AI SDK Compatible
-    details: Works with any AI SDK Agent or LanguageModel. Bring your own model provider — Anthropic, OpenAI, or any other AI SDK-compatible provider.
-  - title: Visual Workflow Editor
-    details: React component built on React Flow renders compiled workflows as interactive DAGs. Toggle isEditing to let users build and modify workflows directly in the canvas, with a step palette, context menu, and side panel editors.
+  - title: Enterprise Controls, Built In
+    icon: 🏢
+    details: Block dangerous actions, require manager sign-off for sensitive ones, and let the safe ones through — with built-in approval routing, timeouts, and a full audit trail. Design flexible, cascading policies that every tool call passes through before it executes.
+  - title: Runs Anywhere, Durably
+    icon: ⛅️
+    details: Plug in your favorite durable execution environment and workflows survive restarts, sleep across deployments, and resume exactly where they left off, all without wasting a penny. No framework yet? It runs just as well in a single process out of the box.
+  
 ---

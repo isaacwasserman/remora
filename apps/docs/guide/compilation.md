@@ -1,6 +1,8 @@
 # Compilation
 
-The compiler validates a workflow definition through a multi-pass pipeline and produces an execution graph, structured diagnostics, and constrained tool schemas. You should always compile a workflow before executing it.
+The compiler validates a workflow definition through a multi-pass pipeline and produces an execution graph, structured diagnostics, and constrained tool schemas.
+
+Compilation is technically optional — the executor accepts the same `WorkflowDefinition` type whether it's been compiled or not. But skipping it means you're flying blind: no validation of step references, no cycle detection, no type checking of tool inputs, no constrained schemas for access control, and no best-practice transformations. You'll find out about broken references and invalid expressions at runtime, mid-execution, possibly after expensive LLM calls have already been made. Compiling first catches all of that statically, in milliseconds, before anything runs.
 
 ```ts
 import { compileWorkflow } from "@remoraflow/core";

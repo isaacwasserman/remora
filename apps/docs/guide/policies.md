@@ -16,7 +16,7 @@ RemoraFlow's policy system gives you all of this out of the box.
 
 ## How It Works
 
-A **policy** is a function that runs before every [tool call](/guide/workflow-dsl#tool-call) in your workflow. It looks at what's about to happen — which tool, with what inputs — and makes a decision:
+A **policy** is a function that runs before every [tool call](/guide/workflow-definitions#tool-call) in your workflow. It looks at what's about to happen — which tool, with what inputs — and makes a decision:
 
 | Decision | Effect |
 |---|---|
