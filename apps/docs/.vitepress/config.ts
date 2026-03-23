@@ -37,7 +37,10 @@ export default defineConfig({
           items: [
             { text: "What is Remora?", link: "/guide/what-is-remora" },
             { text: "Getting Started", link: "/guide/getting-started" },
-            { text: "Workflow Definitions", link: "/guide/workflow-definitions" },
+            {
+              text: "Workflow Definitions",
+              link: "/guide/workflow-definitions",
+            },
             { text: "Compilation", link: "/guide/compilation" },
             { text: "Execution", link: "/guide/execution" },
             {
