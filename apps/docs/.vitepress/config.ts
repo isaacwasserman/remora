@@ -8,6 +8,9 @@ export default defineConfig({
   title: "Remora",
   description: "A workflow language for AI agents",
   base: "/",
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+  ],
 
   markdown: {
     config(md) {
