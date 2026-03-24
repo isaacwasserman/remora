@@ -1,5 +1,11 @@
 # @remoraflow/core
 
+## 0.4.0
+
+### Minor Changes
+
+- 7d2ed12: Make channel `publish()` and `close()` async, allowing persistent channel implementations to reliably await writes.
+
 ## 0.3.0
 
 ### Minor Changes
