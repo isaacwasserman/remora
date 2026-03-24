@@ -98,7 +98,11 @@ async function evaluatePolicies(
         continue;
 
       case "request": {
-        stateManager?.stepAwaitingApproval(stepId, execPath, sourcePolicyId);
+        await stateManager?.stepAwaitingApproval(
+          stepId,
+          execPath,
+          sourcePolicyId,
+        );
 
         const timeoutMs =
           options.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS;
@@ -195,7 +199,7 @@ async function evaluatePolicies(
           }
         } catch {
           // Timeout — treat as rejection
-          stateManager?.stepDenied(
+          await stateManager?.stepDenied(
             stepId,
             execPath,
             sourcePolicyId,
@@ -220,11 +224,11 @@ async function evaluatePolicies(
         }
 
         if (approvalDecision.approved) {
-          stateManager?.stepApproved(stepId, execPath, sourcePolicyId);
+          await stateManager?.stepApproved(stepId, execPath, sourcePolicyId);
           return;
         }
 
-        stateManager?.stepDenied(
+        await stateManager?.stepDenied(
           stepId,
           execPath,
           sourcePolicyId,
@@ -570,7 +574,7 @@ async function retryStep(
         execPath,
       );
     } catch (e) {
-      stateManager?.retryAttempted(step.id, execPath, {
+      await stateManager?.retryAttempted(step.id, execPath, {
         attempt,
         startedAt: retryStartedAt,
         failedAt: new Date().toISOString(),
@@ -679,7 +683,7 @@ const executeChain: ExecuteChainFn = async function executeChain(
 
     timer?.checkTotal(step.id);
     const stepStartTime = Date.now();
-    stateManager?.stepStarted(step.id, execPath);
+    await stateManager?.stepStarted(step.id, execPath);
     options.onStepStart?.(step.id, step);
 
     const scope = { ...stepOutputs, ...loopVars };
@@ -739,7 +743,7 @@ const executeChain: ExecuteChainFn = async function executeChain(
           undefined,
           false,
         );
-        stateManager?.stepFailed(
+        await stateManager?.stepFailed(
           step.id,
           execPath,
           wrappedError,
@@ -763,7 +767,7 @@ const executeChain: ExecuteChainFn = async function executeChain(
         );
       } catch (unrecoverable) {
         const durationMs = Date.now() - stepStartTime;
-        stateManager?.stepFailed(
+        await stateManager?.stepFailed(
           step.id,
           execPath,
           e,
@@ -777,7 +781,7 @@ const executeChain: ExecuteChainFn = async function executeChain(
     const durationMs = Date.now() - stepStartTime;
     stepOutputs[step.id] = stepResult.output;
     lastOutput = stepResult.output;
-    stateManager?.stepCompleted(
+    await stateManager?.stepCompleted(
       step.id,
       execPath,
       stepResult.output,
@@ -921,9 +925,9 @@ export async function executeWorkflow(
       }
     : undefined;
   const combinedOnChange: typeof options.onStateChange = options.channel
-    ? (state, delta) => {
-        options.channel?.publish(state);
-        options.onStateChange?.(state, delta);
+    ? async (state, delta) => {
+        await options.channel?.publish(state);
+        await options.onStateChange?.(state, delta);
       }
     : options.onStateChange;
 
@@ -932,7 +936,7 @@ export async function executeWorkflow(
     cleanedInitialState,
     wfHash,
   );
-  stateManager.runStarted();
+  await stateManager.runStarted();
 
   try {
     validateWorkflowConfig(workflow, resolvedOptions);
@@ -972,7 +976,7 @@ export async function executeWorkflow(
       );
     }
 
-    stateManager.runCompleted(chainOutput);
+    await stateManager.runCompleted(chainOutput);
     return {
       success: true,
       stepOutputs,
@@ -991,7 +995,7 @@ export async function executeWorkflow(
             undefined,
             false,
           );
-    stateManager.runFailed(error);
+    await stateManager.runFailed(error);
     return {
       success: false,
       stepOutputs,
@@ -999,7 +1003,7 @@ export async function executeWorkflow(
       executionState: stateManager.currentState,
     };
   } finally {
-    options.channel?.close();
+    await options.channel?.close();
   }
 }
 

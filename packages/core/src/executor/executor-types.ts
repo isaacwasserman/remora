@@ -81,7 +81,10 @@ export interface ExecuteWorkflowOptions<
   /** Called when a step completes successfully. */
   onStepComplete?: (stepId: string, output: unknown) => void;
   /** Called on every state transition with the full execution state and the idempotent delta that produced it. */
-  onStateChange?: (state: ExecutionState, delta: ExecutionDelta) => void;
+  onStateChange?: (
+    state: ExecutionState,
+    delta: ExecutionDelta,
+  ) => void | Promise<void>;
   /** Optional channel for publishing execution state snapshots. Publishes on every state transition, in addition to {@link onStateChange}. */
   channel?: WorkflowExecutionStateChannel;
   /** Injectable durable execution context. Default: simple in-process implementation. */
@@ -209,10 +212,13 @@ export class ExecutionStateManager {
   private readonly onChange?: (
     state: ExecutionState,
     delta: ExecutionDelta,
-  ) => void;
+  ) => void | Promise<void>;
 
   constructor(
-    onChange?: (state: ExecutionState, delta: ExecutionDelta) => void,
+    onChange?: (
+      state: ExecutionState,
+      delta: ExecutionDelta,
+    ) => void | Promise<void>,
     initialState?: ExecutionState,
     workflowHash?: string,
   ) {
@@ -230,21 +236,24 @@ export class ExecutionStateManager {
     return this.state;
   }
 
-  private emit(delta: ExecutionDelta): void {
+  private async emit(delta: ExecutionDelta): Promise<void> {
     this.state = applyDelta(this.state, delta);
-    this.onChange?.(this.state, delta);
+    await this.onChange?.(this.state, delta);
   }
 
-  runStarted(): void {
-    this.emit({
+  async runStarted(): Promise<void> {
+    await this.emit({
       type: "run-started",
       runId: this.state.runId,
       startedAt: this.state.startedAt,
     });
   }
 
-  stepStarted(stepId: string, path: ExecutionPathSegment[]): void {
-    this.emit({
+  async stepStarted(
+    stepId: string,
+    path: ExecutionPathSegment[],
+  ): Promise<void> {
+    await this.emit({
       type: "step-started",
       stepId,
       path,
@@ -252,15 +261,15 @@ export class ExecutionStateManager {
     });
   }
 
-  stepCompleted(
+  async stepCompleted(
     stepId: string,
     path: ExecutionPathSegment[],
     output: unknown,
     durationMs: number,
     resolvedInputs?: unknown,
     trace?: TraceEntry[],
-  ): void {
-    this.emit({
+  ): Promise<void> {
+    await this.emit({
       type: "step-completed",
       stepId,
       path,
@@ -272,14 +281,14 @@ export class ExecutionStateManager {
     });
   }
 
-  stepFailed(
+  async stepFailed(
     stepId: string,
     path: ExecutionPathSegment[],
     error: StepExecutionError,
     durationMs: number,
     resolvedInputs?: unknown,
-  ): void {
-    this.emit({
+  ): Promise<void> {
+    await this.emit({
       type: "step-failed",
       stepId,
       path,
@@ -290,12 +299,12 @@ export class ExecutionStateManager {
     });
   }
 
-  retryAttempted(
+  async retryAttempted(
     stepId: string,
     path: ExecutionPathSegment[],
     retry: RetryRecord,
-  ): void {
-    this.emit({
+  ): Promise<void> {
+    await this.emit({
       type: "step-retry",
       stepId,
       path,
@@ -303,9 +312,9 @@ export class ExecutionStateManager {
     });
   }
 
-  runCompleted(output?: unknown): void {
+  async runCompleted(output?: unknown): Promise<void> {
     const startMs = new Date(this.state.startedAt).getTime();
-    this.emit({
+    await this.emit({
       type: "run-completed",
       runId: this.state.runId,
       completedAt: new Date().toISOString(),
@@ -314,9 +323,9 @@ export class ExecutionStateManager {
     });
   }
 
-  runFailed(error: StepExecutionError): void {
+  async runFailed(error: StepExecutionError): Promise<void> {
     const startMs = new Date(this.state.startedAt).getTime();
-    this.emit({
+    await this.emit({
       type: "run-failed",
       runId: this.state.runId,
       failedAt: new Date().toISOString(),
@@ -325,12 +334,12 @@ export class ExecutionStateManager {
     });
   }
 
-  stepAwaitingApproval(
+  async stepAwaitingApproval(
     stepId: string,
     path: ExecutionPathSegment[],
     sourcePolicyId: string,
-  ): void {
-    this.emit({
+  ): Promise<void> {
+    await this.emit({
       type: "step-awaiting-approval",
       stepId,
       path,
@@ -339,12 +348,12 @@ export class ExecutionStateManager {
     });
   }
 
-  stepApproved(
+  async stepApproved(
     stepId: string,
     path: ExecutionPathSegment[],
     sourcePolicyId: string,
-  ): void {
-    this.emit({
+  ): Promise<void> {
+    await this.emit({
       type: "step-approved",
       stepId,
       path,
@@ -353,13 +362,13 @@ export class ExecutionStateManager {
     });
   }
 
-  stepDenied(
+  async stepDenied(
     stepId: string,
     path: ExecutionPathSegment[],
     sourcePolicyId: string,
     reason?: string,
-  ): void {
-    this.emit({
+  ): Promise<void> {
+    await this.emit({
       type: "step-denied",
       stepId,
       path,

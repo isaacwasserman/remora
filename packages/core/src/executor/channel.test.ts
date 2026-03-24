@@ -57,10 +57,10 @@ function echoWorkflow(): WorkflowDefinition {
 describe("MemoryExecutionStateChannel", () => {
   test("subscribe with replay yields all published states", async () => {
     const channel = new MemoryExecutionStateChannel();
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("running", 1));
-    channel.publish(makeState("completed", 2));
-    channel.close();
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("running", 1));
+    await channel.publish(makeState("completed", 2));
+    await channel.close();
 
     const states = await collect(channel.subscribe({ replay: true }));
     expect(states).toHaveLength(3);
@@ -71,8 +71,8 @@ describe("MemoryExecutionStateChannel", () => {
 
   test("subscribe without replay yields only latest then live", async () => {
     const channel = new MemoryExecutionStateChannel();
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("running", 1));
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("running", 1));
 
     // Subscribe without replay — should get only the latest (running).
     const iter = channel.subscribe()[Symbol.asyncIterator]();
@@ -81,8 +81,8 @@ describe("MemoryExecutionStateChannel", () => {
     expect(first.value.status).toBe("running");
 
     // Publish another, then close.
-    channel.publish(makeState("completed", 2));
-    channel.close();
+    await channel.publish(makeState("completed", 2));
+    await channel.close();
 
     const second = await iter.next();
     expect(second.done).toBe(false);
@@ -98,9 +98,9 @@ describe("MemoryExecutionStateChannel", () => {
     const iter = channel.subscribe()[Symbol.asyncIterator]();
 
     // Publish after a microtask delay.
-    queueMicrotask(() => {
-      channel.publish(makeState("running", 0));
-      channel.close();
+    queueMicrotask(async () => {
+      await channel.publish(makeState("running", 0));
+      await channel.close();
     });
 
     const first = await iter.next();
@@ -112,13 +112,13 @@ describe("MemoryExecutionStateChannel", () => {
 
   test("close terminates subscriber iteration", async () => {
     const channel = new MemoryExecutionStateChannel();
-    channel.publish(makeState("running", 0));
+    await channel.publish(makeState("running", 0));
 
     const iter = channel.subscribe({ replay: true })[Symbol.asyncIterator]();
     await iter.next(); // consume the running state
 
     // Close should terminate.
-    channel.close();
+    await channel.close();
     const result = await iter.next();
     expect(result.done).toBe(true);
   });
@@ -127,8 +127,8 @@ describe("MemoryExecutionStateChannel", () => {
     const channel = new MemoryExecutionStateChannel();
     expect(await channel.latest()).toBeNull();
 
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("running", 1));
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("running", 1));
     const latest = await channel.latest();
     expect(latest?.status).toBe("running");
   });
@@ -139,10 +139,10 @@ describe("MemoryExecutionStateChannel", () => {
     const p1 = collect(channel.subscribe({ replay: true }));
     const p2 = collect(channel.subscribe({ replay: true }));
 
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("running", 1));
-    channel.publish(makeState("completed", 2));
-    channel.close();
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("running", 1));
+    await channel.publish(makeState("completed", 2));
+    await channel.close();
 
     const [s1, s2] = await Promise.all([p1, p2]);
     expect(s1).toHaveLength(3);
@@ -161,13 +161,13 @@ describe("debounce", () => {
     const collected = collect(channel.subscribe({ replay: true }));
 
     // Publish rapidly — only the last should arrive after debounce.
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("running", 1));
-    channel.publish(makeState("running", 2));
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("running", 1));
+    await channel.publish(makeState("running", 2));
 
     // Wait for the debounce to flush.
     await new Promise((r) => setTimeout(r, 80));
-    channel.close();
+    await channel.close();
 
     const states = await collected;
     // Should have 1 debounced state (the last running).
@@ -182,9 +182,9 @@ describe("debounce", () => {
 
     const collected = collect(channel.subscribe({ replay: true }));
 
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("completed", 1));
-    channel.close();
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("completed", 1));
+    await channel.close();
 
     const states = await collected;
     // The completed state bypasses debounce and flushes immediately.
@@ -197,13 +197,13 @@ describe("debounce", () => {
       debounce: { ms: 200, flushOnComplete: false },
     });
 
-    channel.publish(makeState("pending", 0));
-    channel.publish(makeState("completed", 1));
+    await channel.publish(makeState("pending", 0));
+    await channel.publish(makeState("completed", 1));
 
     // Neither should have flushed yet (within debounce window).
     expect(await channel.latest()).toBeNull();
 
-    channel.close(); // close flushes buffered state
+    await channel.close(); // close flushes buffered state
     const latest = await channel.latest();
     expect(latest?.status).toBe("completed");
   });

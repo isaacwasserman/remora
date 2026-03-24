@@ -15,9 +15,9 @@ export interface WorkflowExecutionStateChannelOptions {
 /** Pub/sub channel for streaming {@link ExecutionState} snapshots from an executor to one or more consumers. */
 export interface WorkflowExecutionStateChannel {
   /** Push a new state snapshot into the channel. */
-  publish(state: ExecutionState): void;
+  publish(state: ExecutionState): void | Promise<void>;
   /** Signal that no more states will be published. Subscribers will drain and terminate. */
-  close(): void;
+  close(): void | Promise<void>;
   /**
    * Subscribe to state updates.
    *
@@ -51,41 +51,41 @@ export abstract class BaseExecutionStateChannel
   }
 
   /** Push a state snapshot, applying debounce if configured. */
-  publish(state: ExecutionState): void {
+  async publish(state: ExecutionState): Promise<void> {
     if (this.debounceMs === undefined) {
-      this.emit(state);
+      await this.emit(state);
       return;
     }
 
     // Terminal states flush immediately when configured.
     if (this.flushOnComplete && TERMINAL_STATUSES.has(state.status)) {
       this.clearDebounce();
-      this.emit(state);
+      await this.emit(state);
       return;
     }
 
     this.bufferedState = state;
     if (this.debounceTimer === null) {
-      this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = setTimeout(async () => {
         this.debounceTimer = null;
         if (this.bufferedState) {
           const s = this.bufferedState;
           this.bufferedState = null;
-          this.emit(s);
+          await this.emit(s);
         }
       }, this.debounceMs);
     }
   }
 
   /** Close the channel, flushing any buffered state first. */
-  close(): void {
+  async close(): Promise<void> {
     this.clearDebounce();
     if (this.bufferedState) {
       const s = this.bufferedState;
       this.bufferedState = null;
-      this.emit(s);
+      await this.emit(s);
     }
-    this.doClose();
+    await this.doClose();
   }
 
   private clearDebounce(): void {
@@ -96,9 +96,9 @@ export abstract class BaseExecutionStateChannel
   }
 
   /** Deliver a state snapshot to subscribers. Subclasses implement storage + notification. */
-  protected abstract emit(state: ExecutionState): void;
+  protected abstract emit(state: ExecutionState): void | Promise<void>;
   /** Perform subclass-specific close logic (e.g. resolve pending waiters). */
-  protected abstract doClose(): void;
+  protected abstract doClose(): void | Promise<void>;
 
   abstract subscribe(opts?: {
     replay?: boolean;
