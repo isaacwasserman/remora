@@ -13,7 +13,7 @@ export default {
       const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
       if (posthogKey) {
         posthog.init(posthogKey, {
-          api_host: "https://us.i.posthog.com",
+          api_host: "/r",
           person_profiles: "identified_only",
           capture_pageview: false,
         });
