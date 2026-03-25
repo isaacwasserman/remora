@@ -29,6 +29,7 @@ const result = await Bun.build({
     "@codemirror/autocomplete",
     "@codemirror/commands",
     "@lezer/highlight",
+    "*.css",
   ],
   splitting: true,
   sourcemap: "external",
