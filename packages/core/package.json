@@ -1,6 +1,6 @@
 {
   "name": "@remoraflow/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
   "publishConfig": {
     "access": "public"
