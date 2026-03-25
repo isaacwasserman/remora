@@ -16,6 +16,7 @@ export default {
           api_host: "/r",
           person_profiles: "identified_only",
           capture_pageview: false,
+          disable_session_recording: true,
         });
         router.onAfterRouteChanged = (to) => {
           posthog.capture("$pageview", {
