@@ -1,3 +1,4 @@
+import posthog from "posthog-js";
 import type { EnhanceAppContext } from "vitepress";
 import Theme from "vitepress/theme";
 import { enhanceAppWithTabs } from "vitepress-plugin-tabs/client";
@@ -7,13 +8,23 @@ export default {
   ...Theme,
   enhanceApp({ app, router }: EnhanceAppContext) {
     enhanceAppWithTabs(app);
-    router.onAfterRouteChanged = (to) => {
-      if (typeof window !== "undefined" && window.posthog) {
-        window.posthog.capture("$pageview", {
-          $current_url: window.location.origin + to,
+
+    if (typeof window !== "undefined") {
+      const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+      if (posthogKey) {
+        posthog.init(posthogKey, {
+          api_host: "https://us.i.posthog.com",
+          person_profiles: "identified_only",
+          capture_pageview: false,
         });
+        router.onAfterRouteChanged = (to) => {
+          posthog.capture("$pageview", {
+            $current_url: window.location.origin + to,
+          });
+        };
       }
-    };
+    }
+
     router.onBeforeRouteChange = (to) => {
       if (to.startsWith("/demo")) {
         window.location.href = to;
