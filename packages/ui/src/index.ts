@@ -1,4 +1,6 @@
 /** @module viewer */
+import "./styles.css";
+
 // shadcn/ui components
 
 export type { ReplaySliderProps } from "./components/replay-slider";
