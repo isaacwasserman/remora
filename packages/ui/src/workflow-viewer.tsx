@@ -18,6 +18,7 @@ import {
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import type { ToolSet } from "ai";
 import { Braces, LayoutGrid } from "lucide-react";
 import type React from "react";
