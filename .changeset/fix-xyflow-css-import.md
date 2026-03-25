@@ -2,4 +2,4 @@
 "@remoraflow/ui": patch
 ---
 
-Restore `@xyflow/react/dist/style.css` side-effect import so downstream bundlers automatically include xyflow's base styles (z-index, positioning, pointer-events) without requiring an explicit `@remoraflow/ui/styles.css` import
+Auto-load compiled CSS via side-effect import so downstream apps get all required styles (xyflow base, Tailwind utilities, theme) without needing an explicit `@remoraflow/ui/styles.css` import
