@@ -147,6 +147,16 @@ Every state transition is observable in real time through the `onStateChange` ca
 
 Want to see what the agent built? The `@remoraflow/ui` package renders workflows as interactive DAGs:
 
+```bash
+bun add @remoraflow/ui @xyflow/react
+```
+
+Then import the package CSS (includes Tailwind utilities and sensible default theme variables):
+
+```ts
+import "@remoraflow/ui/styles.css";
+```
+
 ```tsx
 import { WorkflowViewer, StepDetailPanel } from "@remoraflow/ui";
 import type { WorkflowStep, Diagnostic } from "@remoraflow/core";
@@ -162,6 +172,7 @@ function App() {
         <WorkflowViewer
           workflow={result.workflow}
           executionState={execution.executionState}
+          hideDetailPanel
           onStepSelect={(s, d) => { setStep(s); setDiagnostics(d); }}
         />
       </div>
@@ -208,6 +219,7 @@ function WorkflowEditor({ tools }) {
           isEditing={isEditing}
           onWorkflowChange={setWorkflow}
           tools={tools}
+          hideDetailPanel
           onStepSelect={(s, d) => { setSelectedStep(s); setStepDiagnostics(d); }}
         />
       </div>
@@ -244,6 +256,7 @@ Pass `workflow={null}` to start with an empty canvas. The `onWorkflowChange` cal
 | `isEditing` | `boolean` | `false` | Enables canvas editing mode. |
 | `onWorkflowChange` | `(w: WorkflowDefinition) => void` | — | Called on every workflow mutation. |
 | `tools` | `ToolSet` | — | Provides tool name autocomplete in the step editor. |
+| `hideDetailPanel` | `boolean` | `false` | Hides the built-in detail/editor panel. Use when rendering `StepDetailPanel` or `StepEditorPanel` externally. |
 
 ### `StepEditorPanel` props
 

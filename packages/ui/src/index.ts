@@ -3,6 +3,8 @@
 
 export type { ReplaySliderProps } from "./components/replay-slider";
 export { ReplaySlider } from "./components/replay-slider";
+export type { StepPaletteProps } from "./components/step-palette";
+export { StepPalette } from "./components/step-palette";
 export { Button } from "./components/ui/button";
 export {
   Collapsible,

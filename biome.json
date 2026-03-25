@@ -7,7 +7,12 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!apps/demo/**/*.css", "!apps/demo/index.html"]
+    "includes": [
+      "**",
+      "!apps/demo/**/*.css",
+      "!apps/demo/index.html",
+      "!**/styles.css"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -33,6 +38,11 @@
         "noExplicitAny": "error",
         "noEvolvingTypes": "error"
       }
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   },
   "javascript": {

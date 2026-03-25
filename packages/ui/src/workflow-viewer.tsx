@@ -18,7 +18,6 @@ import {
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 import type { ToolSet } from "ai";
 import { Braces, LayoutGrid } from "lucide-react";
 import type React from "react";
@@ -102,6 +101,8 @@ export interface WorkflowViewerProps {
   tools?: ToolSet;
   /** Pre-extracted tool schemas. When provided, skips extracting schemas from `tools`. */
   toolSchemas?: ToolDefinitionMap;
+  /** Hide the built-in detail/editor panel. Use this when rendering `StepDetailPanel` or `StepEditorPanel` externally. */
+  hideDetailPanel?: boolean;
 }
 
 /**
@@ -126,6 +127,7 @@ export function WorkflowViewer({
   onWorkflowChange,
   tools,
   toolSchemas: toolSchemasProp,
+  hideDetailPanel = false,
 }: WorkflowViewerProps) {
   const theme = useThemeColors();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -767,7 +769,8 @@ export function WorkflowViewer({
             </div>
           )}
         </div>
-        {selectedStep &&
+        {!hideDetailPanel &&
+          selectedStep &&
           (isEditing ? (
             <StepEditorPanel
               step={selectedStep}

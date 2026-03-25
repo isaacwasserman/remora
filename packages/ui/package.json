@@ -13,12 +13,14 @@
   },
   "license": "GPL-3.0",
   "type": "module",
+  "style": "./dist/styles.css",
   "exports": {
     ".": {
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./styles.css": "./dist/styles.css"
   },
   "files": [
     "dist",
@@ -61,6 +63,10 @@
     }
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.5.0",
+    "postcss-cli": "^11.0.0",
+    "tailwindcss": "^4.0.0",
     "@happy-dom/global-registrator": "^20.8.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
