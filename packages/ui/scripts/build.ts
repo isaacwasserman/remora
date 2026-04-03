@@ -51,5 +51,8 @@ console.log(
 await $`bunx tsc --project tsconfig.build.json`;
 console.log("Declaration emit complete");
 
-await $`bunx postcss src/styles.css -o dist/styles.css`;
+await Promise.all([
+  $`bunx postcss src/styles.css -o dist/styles.css`,
+  $`bunx postcss src/styles-base.css -o dist/styles-base.css`,
+]);
 console.log("CSS build complete");

@@ -1,5 +1,9 @@
 /** @module viewer */
-import "./styles.css";
+
+// NOTE: Styles are no longer auto-imported. Consumers should import
+// "@remoraflow/ui/styles.css" explicitly if they need the default theme.
+// This prevents CSS variable collisions when the host app defines its own
+// :root variables (e.g., --primary, --background, --border).
 
 // shadcn/ui components
 

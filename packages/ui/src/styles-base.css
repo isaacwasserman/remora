@@ -1,7 +1,14 @@
+/*
+ * Base styles for @remoraflow/ui — without default theme variables.
+ *
+ * Import this instead of "styles.css" when your app already defines
+ * shadcn-compatible CSS variables (--primary, --background, --border, etc.).
+ * This avoids :root variable collisions with your app's theme.
+ */
+
 @import "tw-animate-css";
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
-@import "./theme.css";
 
 @source "./";
 

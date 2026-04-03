@@ -13,14 +13,14 @@
   },
   "license": "GPL-3.0",
   "type": "module",
-  "style": "./dist/styles.css",
   "exports": {
     ".": {
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./styles.css": "./dist/styles.css"
+    "./styles.css": "./dist/styles.css",
+    "./styles-base.css": "./dist/styles-base.css"
   },
   "files": [
     "dist",
