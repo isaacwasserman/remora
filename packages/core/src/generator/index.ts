@@ -250,11 +250,16 @@ export async function generateWorkflow(
     ],
   });
 
-  switch (exitState.kind) {
+  // Widen back to the full ExitState before switching. Stock `tsc` otherwise
+  // keeps `exitState` narrowed to its initializer `{ kind: "pending" }` after
+  // the await — it can't prove the tool-execute closures (which reassign it)
+  // actually ran, so the narrowing from the `let` initializer sticks.
+  const finalState = exitState as ExitState;
+  switch (finalState.kind) {
     case "success":
       return {
         success: true,
-        workflow: exitState.workflow,
+        workflow: finalState.workflow,
         diagnostics: lastDiagnostics,
         attempts,
       };
@@ -264,8 +269,8 @@ export async function generateWorkflow(
         workflow: null,
         diagnostics: lastDiagnostics,
         attempts,
-        failureCode: exitState.code,
-        failureMessage: exitState.reason,
+        failureCode: finalState.code,
+        failureMessage: finalState.reason,
       };
     case "pending":
       // Retries exhausted on compile errors without an explicit give-up.
