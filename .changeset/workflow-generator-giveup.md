@@ -6,7 +6,7 @@
 
 `GenerateWorkflowResult` is now a discriminated union on `success`:
 - **Success** (`success: true`): `workflow` is a non-null `WorkflowDefinition`; failure fields are `undefined`.
-- **Failure** (`success: false`): `workflow` is `null`; `failureCode: WorkflowFailureCode` and `failureMessage: string` are both populated. `failureCode` is either one of the agent-emitted give-up codes, or `compile-errors-exhausted` when the retry budget runs out.
+- **Failure** (`success: false`): `workflow` is `null`; `failureCode: WorkflowFailureCode` and `failureMessage: string` are both populated. `failureCode` is either one of the agent-emitted give-up codes, or `retries-exhausted` when the retry budget runs out.
 
 TypeScript now correctly narrows the result after `if (result.success)`.
 

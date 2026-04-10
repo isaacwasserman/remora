@@ -14,48 +14,69 @@ import {
 // ─── Failure Codes ───────────────────────────────────────────────
 
 /**
- * arktype schema for the codes the agent can return via the `giveUp` tool.
- * The string union below is the source of truth for {@link WorkflowGiveUpCode}
- * and {@link WORKFLOW_GIVE_UP_CODES}; keep all three in sync if you add or
- * rename a code.
+ * The list of all {@link WorkflowGiveUpCode} values, in declaration order.
+ * This is the single source of truth for the give-up code set: both
+ * {@link WorkflowGiveUpCode} and the internal `giveUpCodeSchema` arktype are
+ * derived from this array.
  */
-const giveUpCodeSchema = arktype(
-  "'missing-capability' | 'ambiguous-task' | 'not-workflow-shaped' | 'infeasible' | 'unsafe' | 'other'",
-);
-
-/**
- * A code returned by the agent via the `giveUp` tool to categorize why it
- * could not produce a workflow.
- *
- * - `missing-capability`: no available tool can perform a required action.
- * - `ambiguous-task`: the task is too ambiguous or under-specified to express as a deterministic workflow.
- * - `not-workflow-shaped`: the request is not a workflow-shaped task (e.g. a factual question).
- * - `infeasible`: the task is logically impossible or self-contradictory with the available tools.
- * - `unsafe`: the agent refuses on safety grounds.
- * - `other`: none of the above; see the free-form `failureMessage` for details.
- */
-export type WorkflowGiveUpCode = typeof giveUpCodeSchema.infer;
-
-/** The list of all {@link WorkflowGiveUpCode} values, in declaration order. */
-export const WORKFLOW_GIVE_UP_CODES: readonly WorkflowGiveUpCode[] = [
+export const WORKFLOW_GIVE_UP_CODES = [
   "missing-capability",
   "ambiguous-task",
   "not-workflow-shaped",
   "infeasible",
   "unsafe",
   "other",
-];
+] as const;
+
+/**
+ * A code returned by the agent via the `giveUp` tool to categorize why it
+ * could not produce a workflow. See
+ * {@link WORKFLOW_GIVE_UP_CODE_DESCRIPTIONS} for the per-code explanation
+ * that the LLM sees via the tool's JSON Schema.
+ */
+export type WorkflowGiveUpCode = (typeof WORKFLOW_GIVE_UP_CODES)[number];
+
+/**
+ * Per-variant descriptions attached to each code in `giveUpCodeSchema`.
+ * These propagate into the tool's JSON Schema via arktype's `.describe()`,
+ * so the LLM sees an inline explanation of each code without needing the
+ * list to be enumerated in the system prompt.
+ */
+const WORKFLOW_GIVE_UP_CODE_DESCRIPTIONS: Record<WorkflowGiveUpCode, string> = {
+  "missing-capability":
+    "a required action has no matching tool in the available tool set",
+  "ambiguous-task":
+    "the task is too ambiguous or under-specified to express as a deterministic workflow",
+  "not-workflow-shaped":
+    "the request is not a workflow-shaped task (e.g. a factual question, a one-off computation, or pure conversation)",
+  infeasible:
+    "the task is logically impossible or self-contradictory given the available tools",
+  unsafe:
+    "the task asks you to do something you should refuse on safety grounds",
+  other: "none of the above apply; the free-form reason must explain",
+};
+
+/**
+ * arktype schema for the `code` field of the `giveUp` tool. Built by folding
+ * each {@link WORKFLOW_GIVE_UP_CODES} entry into a described literal, so the
+ * JSON Schema shown to the LLM carries a per-variant description inline.
+ */
+const describedCodeVariant = (code: WorkflowGiveUpCode) =>
+  arktype(`'${code}'`).describe(WORKFLOW_GIVE_UP_CODE_DESCRIPTIONS[code]);
+const [firstGiveUpCode, ...restGiveUpCodes] = WORKFLOW_GIVE_UP_CODES;
+const giveUpCodeSchema = restGiveUpCodes.reduce(
+  (acc, code) => acc.or(describedCodeVariant(code)),
+  describedCodeVariant(firstGiveUpCode),
+);
 
 /**
  * A code reported on {@link GenerateWorkflowResult.failureCode} when
  * `success` is `false`. Includes every {@link WorkflowGiveUpCode} the agent
- * may emit, plus `"compile-errors-exhausted"`, which is set automatically
- * when the retry budget is spent on compile errors rather than by the agent
- * calling `giveUp`.
+ * may emit, plus `"retries-exhausted"`, which is set automatically when the
+ * retry budget is spent on compile errors rather than by the agent calling
+ * `giveUp`.
  */
-export type WorkflowFailureCode =
-  | WorkflowGiveUpCode
-  | "compile-errors-exhausted";
+export type WorkflowFailureCode = WorkflowGiveUpCode | "retries-exhausted";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -253,7 +274,7 @@ export async function generateWorkflow(
         workflow: null,
         diagnostics: lastDiagnostics,
         attempts,
-        failureCode: "compile-errors-exhausted",
+        failureCode: "retries-exhausted",
         failureMessage: formatDiagnostics(lastDiagnostics),
       };
   }

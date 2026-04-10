@@ -193,7 +193,7 @@ describe("generateWorkflow", () => {
     expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
     expect(result.attempts).toBe(3); // 1 initial + 2 retries
-    expect(result.failureCode).toBe("compile-errors-exhausted");
+    expect(result.failureCode).toBe("retries-exhausted");
     expect(result.failureMessage).toBeDefined();
     expect(result.failureMessage?.length ?? 0).toBeGreaterThan(0);
     expect(
@@ -232,7 +232,7 @@ describe("generateWorkflow", () => {
     expect(result.success).toBe(false);
     expect(result.attempts).toBe(1);
     expect(result.workflow).toBeNull();
-    expect(result.failureCode).toBe("compile-errors-exhausted");
+    expect(result.failureCode).toBe("retries-exhausted");
   });
 
   test("giveUp: agent gives up immediately with missing-capability", async () => {
@@ -302,6 +302,55 @@ describe("generateWorkflow", () => {
     ).toBeGreaterThan(0);
   });
 
+  test("giveUp: tool input schema exposes per-code descriptions", async () => {
+    let capturedTools: unknown;
+    const model = new MockLanguageModelV3({
+      doGenerate: async (options) => {
+        capturedTools = options.tools;
+        return mockResult(
+          {
+            toolName: "giveUp",
+            input: { code: "other", reason: "stopping early to inspect tools" },
+          },
+          0,
+        );
+      },
+    });
+
+    await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "doesn't matter",
+    });
+
+    const tools = capturedTools as Array<{
+      name: string;
+      inputSchema: Record<string, unknown>;
+    }>;
+    const giveUpTool = tools.find((t) => t.name === "giveUp");
+    expect(giveUpTool).toBeDefined();
+
+    // The `code` property of the giveUp tool's input schema should be a
+    // union of described literals, one per WorkflowGiveUpCode.
+    const codeSchema = (
+      giveUpTool?.inputSchema as {
+        properties: { code: Record<string, unknown> };
+      }
+    ).properties.code;
+    const variants = (
+      codeSchema as { anyOf: Array<{ const: string; description: string }> }
+    ).anyOf;
+    expect(variants).toBeDefined();
+    const variantsByCode = new Map(
+      variants.map((v) => [v.const, v.description]),
+    );
+    for (const code of WORKFLOW_GIVE_UP_CODES) {
+      const desc = variantsByCode.get(code);
+      expect(desc).toBeDefined();
+      expect((desc ?? "").length).toBeGreaterThan(0);
+    }
+  });
+
   test("giveUp: each code is accepted by the giveUp tool", async () => {
     for (const code of WORKFLOW_GIVE_UP_CODES) {
       const model = createMockModelWithCalls([
@@ -338,7 +387,7 @@ describe("generateWorkflow", () => {
     expect(result.failureMessage).toBeUndefined();
   });
 
-  test("giveUp: retries exhausted uses compile-errors-exhausted code", async () => {
+  test("giveUp: retries exhausted uses retries-exhausted code", async () => {
     const model = createMockModel([invalidWorkflow]);
 
     const result = await generateWorkflow({
@@ -350,7 +399,7 @@ describe("generateWorkflow", () => {
 
     expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
-    expect(result.failureCode).toBe("compile-errors-exhausted");
+    expect(result.failureCode).toBe("retries-exhausted");
     expect(result.failureMessage).toBeDefined();
   });
 
@@ -455,14 +504,19 @@ describe("buildWorkflowGenerationPrompt", () => {
     expect(prompt).not.toContain("## Additional Instructions");
   });
 
-  test("mentions the giveUp escape hatch and every code", () => {
+  test("mentions the giveUp escape hatch but delegates code docs to the schema", () => {
     const prompt = buildWorkflowGenerationPrompt("[]");
 
     expect(prompt).toContain("giveUp");
     expect(prompt).toContain("reason");
     expect(prompt).toContain("code");
-    for (const code of WORKFLOW_GIVE_UP_CODES) {
-      expect(prompt).toContain(code);
-    }
+    // Per-code descriptions live on the giveUp tool's arktype schema and
+    // surface via the tool's JSON Schema, so the prompt should NOT spell
+    // out the specific code identifiers. We check the distinctive ones
+    // (skipping "other" / "unsafe" which are common English words).
+    expect(prompt).not.toContain("missing-capability");
+    expect(prompt).not.toContain("ambiguous-task");
+    expect(prompt).not.toContain("not-workflow-shaped");
+    expect(prompt).not.toContain("infeasible");
   });
 });
