@@ -29,12 +29,18 @@ export interface GenerateWorkflowOptions {
 
 /** The result of generating a workflow via LLM. */
 export interface GenerateWorkflowResult {
-  /** The generated workflow, or `null` if all attempts produced invalid workflows. */
+  /** The generated workflow, or `null` if all attempts produced invalid workflows or the agent gave up. */
   workflow: WorkflowDefinition | null;
   /** Diagnostics from the last compilation attempt. */
   diagnostics: Diagnostic[];
-  /** Total number of generation attempts made. */
+  /** Total number of `createWorkflow` attempts made. Does not count a `giveUp` call. */
   attempts: number;
+  /**
+   * If the agent explicitly signalled that it could not produce a workflow, the reason
+   * it provided. `undefined` when the agent did not give up (i.e. the workflow succeeded,
+   * or all retries were exhausted on compilation errors).
+   */
+  giveUpReason?: string;
 }
 
 /** Options for {@link createWorkflowGeneratorTool}. */
@@ -90,6 +96,7 @@ export async function generateWorkflow(
   let successWorkflow: WorkflowDefinition | null = null;
   let lastDiagnostics: Diagnostic[] = [];
   let attempts = 0;
+  let giveUpReason: string | undefined;
 
   const createWorkflowTool = tool({
     description: "Create a workflow definition",
@@ -112,19 +119,38 @@ export async function generateWorkflow(
     },
   });
 
+  const giveUpTool = tool({
+    description:
+      "Signal that you cannot produce a valid workflow for the given task. " +
+      "Call this only when the task is fundamentally impossible with the available tools, " +
+      "is unacceptably ambiguous, or otherwise cannot be expressed as a deterministic workflow — " +
+      "NOT simply because an earlier createWorkflow attempt failed to compile. " +
+      "If you encounter compile errors, prefer fixing them and retrying createWorkflow.",
+    inputSchema: arktype({ reason: "string>0" }),
+    execute: async ({ reason }) => {
+      giveUpReason = reason;
+      return { acknowledged: true };
+    },
+  });
+
   await generateText({
     model,
     system: systemPrompt,
     prompt: `Create a workflow to accomplish the following task:\n\n${task}`,
-    tools: { createWorkflow: createWorkflowTool },
-    toolChoice: { type: "tool", toolName: "createWorkflow" },
-    stopWhen: [stepCountIs(maxRetries + 1), () => successWorkflow !== null],
+    tools: { createWorkflow: createWorkflowTool, giveUp: giveUpTool },
+    toolChoice: "required",
+    stopWhen: [
+      stepCountIs(maxRetries + 1),
+      () => successWorkflow !== null,
+      () => giveUpReason !== undefined,
+    ],
   });
 
   return {
     workflow: successWorkflow,
     diagnostics: lastDiagnostics,
     attempts,
+    giveUpReason,
   };
 }
 

@@ -63,37 +63,60 @@ const invalidWorkflow: WorkflowDefinition = {
 
 // ─── Mock Model Helper ──────────────────────────────────────────
 
+type MockToolCall =
+  | { toolName: "createWorkflow"; input: WorkflowDefinition }
+  | { toolName: "giveUp"; input: { reason: string } };
+
+function mockResult(
+  call: MockToolCall,
+  index: number,
+): LanguageModelV3GenerateResult {
+  return {
+    content: [
+      {
+        type: "tool-call",
+        toolCallId: `call_${index}`,
+        toolName: call.toolName,
+        input: JSON.stringify(call.input),
+      },
+    ],
+    finishReason: { unified: "tool-calls", raw: undefined },
+    usage: {
+      inputTokens: {
+        total: 10,
+        noCache: undefined,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: 10,
+        text: undefined,
+        reasoning: undefined,
+      },
+    },
+    warnings: [],
+  } as LanguageModelV3GenerateResult;
+}
+
 function createMockModel(workflows: WorkflowDefinition[]) {
   let callIndex = 0;
   return new MockLanguageModelV3({
-    doGenerate: async () =>
-      ({
-        content: [
-          {
-            type: "tool-call",
-            toolCallId: `call_${callIndex}`,
-            toolName: "createWorkflow",
-            input: JSON.stringify(
-              workflows[callIndex++] ?? workflows[workflows.length - 1],
-            ),
-          },
-        ],
-        finishReason: { unified: "tool-calls", raw: undefined },
-        usage: {
-          inputTokens: {
-            total: 10,
-            noCache: undefined,
-            cacheRead: undefined,
-            cacheWrite: undefined,
-          },
-          outputTokens: {
-            total: 10,
-            text: undefined,
-            reasoning: undefined,
-          },
-        },
-        warnings: [],
-      }) as LanguageModelV3GenerateResult,
+    doGenerate: async () => {
+      const i = callIndex++;
+      const workflow = workflows[i] ?? workflows[workflows.length - 1];
+      return mockResult({ toolName: "createWorkflow", input: workflow }, i);
+    },
+  });
+}
+
+function createMockModelWithCalls(calls: MockToolCall[]) {
+  let callIndex = 0;
+  return new MockLanguageModelV3({
+    doGenerate: async () => {
+      const i = callIndex++;
+      const call = calls[i] ?? calls[calls.length - 1];
+      return mockResult(call, i);
+    },
   });
 }
 
@@ -179,6 +202,77 @@ describe("generateWorkflow", () => {
 
     expect(result.attempts).toBe(1);
     expect(result.workflow).toBeNull();
+  });
+
+  test("giveUp: agent gives up immediately", async () => {
+    const model = createMockModelWithCalls([
+      {
+        toolName: "giveUp",
+        input: { reason: "No tool can send emails, which this task requires." },
+      },
+    ]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Send an email to bob@example.com",
+    });
+
+    expect(result.workflow).toBeNull();
+    expect(result.giveUpReason).toBe(
+      "No tool can send emails, which this task requires.",
+    );
+    expect(result.attempts).toBe(0);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  test("giveUp: agent retries createWorkflow then gives up", async () => {
+    const model = createMockModelWithCalls([
+      { toolName: "createWorkflow", input: invalidWorkflow },
+      { toolName: "giveUp", input: { reason: "Required tool is missing." } },
+    ]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Do the impossible",
+      maxRetries: 3,
+    });
+
+    expect(result.workflow).toBeNull();
+    expect(result.giveUpReason).toBe("Required tool is missing.");
+    expect(result.attempts).toBe(1);
+    // diagnostics from the last failed createWorkflow attempt are preserved
+    expect(
+      result.diagnostics.filter((d) => d.severity === "error").length,
+    ).toBeGreaterThan(0);
+  });
+
+  test("giveUp: giveUpReason is undefined on success", async () => {
+    const model = createMockModel([validWorkflow]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Call the echo tool",
+    });
+
+    expect(result.workflow).not.toBeNull();
+    expect(result.giveUpReason).toBeUndefined();
+  });
+
+  test("giveUp: giveUpReason is undefined when retries are exhausted", async () => {
+    const model = createMockModel([invalidWorkflow]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Call the echo tool",
+      maxRetries: 1,
+    });
+
+    expect(result.workflow).toBeNull();
+    expect(result.giveUpReason).toBeUndefined();
   });
 
   test("returns optimized workflow from compiler", async () => {
@@ -280,5 +374,12 @@ describe("buildWorkflowGenerationPrompt", () => {
     const prompt = buildWorkflowGenerationPrompt("[]");
 
     expect(prompt).not.toContain("## Additional Instructions");
+  });
+
+  test("mentions the giveUp escape hatch", () => {
+    const prompt = buildWorkflowGenerationPrompt("[]");
+
+    expect(prompt).toContain("giveUp");
+    expect(prompt).toContain("reason");
   });
 });
