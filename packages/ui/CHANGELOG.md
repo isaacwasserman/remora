@@ -1,5 +1,14 @@
 # @remoraflow/ui
 
+## 0.6.0
+
+### Patch Changes
+
+- 9934958: Auto-load compiled CSS via side-effect import so downstream apps get all required styles (xyflow base, Tailwind utilities, theme) without needing an explicit `@remoraflow/ui/styles.css` import
+- cfe9fd0: Restore `@xyflow/react/dist/style.css` side-effect import so downstream bundlers automatically include xyflow's base styles (z-index, positioning, pointer-events) without requiring an explicit `@remoraflow/ui/styles.css` import
+- Updated dependencies [eda0cc6]
+  - @remoraflow/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
