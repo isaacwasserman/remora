@@ -74,7 +74,34 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - name: Check if release action should run
+        id: check
+        run: |
+          # Count changesets that contain a package bump (line matching `": `).
+          pending=$(find .changeset -name '*.md' ! -name 'README.md' -exec grep -l '": ' {} \; | wc -l)
+
+          # Determine whether any workspace package version is not yet on npm.
+          # This covers the case where a "Version Packages" PR has just merged:
+          # no changesets remain, but package.json versions need to be published.
+          needs_publish=false
+          for pkg in packages/core packages/ui; do
+            name=$(node -p "require('./$pkg/package.json').name")
+            version=$(node -p "require('./$pkg/package.json').version")
+            if ! npm view "$name@$version" version > /dev/null 2>&1; then
+              echo "$name@$version is not yet on npm"
+              needs_publish=true
+            fi
+          done
+
+          if [ "$pending" -gt 0 ] || [ "$needs_publish" = "true" ]; then
+            echo "run_action=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_action=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No pending changesets and all package versions are already published. Skipping changesets action."
+          fi
+
       - name: Remove empty changesets
+        if: steps.check.outputs.run_action == 'true'
         run: |
           for f in .changeset/*.md; do
             [ "$(basename "$f")" = "README.md" ] && continue
@@ -85,6 +112,7 @@ jobs:
           done
 
       - name: Create Release PR or Publish
+        if: steps.check.outputs.run_action == 'true'
         id: changesets
         uses: changesets/action@v1
         with:
