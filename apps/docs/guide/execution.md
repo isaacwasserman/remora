@@ -35,6 +35,7 @@ interface ExecuteWorkflowOptions {
   onStepStart?: (stepId: string, step: WorkflowStep) => void;
   onStepComplete?: (stepId: string, output: unknown) => void;
   onStateChange?: (state: ExecutionState, delta: ExecutionDelta) => void;
+  channel?: WorkflowExecutionStateChannel;
   context?: DurableContext;
   limits?: ExecutorLimits;
   policies?: Policy[];
@@ -207,6 +208,55 @@ const result = await executeWorkflow(workflow, {
 ::: tip
 `onStepStart` and `onStepComplete` are convenience callbacks for simple logging. For full observability, use `onStateChange` — it captures starts, completions, failures, retries, and run-level events in a single callback.
 :::
+
+## Streaming Execution State
+
+For streaming to a UI, across process or network boundaries, or to multiple concurrent subscribers, use a **channel** instead of (or alongside) `onStateChange`.
+
+### `channel`
+
+**Type:** `WorkflowExecutionStateChannel`
+**Default:** `undefined`
+
+A pub/sub channel that receives every execution state snapshot via `publish()` and is automatically closed when the run finishes. The channel fires in addition to `onStateChange`, so you can use both at once.
+
+```ts
+import {
+  executeWorkflow,
+  MemoryExecutionStateChannel,
+} from "@remoraflow/core";
+
+const channel = new MemoryExecutionStateChannel();
+
+// Fan out: one subscriber builds a replay log, another drives a live UI.
+const replayPromise = (async () => {
+  const log: ExecutionState[] = [];
+  for await (const state of channel.subscribe({ replay: true })) {
+    log.push(state);
+  }
+  return log;
+})();
+
+await executeWorkflow(workflow, {
+  tools,
+  model,
+  channel,
+});
+
+const history = await replayPromise;
+```
+
+For the quickest path — just give me an `AsyncIterable<ExecutionState>` — use the `executeWorkflowStream` helper, which is a thin wrapper around the `channel` option:
+
+```ts
+import { executeWorkflowStream } from "@remoraflow/core";
+
+for await (const state of executeWorkflowStream(workflow, { tools, model })) {
+  console.log(state.status);
+}
+```
+
+See [Streaming & Channels](/guide/streaming) for the full channel API, debouncing, subscription modes, and how to implement a custom channel for persistent transports like Redis or WebSockets.
 
 ## Execution Result
 
