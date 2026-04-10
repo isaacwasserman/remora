@@ -8,6 +8,7 @@ import {
   createWorkflowGeneratorTool,
   generateWorkflow,
   WORKFLOW_GIVE_UP_CODES,
+  type WorkflowFailureCode,
   type WorkflowGiveUpCode,
 } from ".";
 import {
@@ -148,6 +149,17 @@ describe("generateWorkflow", () => {
     expect(
       result.diagnostics.filter((d) => d.severity === "error"),
     ).toHaveLength(0);
+
+    // Narrowing check: inside the `success` branch the workflow is guaranteed
+    // non-null without optional chaining, and failure fields are `undefined`.
+    if (result.success) {
+      const steps: WorkflowDefinition["steps"] = result.workflow.steps;
+      expect(steps.length).toBeGreaterThan(0);
+      const code: undefined = result.failureCode;
+      expect(code).toBeUndefined();
+    } else {
+      throw new Error("expected success");
+    }
   });
 
   test("retry: invalid workflow then valid workflow", async () => {
@@ -248,6 +260,19 @@ describe("generateWorkflow", () => {
     );
     expect(result.attempts).toBe(0);
     expect(result.diagnostics).toEqual([]);
+
+    // Narrowing check: inside the failure branch, failureCode/failureMessage
+    // are non-optional and workflow is exactly `null`.
+    if (!result.success) {
+      const code: WorkflowFailureCode = result.failureCode;
+      const message: string = result.failureMessage;
+      const workflow: null = result.workflow;
+      expect(code).toBe("missing-capability");
+      expect(message.length).toBeGreaterThan(0);
+      expect(workflow).toBeNull();
+    } else {
+      throw new Error("expected failure");
+    }
   });
 
   test("giveUp: agent retries createWorkflow then gives up", async () => {

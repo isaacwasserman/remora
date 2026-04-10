@@ -73,21 +73,47 @@ export interface GenerateWorkflowOptions {
   additionalInstructions?: string;
 }
 
-/** The result of generating a workflow via LLM. */
-export interface GenerateWorkflowResult {
-  /** Whether a valid workflow was produced. When `true`, `workflow` is non-null and `failureCode`/`failureMessage` are `undefined`. */
-  success: boolean;
-  /** The generated workflow, or `null` if generation failed. */
-  workflow: WorkflowDefinition | null;
-  /** Diagnostics from the last compilation attempt. */
+/** The result of a successful {@link generateWorkflow} call. */
+export interface GenerateWorkflowSuccess {
+  /** Discriminant — `true` when the workflow was successfully generated. */
+  success: true;
+  /** The validated workflow definition (possibly optimized by the compiler). */
+  workflow: WorkflowDefinition;
+  /** Diagnostics from the final (successful) compilation attempt. */
   diagnostics: Diagnostic[];
-  /** Total number of `createWorkflow` attempts made. Does not count a `giveUp` call. */
+  /** Total number of `createWorkflow` attempts made. */
   attempts: number;
-  /** When `success` is `false`, the categorical reason generation failed. `undefined` on success. */
-  failureCode?: WorkflowFailureCode;
-  /** When `success` is `false`, a free-form explanation (from the agent's `giveUp` reason or from compile diagnostics). `undefined` on success. */
-  failureMessage?: string;
+  /** Always `undefined` on success. Declared here so the field is accessible on the broad union type. */
+  failureCode?: undefined;
+  /** Always `undefined` on success. Declared here so the field is accessible on the broad union type. */
+  failureMessage?: undefined;
 }
+
+/** The result of a failed {@link generateWorkflow} call. */
+export interface GenerateWorkflowFailure {
+  /** Discriminant — `false` when generation failed. */
+  success: false;
+  /** Always `null` on failure. */
+  workflow: null;
+  /** Diagnostics from the last (failed) compilation attempt, or `[]` if the agent gave up before attempting. */
+  diagnostics: Diagnostic[];
+  /** Total number of `createWorkflow` attempts made before failure. `0` if the agent gave up immediately. */
+  attempts: number;
+  /** The categorical reason generation failed. */
+  failureCode: WorkflowFailureCode;
+  /** A free-form explanation — from the agent's `giveUp` reason or from formatted compile diagnostics. */
+  failureMessage: string;
+}
+
+/**
+ * The result of generating a workflow via LLM. This is a discriminated union
+ * on the `success` field: when `success` is `true`, `workflow` is guaranteed
+ * non-null and `failureCode`/`failureMessage` are `undefined`; when `success`
+ * is `false`, `workflow` is `null` and both failure fields are populated.
+ */
+export type GenerateWorkflowResult =
+  | GenerateWorkflowSuccess
+  | GenerateWorkflowFailure;
 
 /** Options for {@link createWorkflowGeneratorTool}. */
 export interface WorkflowGeneratorToolOptions {
@@ -139,12 +165,14 @@ export async function generateWorkflow(
     additionalInstructions,
   );
 
-  let successWorkflow: WorkflowDefinition | null = null;
+  type ExitState =
+    | { kind: "pending" }
+    | { kind: "success"; workflow: WorkflowDefinition }
+    | { kind: "give-up"; code: WorkflowGiveUpCode; reason: string };
+
+  let exitState: ExitState = { kind: "pending" };
   let lastDiagnostics: Diagnostic[] = [];
   let attempts = 0;
-  let gaveUp = false;
-  let failureCode: WorkflowFailureCode | undefined;
-  let failureMessage: string | undefined;
 
   const createWorkflowTool = tool({
     description: "Create a workflow definition",
@@ -162,7 +190,10 @@ export async function generateWorkflow(
         };
       }
 
-      successWorkflow = result.workflow ?? workflowDef;
+      exitState = {
+        kind: "success",
+        workflow: result.workflow ?? workflowDef,
+      };
       return { success: true };
     },
   });
@@ -180,9 +211,7 @@ export async function generateWorkflow(
       reason: "string>0",
     }),
     execute: async ({ code, reason }) => {
-      gaveUp = true;
-      failureCode = code;
-      failureMessage = reason;
+      exitState = { kind: "give-up", code, reason };
       return { acknowledged: true };
     },
   });
@@ -195,26 +224,39 @@ export async function generateWorkflow(
     toolChoice: "required",
     stopWhen: [
       stepCountIs(maxRetries + 1),
-      () => successWorkflow !== null,
-      () => gaveUp,
+      () => exitState.kind === "success",
+      () => exitState.kind === "give-up",
     ],
   });
 
-  const success = successWorkflow !== null;
-  if (!success && !gaveUp) {
-    // Retries exhausted on compile errors without an explicit give-up.
-    failureCode = "compile-errors-exhausted";
-    failureMessage = formatDiagnostics(lastDiagnostics);
+  switch (exitState.kind) {
+    case "success":
+      return {
+        success: true,
+        workflow: exitState.workflow,
+        diagnostics: lastDiagnostics,
+        attempts,
+      };
+    case "give-up":
+      return {
+        success: false,
+        workflow: null,
+        diagnostics: lastDiagnostics,
+        attempts,
+        failureCode: exitState.code,
+        failureMessage: exitState.reason,
+      };
+    case "pending":
+      // Retries exhausted on compile errors without an explicit give-up.
+      return {
+        success: false,
+        workflow: null,
+        diagnostics: lastDiagnostics,
+        attempts,
+        failureCode: "compile-errors-exhausted",
+        failureMessage: formatDiagnostics(lastDiagnostics),
+      };
   }
-
-  return {
-    success,
-    workflow: successWorkflow,
-    diagnostics: lastDiagnostics,
-    attempts,
-    failureCode,
-    failureMessage,
-  };
 }
 
 // ─── createWorkflowGeneratorTool ─────────────────────────────────

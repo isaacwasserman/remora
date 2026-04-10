@@ -70,8 +70,10 @@ export type {
 } from "./executor/state";
 export { applyDelta, snapshotError } from "./executor/state";
 export type {
+  GenerateWorkflowFailure,
   GenerateWorkflowOptions,
   GenerateWorkflowResult,
+  GenerateWorkflowSuccess,
   WorkflowFailureCode,
   WorkflowGeneratorToolOptions,
   WorkflowGiveUpCode,
