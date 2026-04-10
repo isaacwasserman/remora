@@ -4,7 +4,13 @@ import { tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { type } from "arktype";
 import type { WorkflowDefinition } from "../types";
-import { createWorkflowGeneratorTool, generateWorkflow } from ".";
+import {
+  createWorkflowGeneratorTool,
+  generateWorkflow,
+  WORKFLOW_GIVE_UP_CODES,
+  type WorkflowFailureCode,
+  type WorkflowGiveUpCode,
+} from ".";
 import {
   buildWorkflowGenerationPrompt,
   serializeToolsForPrompt,
@@ -63,37 +69,63 @@ const invalidWorkflow: WorkflowDefinition = {
 
 // ─── Mock Model Helper ──────────────────────────────────────────
 
+type MockToolCall =
+  | { toolName: "createWorkflow"; input: WorkflowDefinition }
+  | {
+      toolName: "giveUp";
+      input: { code: WorkflowGiveUpCode; reason: string };
+    };
+
+function mockResult(
+  call: MockToolCall,
+  index: number,
+): LanguageModelV3GenerateResult {
+  return {
+    content: [
+      {
+        type: "tool-call",
+        toolCallId: `call_${index}`,
+        toolName: call.toolName,
+        input: JSON.stringify(call.input),
+      },
+    ],
+    finishReason: { unified: "tool-calls", raw: undefined },
+    usage: {
+      inputTokens: {
+        total: 10,
+        noCache: undefined,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: 10,
+        text: undefined,
+        reasoning: undefined,
+      },
+    },
+    warnings: [],
+  } as LanguageModelV3GenerateResult;
+}
+
 function createMockModel(workflows: WorkflowDefinition[]) {
   let callIndex = 0;
   return new MockLanguageModelV3({
-    doGenerate: async () =>
-      ({
-        content: [
-          {
-            type: "tool-call",
-            toolCallId: `call_${callIndex}`,
-            toolName: "createWorkflow",
-            input: JSON.stringify(
-              workflows[callIndex++] ?? workflows[workflows.length - 1],
-            ),
-          },
-        ],
-        finishReason: { unified: "tool-calls", raw: undefined },
-        usage: {
-          inputTokens: {
-            total: 10,
-            noCache: undefined,
-            cacheRead: undefined,
-            cacheWrite: undefined,
-          },
-          outputTokens: {
-            total: 10,
-            text: undefined,
-            reasoning: undefined,
-          },
-        },
-        warnings: [],
-      }) as LanguageModelV3GenerateResult,
+    doGenerate: async () => {
+      const i = callIndex++;
+      const workflow = workflows[i] ?? workflows[workflows.length - 1];
+      return mockResult({ toolName: "createWorkflow", input: workflow }, i);
+    },
+  });
+}
+
+function createMockModelWithCalls(calls: MockToolCall[]) {
+  let callIndex = 0;
+  return new MockLanguageModelV3({
+    doGenerate: async () => {
+      const i = callIndex++;
+      const call = calls[i] ?? calls[calls.length - 1];
+      return mockResult(call, i);
+    },
   });
 }
 
@@ -109,11 +141,25 @@ describe("generateWorkflow", () => {
       task: "Call the echo tool",
     });
 
+    expect(result.success).toBe(true);
     expect(result.workflow).not.toBeNull();
     expect(result.attempts).toBe(1);
+    expect(result.failureCode).toBeUndefined();
+    expect(result.failureMessage).toBeUndefined();
     expect(
       result.diagnostics.filter((d) => d.severity === "error"),
     ).toHaveLength(0);
+
+    // Narrowing check: inside the `success` branch the workflow is guaranteed
+    // non-null without optional chaining, and failure fields are `undefined`.
+    if (result.success) {
+      const steps: WorkflowDefinition["steps"] = result.workflow.steps;
+      expect(steps.length).toBeGreaterThan(0);
+      const code: undefined = result.failureCode;
+      expect(code).toBeUndefined();
+    } else {
+      throw new Error("expected success");
+    }
   });
 
   test("retry: invalid workflow then valid workflow", async () => {
@@ -125,8 +171,10 @@ describe("generateWorkflow", () => {
       task: "Call the echo tool",
     });
 
+    expect(result.success).toBe(true);
     expect(result.workflow).not.toBeNull();
     expect(result.attempts).toBe(2);
+    expect(result.failureCode).toBeUndefined();
     expect(
       result.diagnostics.filter((d) => d.severity === "error"),
     ).toHaveLength(0);
@@ -142,8 +190,12 @@ describe("generateWorkflow", () => {
       maxRetries: 2,
     });
 
+    expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
     expect(result.attempts).toBe(3); // 1 initial + 2 retries
+    expect(result.failureCode).toBe("retries-exhausted");
+    expect(result.failureMessage).toBeDefined();
+    expect(result.failureMessage?.length ?? 0).toBeGreaterThan(0);
     expect(
       result.diagnostics.filter((d) => d.severity === "error").length,
     ).toBeGreaterThan(0);
@@ -177,8 +229,178 @@ describe("generateWorkflow", () => {
       maxRetries: 0,
     });
 
+    expect(result.success).toBe(false);
     expect(result.attempts).toBe(1);
     expect(result.workflow).toBeNull();
+    expect(result.failureCode).toBe("retries-exhausted");
+  });
+
+  test("giveUp: agent gives up immediately with missing-capability", async () => {
+    const model = createMockModelWithCalls([
+      {
+        toolName: "giveUp",
+        input: {
+          code: "missing-capability",
+          reason: "No tool can send emails, which this task requires.",
+        },
+      },
+    ]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Send an email to bob@example.com",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.workflow).toBeNull();
+    expect(result.failureCode).toBe("missing-capability");
+    expect(result.failureMessage).toBe(
+      "No tool can send emails, which this task requires.",
+    );
+    expect(result.attempts).toBe(0);
+    expect(result.diagnostics).toEqual([]);
+
+    // Narrowing check: inside the failure branch, failureCode/failureMessage
+    // are non-optional and workflow is exactly `null`.
+    if (!result.success) {
+      const code: WorkflowFailureCode = result.failureCode;
+      const message: string = result.failureMessage;
+      const workflow: null = result.workflow;
+      expect(code).toBe("missing-capability");
+      expect(message.length).toBeGreaterThan(0);
+      expect(workflow).toBeNull();
+    } else {
+      throw new Error("expected failure");
+    }
+  });
+
+  test("giveUp: agent retries createWorkflow then gives up", async () => {
+    const model = createMockModelWithCalls([
+      { toolName: "createWorkflow", input: invalidWorkflow },
+      {
+        toolName: "giveUp",
+        input: { code: "infeasible", reason: "Required tool is missing." },
+      },
+    ]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Do the impossible",
+      maxRetries: 3,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.workflow).toBeNull();
+    expect(result.failureCode).toBe("infeasible");
+    expect(result.failureMessage).toBe("Required tool is missing.");
+    expect(result.attempts).toBe(1);
+    // diagnostics from the last failed createWorkflow attempt are preserved
+    expect(
+      result.diagnostics.filter((d) => d.severity === "error").length,
+    ).toBeGreaterThan(0);
+  });
+
+  test("giveUp: tool input schema exposes per-code descriptions", async () => {
+    let capturedTools: unknown;
+    const model = new MockLanguageModelV3({
+      doGenerate: async (options) => {
+        capturedTools = options.tools;
+        return mockResult(
+          {
+            toolName: "giveUp",
+            input: { code: "other", reason: "stopping early to inspect tools" },
+          },
+          0,
+        );
+      },
+    });
+
+    await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "doesn't matter",
+    });
+
+    const tools = capturedTools as Array<{
+      name: string;
+      inputSchema: Record<string, unknown>;
+    }>;
+    const giveUpTool = tools.find((t) => t.name === "giveUp");
+    expect(giveUpTool).toBeDefined();
+
+    // The `code` property of the giveUp tool's input schema should be a
+    // union of described literals, one per WorkflowGiveUpCode.
+    const codeSchema = (
+      giveUpTool?.inputSchema as {
+        properties: { code: Record<string, unknown> };
+      }
+    ).properties.code;
+    const variants = (
+      codeSchema as { anyOf: Array<{ const: string; description: string }> }
+    ).anyOf;
+    expect(variants).toBeDefined();
+    const variantsByCode = new Map(
+      variants.map((v) => [v.const, v.description]),
+    );
+    for (const code of WORKFLOW_GIVE_UP_CODES) {
+      const desc = variantsByCode.get(code);
+      expect(desc).toBeDefined();
+      expect((desc ?? "").length).toBeGreaterThan(0);
+    }
+  });
+
+  test("giveUp: each code is accepted by the giveUp tool", async () => {
+    for (const code of WORKFLOW_GIVE_UP_CODES) {
+      const model = createMockModelWithCalls([
+        {
+          toolName: "giveUp",
+          input: { code, reason: `giving up with code ${code}` },
+        },
+      ]);
+
+      const result = await generateWorkflow({
+        model,
+        tools: testTools,
+        task: "Some task",
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.failureCode).toBe(code);
+      expect(result.failureMessage).toBe(`giving up with code ${code}`);
+    }
+  });
+
+  test("giveUp: failure fields are undefined on success", async () => {
+    const model = createMockModel([validWorkflow]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Call the echo tool",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.workflow).not.toBeNull();
+    expect(result.failureCode).toBeUndefined();
+    expect(result.failureMessage).toBeUndefined();
+  });
+
+  test("giveUp: retries exhausted uses retries-exhausted code", async () => {
+    const model = createMockModel([invalidWorkflow]);
+
+    const result = await generateWorkflow({
+      model,
+      tools: testTools,
+      task: "Call the echo tool",
+      maxRetries: 1,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.workflow).toBeNull();
+    expect(result.failureCode).toBe("retries-exhausted");
+    expect(result.failureMessage).toBeDefined();
   });
 
   test("returns optimized workflow from compiler", async () => {
@@ -280,5 +502,21 @@ describe("buildWorkflowGenerationPrompt", () => {
     const prompt = buildWorkflowGenerationPrompt("[]");
 
     expect(prompt).not.toContain("## Additional Instructions");
+  });
+
+  test("mentions the giveUp escape hatch but delegates code docs to the schema", () => {
+    const prompt = buildWorkflowGenerationPrompt("[]");
+
+    expect(prompt).toContain("giveUp");
+    expect(prompt).toContain("reason");
+    expect(prompt).toContain("code");
+    // Per-code descriptions live on the giveUp tool's arktype schema and
+    // surface via the tool's JSON Schema, so the prompt should NOT spell
+    // out the specific code identifiers. We check the distinctive ones
+    // (skipping "other" / "unsafe" which are common English words).
+    expect(prompt).not.toContain("missing-capability");
+    expect(prompt).not.toContain("ambiguous-task");
+    expect(prompt).not.toContain("not-workflow-shaped");
+    expect(prompt).not.toContain("infeasible");
   });
 });

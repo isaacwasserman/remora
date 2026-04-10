@@ -20,7 +20,9 @@ export function buildWorkflowGenerationPrompt(
   serializedTools: string,
   additionalInstructions?: string,
 ): string {
-  return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. You MUST call the createWorkflow tool with a valid workflow definition.
+  return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. In almost all cases you should call the \`createWorkflow\` tool with a valid workflow definition.
+
+If — and only if — you determine that you cannot produce a valid workflow for the given task, call the \`giveUp\` tool with both a categorical \`code\` and a free-form \`reason\` explaining why. The \`code\` field's allowed values and their meanings are documented in the tool's input schema; pick the one that best matches your reason. Do NOT call \`giveUp\` just because an earlier \`createWorkflow\` attempt failed to compile — fix the diagnostics and try again. \`giveUp\` is an escape hatch, not a shortcut for hard tasks.
 
 ## Workflow Structure
 
