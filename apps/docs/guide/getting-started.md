@@ -300,4 +300,5 @@ pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
 - **[Execution](/guide/execution)** — retry behavior, error handling, durable execution, and resource limits
 - **[Policies & Approvals](/guide/policies)** — gate tool calls behind authorization rules and human approval workflows
 - **[Execution State](/guide/execution-state)** — the full state model, deltas, and real-time observability
+- **[Streaming & Channels](/guide/streaming)** — stream execution state across process boundaries, multiple subscribers, debouncing, and custom transports
 - **[Component Registry](/guide/component-registry)** — install viewer components via shadcn for full customization

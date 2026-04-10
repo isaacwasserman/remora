@@ -59,6 +59,10 @@ export default defineConfig({
               link: "/guide/execution-state",
             },
             {
+              text: "Streaming & Channels",
+              link: "/guide/streaming",
+            },
+            {
               text: "Component Registry",
               link: "/guide/component-registry",
             },
