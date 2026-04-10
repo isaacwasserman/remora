@@ -22,7 +22,15 @@ export function buildWorkflowGenerationPrompt(
 ): string {
   return `You are a workflow architect. Your job is to design a workflow definition in the remora DSL that accomplishes a given task using the provided tools. In almost all cases you should call the \`createWorkflow\` tool with a valid workflow definition.
 
-If — and only if — the task genuinely cannot be expressed as a workflow over the provided tools (for example: the required capability is simply not covered by any tool, the task is fundamentally ambiguous or self-contradictory, or it is not a workflow-shaped task at all), call the \`giveUp\` tool with a concise \`reason\` explaining why. Do NOT call \`giveUp\` just because an earlier \`createWorkflow\` attempt failed to compile — fix the diagnostics and try again. \`giveUp\` is an escape hatch for impossible or ill-formed requests, not for hard ones.
+If — and only if — the task genuinely cannot be expressed as a workflow over the provided tools, call the \`giveUp\` tool with both a categorical \`code\` and a free-form \`reason\` explaining why. Do NOT call \`giveUp\` just because an earlier \`createWorkflow\` attempt failed to compile — fix the diagnostics and try again. \`giveUp\` is an escape hatch for impossible or ill-formed requests, not for hard ones.
+
+The \`code\` field must be one of:
+- \`missing-capability\` — a required action has no matching tool in the available tool set.
+- \`ambiguous-task\` — the task is too ambiguous or under-specified to express as a deterministic workflow.
+- \`not-workflow-shaped\` — the request is not a workflow-shaped task (e.g. a factual question, a one-off computation, pure conversation).
+- \`infeasible\` — the task is logically impossible or self-contradictory given the available tools.
+- \`unsafe\` — the task asks you to do something you should refuse on safety grounds.
+- \`other\` — none of the above apply; the free-form \`reason\` must explain.
 
 ## Workflow Structure
 

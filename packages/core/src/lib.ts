@@ -72,9 +72,15 @@ export { applyDelta, snapshotError } from "./executor/state";
 export type {
   GenerateWorkflowOptions,
   GenerateWorkflowResult,
+  WorkflowFailureCode,
   WorkflowGeneratorToolOptions,
+  WorkflowGiveUpCode,
 } from "./generator";
-export { createWorkflowGeneratorTool, generateWorkflow } from "./generator";
+export {
+  createWorkflowGeneratorTool,
+  generateWorkflow,
+  WORKFLOW_GIVE_UP_CODES,
+} from "./generator";
 export {
   buildWorkflowGenerationPrompt,
   serializeToolsForPrompt,

@@ -4,7 +4,12 @@ import { tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { type } from "arktype";
 import type { WorkflowDefinition } from "../types";
-import { createWorkflowGeneratorTool, generateWorkflow } from ".";
+import {
+  createWorkflowGeneratorTool,
+  generateWorkflow,
+  WORKFLOW_GIVE_UP_CODES,
+  type WorkflowGiveUpCode,
+} from ".";
 import {
   buildWorkflowGenerationPrompt,
   serializeToolsForPrompt,
@@ -65,7 +70,10 @@ const invalidWorkflow: WorkflowDefinition = {
 
 type MockToolCall =
   | { toolName: "createWorkflow"; input: WorkflowDefinition }
-  | { toolName: "giveUp"; input: { reason: string } };
+  | {
+      toolName: "giveUp";
+      input: { code: WorkflowGiveUpCode; reason: string };
+    };
 
 function mockResult(
   call: MockToolCall,
@@ -132,8 +140,11 @@ describe("generateWorkflow", () => {
       task: "Call the echo tool",
     });
 
+    expect(result.success).toBe(true);
     expect(result.workflow).not.toBeNull();
     expect(result.attempts).toBe(1);
+    expect(result.failureCode).toBeUndefined();
+    expect(result.failureMessage).toBeUndefined();
     expect(
       result.diagnostics.filter((d) => d.severity === "error"),
     ).toHaveLength(0);
@@ -148,8 +159,10 @@ describe("generateWorkflow", () => {
       task: "Call the echo tool",
     });
 
+    expect(result.success).toBe(true);
     expect(result.workflow).not.toBeNull();
     expect(result.attempts).toBe(2);
+    expect(result.failureCode).toBeUndefined();
     expect(
       result.diagnostics.filter((d) => d.severity === "error"),
     ).toHaveLength(0);
@@ -165,8 +178,12 @@ describe("generateWorkflow", () => {
       maxRetries: 2,
     });
 
+    expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
     expect(result.attempts).toBe(3); // 1 initial + 2 retries
+    expect(result.failureCode).toBe("compile-errors-exhausted");
+    expect(result.failureMessage).toBeDefined();
+    expect(result.failureMessage?.length ?? 0).toBeGreaterThan(0);
     expect(
       result.diagnostics.filter((d) => d.severity === "error").length,
     ).toBeGreaterThan(0);
@@ -200,15 +217,20 @@ describe("generateWorkflow", () => {
       maxRetries: 0,
     });
 
+    expect(result.success).toBe(false);
     expect(result.attempts).toBe(1);
     expect(result.workflow).toBeNull();
+    expect(result.failureCode).toBe("compile-errors-exhausted");
   });
 
-  test("giveUp: agent gives up immediately", async () => {
+  test("giveUp: agent gives up immediately with missing-capability", async () => {
     const model = createMockModelWithCalls([
       {
         toolName: "giveUp",
-        input: { reason: "No tool can send emails, which this task requires." },
+        input: {
+          code: "missing-capability",
+          reason: "No tool can send emails, which this task requires.",
+        },
       },
     ]);
 
@@ -218,8 +240,10 @@ describe("generateWorkflow", () => {
       task: "Send an email to bob@example.com",
     });
 
+    expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
-    expect(result.giveUpReason).toBe(
+    expect(result.failureCode).toBe("missing-capability");
+    expect(result.failureMessage).toBe(
       "No tool can send emails, which this task requires.",
     );
     expect(result.attempts).toBe(0);
@@ -229,7 +253,10 @@ describe("generateWorkflow", () => {
   test("giveUp: agent retries createWorkflow then gives up", async () => {
     const model = createMockModelWithCalls([
       { toolName: "createWorkflow", input: invalidWorkflow },
-      { toolName: "giveUp", input: { reason: "Required tool is missing." } },
+      {
+        toolName: "giveUp",
+        input: { code: "infeasible", reason: "Required tool is missing." },
+      },
     ]);
 
     const result = await generateWorkflow({
@@ -239,8 +266,10 @@ describe("generateWorkflow", () => {
       maxRetries: 3,
     });
 
+    expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
-    expect(result.giveUpReason).toBe("Required tool is missing.");
+    expect(result.failureCode).toBe("infeasible");
+    expect(result.failureMessage).toBe("Required tool is missing.");
     expect(result.attempts).toBe(1);
     // diagnostics from the last failed createWorkflow attempt are preserved
     expect(
@@ -248,7 +277,28 @@ describe("generateWorkflow", () => {
     ).toBeGreaterThan(0);
   });
 
-  test("giveUp: giveUpReason is undefined on success", async () => {
+  test("giveUp: each code is accepted by the giveUp tool", async () => {
+    for (const code of WORKFLOW_GIVE_UP_CODES) {
+      const model = createMockModelWithCalls([
+        {
+          toolName: "giveUp",
+          input: { code, reason: `giving up with code ${code}` },
+        },
+      ]);
+
+      const result = await generateWorkflow({
+        model,
+        tools: testTools,
+        task: "Some task",
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.failureCode).toBe(code);
+      expect(result.failureMessage).toBe(`giving up with code ${code}`);
+    }
+  });
+
+  test("giveUp: failure fields are undefined on success", async () => {
     const model = createMockModel([validWorkflow]);
 
     const result = await generateWorkflow({
@@ -257,11 +307,13 @@ describe("generateWorkflow", () => {
       task: "Call the echo tool",
     });
 
+    expect(result.success).toBe(true);
     expect(result.workflow).not.toBeNull();
-    expect(result.giveUpReason).toBeUndefined();
+    expect(result.failureCode).toBeUndefined();
+    expect(result.failureMessage).toBeUndefined();
   });
 
-  test("giveUp: giveUpReason is undefined when retries are exhausted", async () => {
+  test("giveUp: retries exhausted uses compile-errors-exhausted code", async () => {
     const model = createMockModel([invalidWorkflow]);
 
     const result = await generateWorkflow({
@@ -271,8 +323,10 @@ describe("generateWorkflow", () => {
       maxRetries: 1,
     });
 
+    expect(result.success).toBe(false);
     expect(result.workflow).toBeNull();
-    expect(result.giveUpReason).toBeUndefined();
+    expect(result.failureCode).toBe("compile-errors-exhausted");
+    expect(result.failureMessage).toBeDefined();
   });
 
   test("returns optimized workflow from compiler", async () => {
@@ -376,10 +430,14 @@ describe("buildWorkflowGenerationPrompt", () => {
     expect(prompt).not.toContain("## Additional Instructions");
   });
 
-  test("mentions the giveUp escape hatch", () => {
+  test("mentions the giveUp escape hatch and every code", () => {
     const prompt = buildWorkflowGenerationPrompt("[]");
 
     expect(prompt).toContain("giveUp");
     expect(prompt).toContain("reason");
+    expect(prompt).toContain("code");
+    for (const code of WORKFLOW_GIVE_UP_CODES) {
+      expect(prompt).toContain(code);
+    }
   });
 });
