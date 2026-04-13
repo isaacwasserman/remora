@@ -16,16 +16,15 @@ export { compileWorkflow, extractToolSchemas } from "./compiler";
 export type {
   ExecuteWorkflowOptions,
   ExecutionResult,
+  ExecutionStateChannelOptions,
   ExecutorLimits,
-  WorkflowExecutionStateChannel,
-  WorkflowExecutionStateChannelOptions,
 } from "./executor";
 export {
-  BaseExecutionStateChannel,
   DEFAULT_APPROVAL_BACKOFF_MULTIPLIER,
   DEFAULT_APPROVAL_INTERVAL_MS,
   DEFAULT_APPROVAL_MAX_INTERVAL_MS,
   DEFAULT_APPROVAL_TIMEOUT_MS,
+  ExecutionStateChannel,
   executeWorkflow,
   executeWorkflowStream,
   MemoryExecutionStateChannel,

@@ -1,6 +1,6 @@
 import type { Agent, LanguageModel, ToolSet } from "ai";
 import type { WorkflowStep } from "../types";
-import type { WorkflowExecutionStateChannel } from "./channel";
+import type { ExecutionStateChannel } from "./channel";
 import type { DurableContext } from "./context";
 import type { ErrorCode } from "./errors";
 import { ExternalServiceError, type StepExecutionError } from "./errors";
@@ -86,7 +86,7 @@ export interface ExecuteWorkflowOptions<
     delta: ExecutionDelta,
   ) => void | Promise<void>;
   /** Optional channel for publishing execution state snapshots. Publishes on every state transition, in addition to {@link onStateChange}. */
-  channel?: WorkflowExecutionStateChannel;
+  channel?: ExecutionStateChannel;
   /** Injectable durable execution context. Default: simple in-process implementation. */
   context?: DurableContext;
   /** Execution limits for sleep/wait/timeout bounds. */

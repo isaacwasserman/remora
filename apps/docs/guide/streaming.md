@@ -1,6 +1,6 @@
 # Streaming & Channels
 
-RemoraFlow's executor emits a full [`ExecutionState`](/guide/execution-state) snapshot on every state transition. These snapshots can be streamed to UIs, logged to observability pipelines, forwarded across process or network boundaries, and replayed later.
+RemoraFlow's executor emits a full [`ExecutionState`](/guide/execution-state) snapshot on every state transition. These snapshots can be streamed to UIs, logged to observability pipelines, forwarded across process or network boundaries, and persisted.
 
 There are three ways to observe execution in real time:
 
@@ -14,7 +14,7 @@ All three integrate with the same underlying state model, so you can mix and mat
 
 ## `executeWorkflowStream`
 
-`executeWorkflowStream` is the quickest way to stream. It runs the workflow in the background and returns an `AsyncIterable<ExecutionState>` that yields every state snapshot — starting with a full replay of any states captured before the first `await` — and terminates when the run completes or fails.
+`executeWorkflowStream` is the quickest way to stream. It runs the workflow in the background and returns an `AsyncIterable<ExecutionState>` that yields every state snapshot and terminates when the run completes or fails.
 
 ```ts
 import { executeWorkflowStream } from "@remoraflow/core";
@@ -31,7 +31,7 @@ for await (const state of executeWorkflowStream(workflow, {
 The signature is identical to [`executeWorkflow`](/guide/execution) — it accepts the same [`ExecuteWorkflowOptions`](/guide/execution#execution-options). The only difference is the return type: instead of a `Promise<ExecutionResult>`, you get an `AsyncIterable<ExecutionState>`.
 
 ::: tip
-Because the iterable replays from the beginning, you're guaranteed to see every state even if you start iterating after the run has already started producing events. The last state emitted is always the terminal state (`completed` or `failed`).
+Each `ExecutionState` is a complete snapshot — it contains the full `stepRecords` array, current `status`, and output. You always have the complete picture without needing to replay history.
 :::
 
 ### Streaming over HTTP
@@ -75,47 +75,14 @@ const resultPromise = executeWorkflow(workflow, {
 });
 
 // Subscribe to the channel from elsewhere — possibly many consumers.
-for await (const state of channel.subscribe({ replay: true })) {
+for await (const state of channel.subscribe()) {
   console.log(state.status);
 }
 
 const result = await resultPromise;
 ```
 
-The `channel` option works alongside `onStateChange` — both fire on every state transition. Under the hood, `executeWorkflowStream` is just a thin wrapper that creates a `MemoryExecutionStateChannel`, passes it as `channel`, and returns `channel.subscribe({ replay: true })`.
-
-## The `WorkflowExecutionStateChannel` Interface
-
-A channel is a pub/sub abstraction for streaming state snapshots from an executor to one or more consumers:
-
-```ts
-interface WorkflowExecutionStateChannel {
-  /** Push a new state snapshot into the channel. */
-  publish(state: ExecutionState): void | Promise<void>;
-
-  /** Signal that no more states will be published. Subscribers drain and terminate. */
-  close(): void | Promise<void>;
-
-  /**
-   * Subscribe to state updates.
-   * - Default (`replay: false`): yields the latest state immediately, then follows live.
-   * - `replay: true`: yields the full history from the beginning, then follows live.
-   */
-  subscribe(opts?: { replay?: boolean }): AsyncIterable<ExecutionState>;
-
-  /** Returns the most recent state, or `null` if none has been published. */
-  latest?(): Promise<ExecutionState | null>;
-}
-```
-
-### Subscription Modes
-
-| Mode | Behavior |
-|---|---|
-| `subscribe()` (default) | Yields only the latest state (if any), then follows live updates. Best for UIs that only care about the current state. |
-| `subscribe({ replay: true })` | Yields every state from the beginning, then follows live updates. Best for building a complete history or driving a replay slider. |
-
-Both modes terminate when the channel is closed and the buffer is drained.
+The `channel` option works alongside `onStateChange` — both fire on every state transition. Under the hood, `executeWorkflowStream` is just a thin wrapper that creates a `MemoryExecutionStateChannel`, passes it as `channel`, and returns `channel.subscribe()`.
 
 ### Multiple Subscribers
 
@@ -124,16 +91,14 @@ A single channel can serve many concurrent subscribers. Each receives its own co
 ```ts
 const channel = new MemoryExecutionStateChannel();
 
-// Consumer 1: full replay for persistence
+// Consumer 1: persist the latest state
 const persistPromise = (async () => {
-  const all: ExecutionState[] = [];
-  for await (const state of channel.subscribe({ replay: true })) {
-    all.push(state);
+  for await (const state of channel.subscribe()) {
+    await saveState(state);
   }
-  return all;
 })();
 
-// Consumer 2: live-only for a UI indicator
+// Consumer 2: live UI indicator
 const livePromise = (async () => {
   for await (const state of channel.subscribe()) {
     updateStatusBadge(state.status);
@@ -146,7 +111,7 @@ await Promise.all([persistPromise, livePromise]);
 
 ## `MemoryExecutionStateChannel`
 
-The built-in `MemoryExecutionStateChannel` is a simple in-memory implementation that buffers every published state in an array. It's what `executeWorkflowStream` uses internally and is suitable for single-process use:
+The built-in `MemoryExecutionStateChannel` is a simple in-memory implementation that buffers published states in an array. It's what `executeWorkflowStream` uses internally and is suitable for single-process use:
 
 ```ts
 import { MemoryExecutionStateChannel } from "@remoraflow/core";
@@ -161,11 +126,10 @@ const debounced = new MemoryExecutionStateChannel({
 | Feature | Notes |
 |---|---|
 | Subscriber fan-out | Unlimited concurrent subscribers |
-| Replay | Full history buffered in memory for the channel's lifetime |
 | Persistence | None — intended for single-process use |
 | `latest()` | Returns the most recently published state, or `null` |
 
-Because the channel buffers every state in memory, avoid reusing a single long-lived channel across many runs — create one per execution and let it be garbage-collected when the run completes.
+Because the channel buffers states in memory, avoid reusing a single long-lived channel across many runs — create one per execution and let it be garbage-collected when the run completes.
 
 ## Debouncing
 
@@ -192,24 +156,24 @@ With debounce enabled:
 - On `close()`, any buffered state is flushed before the channel terminates.
 
 ::: warning
-Debouncing is lossy by design: intermediate states that land inside the debounce window are dropped in favor of the latest one. Subscribers in `replay: true` mode will see the coalesced history — not every individual snapshot. If you need lossless history (e.g., for audit logs), don't enable debounce.
+Debouncing is lossy by design: intermediate states that land inside the debounce window are dropped in favor of the latest one. This is fine because each `ExecutionState` is a complete snapshot — the latest state always contains the full picture. If you need to observe every individual transition, don't enable debounce.
 :::
 
 ## Custom Channels
 
-To stream execution state across process boundaries — for example, to a Redis pub/sub topic, a WebSocket server, a Kafka partition, or a database — implement your own channel. The easiest path is to extend `BaseExecutionStateChannel`, which handles the debounce bookkeeping for you:
+To stream execution state across process boundaries — for example, to a Redis pub/sub topic, a WebSocket server, a Kafka partition, or a database — implement your own channel by extending `ExecutionStateChannel`, which handles debounce bookkeeping for you:
 
 ```ts
 import {
-  BaseExecutionStateChannel,
+  ExecutionStateChannel,
   type ExecutionState,
 } from "@remoraflow/core";
 
-class RedisExecutionStateChannel extends BaseExecutionStateChannel {
+class RedisExecutionStateChannel extends ExecutionStateChannel {
   constructor(
     private readonly redis: Redis,
     private readonly topic: string,
-    options?: ConstructorParameters<typeof BaseExecutionStateChannel>[0],
+    options?: ConstructorParameters<typeof ExecutionStateChannel>[0],
   ) {
     super(options);
   }
@@ -230,15 +194,13 @@ class RedisExecutionStateChannel extends BaseExecutionStateChannel {
 }
 ```
 
-`BaseExecutionStateChannel` requires three abstract methods:
+`ExecutionStateChannel` requires three abstract methods:
 
 | Method | Purpose |
 |---|---|
 | `emit(state)` | Deliver a state snapshot to subscribers. Called after debounce logic has decided that a state should be released. |
 | `doClose()` | Subclass-specific cleanup (e.g., resolve pending waiters, notify remote subscribers). Called by `close()` after any buffered state is flushed. |
-| `subscribe(opts?)` | Return an async iterable over state snapshots. Must honor `opts.replay` if your transport supports history. |
-
-You can also implement `WorkflowExecutionStateChannel` directly if you don't want the debounce machinery, but extending `BaseExecutionStateChannel` is recommended so that callers can opt into debouncing via the standard options interface.
+| `subscribe()` | Return an async iterable over state snapshots. Yields the latest state (if any), then follows live updates until the channel is closed. |
 
 ::: tip
 Make sure your `publish()` and `close()` implementations are async-safe — the executor awaits both. Dropping awaits can cause states to arrive out of order, or cause the run to finish before the final state reaches your subscribers.
@@ -246,14 +208,14 @@ Make sure your `publish()` and `close()` implementations are async-safe — the 
 
 ## Persistence & Resume
 
-Channels pair naturally with the `initialState` option on `executeWorkflow` for resumable execution. Persist states as they stream, then feed the last snapshot back into `executeWorkflow` to pick up where the run left off:
+Channels pair naturally with the `initialState` option on `executeWorkflow` for resumable execution. Persist the latest state as it streams, then feed it back into `executeWorkflow` to pick up where the run left off:
 
 ```ts
 const channel = new MemoryExecutionStateChannel();
 
-// Persist every state to disk (or a database).
+// Persist every state snapshot (each is a complete picture).
 (async () => {
-  for await (const state of channel.subscribe({ replay: true })) {
+  for await (const state of channel.subscribe()) {
     await savePartialState(workflow.id, state);
   }
 })();

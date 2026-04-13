@@ -55,26 +55,12 @@ function echoWorkflow(): WorkflowDefinition {
 // ─── MemoryExecutionStateChannel ─────────────────────────────────
 
 describe("MemoryExecutionStateChannel", () => {
-  test("subscribe with replay yields all published states", async () => {
-    const channel = new MemoryExecutionStateChannel();
-    await channel.publish(makeState("pending", 0));
-    await channel.publish(makeState("running", 1));
-    await channel.publish(makeState("completed", 2));
-    await channel.close();
-
-    const states = await collect(channel.subscribe({ replay: true }));
-    expect(states).toHaveLength(3);
-    expect(states[0]?.status).toBe("pending");
-    expect(states[1]?.status).toBe("running");
-    expect(states[2]?.status).toBe("completed");
-  });
-
-  test("subscribe without replay yields only latest then live", async () => {
+  test("subscribe yields latest state then follows live", async () => {
     const channel = new MemoryExecutionStateChannel();
     await channel.publish(makeState("pending", 0));
     await channel.publish(makeState("running", 1));
 
-    // Subscribe without replay — should get only the latest (running).
+    // Subscribe — should get only the latest (running).
     const iter = channel.subscribe()[Symbol.asyncIterator]();
     const first = await iter.next();
     expect(first.done).toBe(false);
@@ -114,7 +100,7 @@ describe("MemoryExecutionStateChannel", () => {
     const channel = new MemoryExecutionStateChannel();
     await channel.publish(makeState("running", 0));
 
-    const iter = channel.subscribe({ replay: true })[Symbol.asyncIterator]();
+    const iter = channel.subscribe()[Symbol.asyncIterator]();
     await iter.next(); // consume the running state
 
     // Close should terminate.
@@ -133,11 +119,11 @@ describe("MemoryExecutionStateChannel", () => {
     expect(latest?.status).toBe("running");
   });
 
-  test("multiple concurrent subscribers each get all states", async () => {
+  test("multiple concurrent subscribers each get live states", async () => {
     const channel = new MemoryExecutionStateChannel();
 
-    const p1 = collect(channel.subscribe({ replay: true }));
-    const p2 = collect(channel.subscribe({ replay: true }));
+    const p1 = collect(channel.subscribe());
+    const p2 = collect(channel.subscribe());
 
     await channel.publish(makeState("pending", 0));
     await channel.publish(makeState("running", 1));
@@ -158,7 +144,7 @@ describe("debounce", () => {
       debounce: { ms: 50 },
     });
 
-    const collected = collect(channel.subscribe({ replay: true }));
+    const collected = collect(channel.subscribe());
 
     // Publish rapidly — only the last should arrive after debounce.
     await channel.publish(makeState("pending", 0));
@@ -180,7 +166,7 @@ describe("debounce", () => {
       debounce: { ms: 200 },
     });
 
-    const collected = collect(channel.subscribe({ replay: true }));
+    const collected = collect(channel.subscribe());
 
     await channel.publish(makeState("pending", 0));
     await channel.publish(makeState("completed", 1));
@@ -229,7 +215,7 @@ describe("executeWorkflowStream", () => {
 describe("executeWorkflow channel option", () => {
   test("publishes states to the provided channel", async () => {
     const channel = new MemoryExecutionStateChannel();
-    const collected = collect(channel.subscribe({ replay: true }));
+    const collected = collect(channel.subscribe());
 
     await executeWorkflow(echoWorkflow(), {
       tools: echoTools,
@@ -247,7 +233,7 @@ describe("executeWorkflow channel option", () => {
     const channel = new MemoryExecutionStateChannel();
     const onChangeStates: ExecutionState[] = [];
 
-    const collected = collect(channel.subscribe({ replay: true }));
+    const collected = collect(channel.subscribe());
 
     await executeWorkflow(echoWorkflow(), {
       tools: echoTools,

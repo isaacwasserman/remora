@@ -1,9 +1,9 @@
 import type { ExecutionState } from "./state";
 
-// ─── Interfaces ──────────────────────────────────────────────────
+// ─── Options ────────────────────────────────────────────────────
 
-/** Options for configuring a {@link BaseExecutionStateChannel}. */
-export interface WorkflowExecutionStateChannelOptions {
+/** Options for configuring an {@link ExecutionStateChannel}. */
+export interface ExecutionStateChannelOptions {
   debounce?: {
     /** Minimum interval in milliseconds between emitted states. */
     ms: number;
@@ -12,40 +12,24 @@ export interface WorkflowExecutionStateChannelOptions {
   };
 }
 
-/** Pub/sub channel for streaming {@link ExecutionState} snapshots from an executor to one or more consumers. */
-export interface WorkflowExecutionStateChannel {
-  /** Push a new state snapshot into the channel. */
-  publish(state: ExecutionState): void | Promise<void>;
-  /** Signal that no more states will be published. Subscribers will drain and terminate. */
-  close(): void | Promise<void>;
-  /**
-   * Subscribe to state updates.
-   *
-   * - Default (`replay: false`): yields the latest state immediately (if any), then follows live.
-   * - `replay: true`: yields the full history from the beginning, then follows live.
-   */
-  subscribe(opts?: { replay?: boolean }): AsyncIterable<ExecutionState>;
-  /** Returns the most recent state, or `null` if none has been published. */
-  latest?(): Promise<ExecutionState | null>;
-}
-
-// ─── Base Class ──────────────────────────────────────────────────
+// ─── Base Class ─────────────────────────────────────────────────
 
 const TERMINAL_STATUSES = new Set(["completed", "failed"]);
 
 /**
- * Abstract base that handles debounce logic so subclasses only implement
+ * Abstract pub/sub channel for streaming {@link ExecutionState} snapshots
+ * from an executor to one or more consumers.
+ *
+ * Handles debounce logic so subclasses only implement
  * {@link emit}, {@link doClose}, and {@link subscribe}.
  */
-export abstract class BaseExecutionStateChannel
-  implements WorkflowExecutionStateChannel
-{
+export abstract class ExecutionStateChannel {
   private readonly debounceMs: number | undefined;
   private readonly flushOnComplete: boolean;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private bufferedState: ExecutionState | null = null;
 
-  constructor(options?: WorkflowExecutionStateChannelOptions) {
+  constructor(options?: ExecutionStateChannelOptions) {
     this.debounceMs = options?.debounce?.ms;
     this.flushOnComplete = options?.debounce?.flushOnComplete ?? true;
   }
@@ -100,11 +84,15 @@ export abstract class BaseExecutionStateChannel
   /** Perform subclass-specific close logic (e.g. resolve pending waiters). */
   protected abstract doClose(): void | Promise<void>;
 
-  abstract subscribe(opts?: {
-    replay?: boolean;
-  }): AsyncIterable<ExecutionState>;
+  /**
+   * Subscribe to state updates.
+   *
+   * Yields the latest state immediately (if any), then follows live updates
+   * until the channel is closed.
+   */
+  abstract subscribe(): AsyncIterable<ExecutionState>;
 
-  /** Returns the most recent state. Override in subclasses that track history. */
+  /** Returns the most recent state, or `null` if none has been published. */
   latest(): Promise<ExecutionState | null> {
     return Promise.resolve(null);
   }
@@ -116,7 +104,7 @@ export abstract class BaseExecutionStateChannel
  * A simple in-memory channel that buffers all published states in an array.
  * Suitable for single-process use (e.g. {@link executeWorkflowStream}).
  */
-export class MemoryExecutionStateChannel extends BaseExecutionStateChannel {
+export class MemoryExecutionStateChannel extends ExecutionStateChannel {
   private readonly states: ExecutionState[] = [];
   private readonly waiters: Array<() => void> = [];
   private closed = false;
@@ -146,19 +134,12 @@ export class MemoryExecutionStateChannel extends BaseExecutionStateChannel {
     );
   }
 
-  subscribe(opts?: { replay?: boolean }): AsyncIterable<ExecutionState> {
+  subscribe(): AsyncIterable<ExecutionState> {
     const channel = this;
 
     async function* generator(): AsyncGenerator<ExecutionState> {
-      let cursor: number;
-
-      if (opts?.replay) {
-        // Replay: yield everything from the start.
-        cursor = 0;
-      } else {
-        // Default: yield only the latest state (if any), then follow live.
-        cursor = Math.max(0, channel.states.length - 1);
-      }
+      // Start from the latest state (if any), then follow live.
+      let cursor = Math.max(0, channel.states.length - 1);
 
       while (true) {
         // Yield all buffered states from cursor.

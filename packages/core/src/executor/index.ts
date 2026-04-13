@@ -21,14 +21,8 @@ import { hashWorkflow } from "./hash";
 import type { ApprovableAction } from "./policy";
 import type { ExecutionPathSegment, ExecutionState, TraceEntry } from "./state";
 
-export type {
-  WorkflowExecutionStateChannel,
-  WorkflowExecutionStateChannelOptions,
-} from "./channel";
-export {
-  BaseExecutionStateChannel,
-  MemoryExecutionStateChannel,
-} from "./channel";
+export type { ExecutionStateChannelOptions } from "./channel";
+export { ExecutionStateChannel, MemoryExecutionStateChannel } from "./channel";
 export type {
   ExecuteWorkflowOptions,
   ExecutionResult,
@@ -1014,7 +1008,7 @@ export async function executeWorkflow(
  * `AsyncIterable<ExecutionState>` that yields every state snapshot.
  *
  * The workflow executes in the background (fire-and-forget). The returned
- * iterable replays all states from the beginning and follows live updates
+ * iterable yields the latest state immediately, then follows live updates
  * until the run completes or fails.
  */
 export function executeWorkflowStream(
@@ -1026,5 +1020,5 @@ export function executeWorkflowStream(
   // Fire-and-forget — channel.close() is called by executeWorkflow's finally block.
   executeWorkflow(workflow, { ...options, channel });
 
-  return channel.subscribe({ replay: true });
+  return channel.subscribe();
 }

@@ -35,7 +35,7 @@ interface ExecuteWorkflowOptions {
   onStepStart?: (stepId: string, step: WorkflowStep) => void;
   onStepComplete?: (stepId: string, output: unknown) => void;
   onStateChange?: (state: ExecutionState, delta: ExecutionDelta) => void;
-  channel?: WorkflowExecutionStateChannel;
+  channel?: ExecutionStateChannel;
   context?: DurableContext;
   limits?: ExecutorLimits;
   policies?: Policy[];
@@ -215,7 +215,7 @@ For streaming to a UI, across process or network boundaries, or to multiple conc
 
 ### `channel`
 
-**Type:** `WorkflowExecutionStateChannel`
+**Type:** `ExecutionStateChannel`
 **Default:** `undefined`
 
 A pub/sub channel that receives every execution state snapshot via `publish()` and is automatically closed when the run finishes. The channel fires in addition to `onStateChange`, so you can use both at once.
@@ -228,10 +228,10 @@ import {
 
 const channel = new MemoryExecutionStateChannel();
 
-// Fan out: one subscriber builds a replay log, another drives a live UI.
-const replayPromise = (async () => {
+// Subscribe — each state is a complete snapshot.
+const statesPromise = (async () => {
   const log: ExecutionState[] = [];
-  for await (const state of channel.subscribe({ replay: true })) {
+  for await (const state of channel.subscribe()) {
     log.push(state);
   }
   return log;
@@ -243,7 +243,7 @@ await executeWorkflow(workflow, {
   channel,
 });
 
-const history = await replayPromise;
+const states = await statesPromise;
 ```
 
 For the quickest path — just give me an `AsyncIterable<ExecutionState>` — use the `executeWorkflowStream` helper, which is a thin wrapper around the `channel` option:

@@ -354,7 +354,7 @@ async function runWorkflow() {
 }
 ```
 
-For use cases that need to stream across process or network boundaries — for example, an HTTP handler that streams state snapshots to a browser, or a worker that publishes to Redis pub/sub — use a [channel](/guide/streaming) instead. Channels support multiple concurrent subscribers, replay, debouncing, and custom transports. The `executeWorkflowStream` helper returns an `AsyncIterable<ExecutionState>` you can yield directly from a streaming handler:
+For use cases that need to stream across process or network boundaries — for example, an HTTP handler that streams state snapshots to a browser, or a worker that publishes to Redis pub/sub — use a [channel](/guide/streaming) instead. Channels support multiple concurrent subscribers, debouncing, and custom transports. The `executeWorkflowStream` helper returns an `AsyncIterable<ExecutionState>` you can yield directly from a streaming handler:
 
 ```ts
 import { executeWorkflowStream } from "@remoraflow/core";
