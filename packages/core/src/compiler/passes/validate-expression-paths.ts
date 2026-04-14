@@ -39,7 +39,7 @@ export function validateExpressionPaths(
           : "";
 
       diagnostics.push({
-        severity: "warning",
+        severity: "error",
         location: { stepId: expr.stepId, field: expr.field },
         message: `Expression '${expr.expression}' references property '${result.failedAtSegment}' which does not exist in the output schema.${hint}`,
         code: "JMESPATH_INVALID_PROPERTY_PATH",
