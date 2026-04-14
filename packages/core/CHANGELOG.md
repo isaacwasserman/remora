@@ -1,5 +1,11 @@
 # @remoraflow/core
 
+## 0.7.0
+
+### Minor Changes
+
+- ec262b9: Add compiler pass to validate property paths in JMESPath expressions against known output schemas. The new `JMESPATH_INVALID_PROPERTY_PATH` warning catches references to non-existent properties (e.g., `${step.data}` when the step output only has `result`), with hints listing available properties.
+
 ## 0.6.0
 
 ### Minor Changes
