@@ -5514,4 +5514,198 @@ describe("expression property path validation", () => {
     expect(diag.message).toContain("results");
     expect(diag.message).toContain("items");
   });
+
+  test("catches invalid .data references in daily vulnerability report workflow", async () => {
+    const tools = {
+      queryWarehouseData: tool({
+        inputSchema: type({
+          sql: "string",
+          dataTableContext: "string",
+        }),
+        outputSchema: type([
+          {
+            "string?": "string | number | boolean | null",
+          },
+          "[]",
+        ]),
+        execute: async () => [],
+      }),
+      "send-notification": tool({
+        inputSchema: type({
+          body: "string",
+          subject: "string",
+          destination: "object",
+        }),
+        execute: async () => ({}),
+      }),
+    };
+
+    const workflow: WorkflowDefinition = {
+      initialStepId: "start",
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          type: "start",
+          nextStepId: "query_summary_stats",
+          description: "Start the daily vulnerability report workflow",
+        },
+        {
+          id: "query_summary_stats",
+          name: "Query Summary Statistics",
+          type: "tool-call",
+          params: {
+            toolName: "queryWarehouseData",
+            toolInput: {
+              sql: {
+                type: "literal",
+                value:
+                  "SELECT COUNT(*) AS total_new_vulns FROM otto_dev26.otto_vulnerabilities v WHERE v.partition_date = CURRENT_DATE AND v.first_seen_date = CURRENT_DATE",
+              },
+              dataTableContext: {
+                type: "literal",
+                value: "Summary stats for new vulnerabilities discovered today",
+              },
+            },
+          },
+          nextStepId: "query_severity_breakdown",
+          description: "Query total new vulnerabilities for today",
+        },
+        {
+          id: "query_severity_breakdown",
+          name: "Query Severity Breakdown",
+          type: "tool-call",
+          params: {
+            toolName: "queryWarehouseData",
+            toolInput: {
+              sql: {
+                type: "literal",
+                value:
+                  "SELECT kb.severity, COUNT(*) AS vuln_count FROM otto_dev26.otto_vulnerabilities v LEFT JOIN otto_dev26.otto_qualys_vuln_kb kb ON CAST(kb.qid AS VARCHAR) = v.qualys_qid WHERE v.partition_date = CURRENT_DATE AND v.first_seen_date = CURRENT_DATE GROUP BY kb.severity ORDER BY vuln_count DESC",
+              },
+              dataTableContext: {
+                type: "literal",
+                value:
+                  "New vulnerability counts broken down by severity for today",
+              },
+            },
+          },
+          nextStepId: "query_top_hosts",
+          description: "Count new vulnerabilities grouped by severity",
+        },
+        {
+          id: "query_top_hosts",
+          name: "Query Top 5 Affected Hosts",
+          type: "tool-call",
+          params: {
+            toolName: "queryWarehouseData",
+            toolInput: {
+              sql: {
+                type: "literal",
+                value:
+                  "SELECT v.hostname, COUNT(*) AS new_vuln_count FROM otto_dev26.otto_vulnerabilities v WHERE v.partition_date = CURRENT_DATE AND v.first_seen_date = CURRENT_DATE GROUP BY v.hostname ORDER BY new_vuln_count DESC LIMIT 5",
+              },
+              dataTableContext: {
+                type: "literal",
+                value: "Top 5 hosts by new vulnerability count today",
+              },
+            },
+          },
+          nextStepId: "format_report",
+          description:
+            "Find the 5 hosts with the most new vulnerabilities today",
+        },
+        {
+          id: "format_report",
+          name: "Format Vulnerability Report",
+          type: "llm-prompt",
+          params: {
+            prompt:
+              "You are a security reporting assistant. Format the following vulnerability data into a clean, concise markdown report.\n\nSummary Statistics (JSON): ${query_summary_stats.data}\n\nSeverity Breakdown (JSON): ${query_severity_breakdown.data}\n\nTop 5 Most Affected Hosts (JSON): ${query_top_hosts.data}\n\nFormat the report with the following sections:\n1. A headline showing today's date and the total new vulnerability count\n2. A severity breakdown table\n3. A Top 5 Most Affected Hosts table\n4. A highlighted line showing patchable vulnerabilities\n5. A brief 1-2 sentence executive summary\n\nUse proper markdown. Be concise and factual.",
+            outputFormat: {
+              type: "object",
+              required: ["report_markdown", "report_date"],
+              properties: {
+                report_date: {
+                  type: "string",
+                  description: "The date of the report in YYYY-MM-DD format",
+                },
+                report_markdown: {
+                  type: "string",
+                  description:
+                    "The fully formatted markdown vulnerability report",
+                },
+              },
+            },
+          },
+          nextStepId: "send_notification",
+          description:
+            "Use an LLM to format all query results into a clean markdown report",
+        },
+        {
+          id: "send_notification",
+          name: "Send OttoGuard Notification",
+          type: "tool-call",
+          params: {
+            toolName: "send-notification",
+            toolInput: {
+              body: {
+                type: "jmespath",
+                expression: "format_report.report_markdown",
+              },
+              subject: {
+                type: "template",
+                template:
+                  "Daily Vulnerability Report – ${format_report.report_date}",
+              },
+              destination: {
+                type: "literal",
+                value: {
+                  type: "direct",
+                  method: "ottoguard-ui",
+                },
+              },
+            },
+          },
+          nextStepId: "end_workflow",
+          description:
+            "Send the formatted report as an in-app OttoGuard notification",
+        },
+        {
+          id: "end_workflow",
+          name: "End",
+          type: "end",
+          params: {
+            output: {
+              type: "jmespath",
+              expression: "format_report.report_markdown",
+            },
+          },
+          description: "Workflow complete — daily vulnerability report sent",
+        },
+      ],
+    } as WorkflowDefinition;
+
+    const result = await compileWorkflow(workflow, { tools });
+
+    // The three ${...data} references in the llm-prompt should all be caught
+    const pathDiags = getDiagnostics(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(pathDiags.length).toBe(3);
+
+    // All three should reference the "data" property
+    for (const diag of pathDiags) {
+      expect(diag.severity).toBe("warning");
+      expect(diag.message).toContain("data");
+      expect(diag.location.stepId).toBe("format_report");
+    }
+
+    // The valid references (format_report.report_markdown, format_report.report_date)
+    // should NOT trigger warnings — verify they aren't in the diagnostics
+    const allMessages = pathDiags.map((d) => d.message).join(" ");
+    expect(allMessages).not.toContain("report_markdown");
+    expect(allMessages).not.toContain("report_date");
+  });
 });
