@@ -1,5 +1,12 @@
 # @remoraflow/ui
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [642e815]
+  - @remoraflow/core@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes
