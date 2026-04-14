@@ -5,6 +5,7 @@ import { applyBestPractices } from "./passes/apply-best-practices";
 import { buildGraph } from "./passes/build-graph";
 import { generateConstrainedToolSchemas } from "./passes/generate-constrained-tool-schemas";
 import { validateControlFlow } from "./passes/validate-control-flow";
+import { validateExpressionPaths } from "./passes/validate-expression-paths";
 import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateLimits } from "./passes/validate-limits";
@@ -87,6 +88,11 @@ export async function compileWorkflow(
     );
 
     diagnostics.push(...validateJmespath(workflow, graphResult.graph));
+
+    // Validate property paths in all expressions against known output schemas
+    diagnostics.push(
+      ...validateExpressionPaths(workflow, graphResult.graph, toolSchemas),
+    );
 
     // Validate for-each targets resolve to array types
     if (toolSchemas) {

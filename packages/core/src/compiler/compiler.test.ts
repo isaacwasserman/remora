@@ -4789,3 +4789,923 @@ describe("agent-loop", () => {
     ).toBe(true);
   });
 });
+
+// ─── Expression property path validation ────────────────────────
+
+describe("expression property path validation", () => {
+  test("no warning when property exists in tool outputSchema", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ summary: "string", count: "number" }),
+        execute: async () => ({ summary: "ok", count: 1 }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format report",
+          type: "llm-prompt",
+          params: {
+            prompt: "Summarize: ${fetch.summary}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("no warning when property exists in llm-prompt outputFormat", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze data",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { result: { type: "string" } },
+            },
+          },
+          nextStepId: "notify",
+        },
+        {
+          id: "notify",
+          name: "Notify",
+          description: "Send notification",
+          type: "tool-call",
+          params: {
+            toolName: "send-slack-message",
+            toolInput: {
+              channel: { type: "literal", value: "#general" },
+              message: { type: "jmespath", expression: "analyze.result" },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("warns on invalid property in tool outputSchema", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ result: "string" }),
+        execute: async () => ({ result: "ok" }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format report",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${fetch.data}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.severity).toBe("warning");
+    expect(diag.message).toContain("data");
+    expect(diag.message).toContain("result");
+    expect(diag.location.stepId).toBe("report");
+  });
+
+  test("warns on invalid property in llm-prompt template expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze data",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { summary: { type: "string" } },
+            },
+          },
+          nextStepId: "format",
+        },
+        {
+          id: "format",
+          name: "Format",
+          description: "Format output",
+          type: "llm-prompt",
+          params: {
+            prompt: "Format: ${analyze.nonexistent}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("nonexistent");
+    expect(diag.message).toContain("summary");
+  });
+
+  test("warns on invalid property in agent-loop template expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { findings: { type: "string" } },
+            },
+          },
+          nextStepId: "agent",
+        },
+        {
+          id: "agent",
+          name: "Agent",
+          description: "Run agent",
+          type: "agent-loop",
+          params: {
+            instructions: "Process ${analyze.wrong_field}",
+            tools: ["do-thing"],
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("wrong_field");
+    expect(diag.message).toContain("findings");
+  });
+
+  test("warns on invalid property in switch-case switchOn expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Classify this",
+            outputFormat: {
+              type: "object",
+              properties: { category: { type: "string" } },
+            },
+          },
+          nextStepId: "branch",
+        },
+        {
+          id: "branch",
+          name: "Branch",
+          description: "Branch on category",
+          type: "switch-case",
+          params: {
+            switchOn: {
+              type: "jmespath",
+              expression: "analyze.classification",
+            },
+            cases: [
+              {
+                value: { type: "literal", value: "critical" },
+                branchBodyStepId: "done",
+              },
+            ],
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("classification");
+    expect(diag.message).toContain("category");
+  });
+
+  test("warns on invalid property in end step output expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { summary: { type: "string" } },
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+          params: {
+            output: { type: "jmespath", expression: "analyze.report" },
+          },
+        },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("report");
+  });
+
+  test("warns on invalid property in extract-data sourceData expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { raw: { type: "string" } },
+            },
+          },
+          nextStepId: "extract",
+        },
+        {
+          id: "extract",
+          name: "Extract",
+          description: "Extract data",
+          type: "extract-data",
+          params: {
+            sourceData: {
+              type: "jmespath",
+              expression: "analyze.rawOutput",
+            },
+            outputFormat: {
+              type: "object",
+              properties: { name: { type: "string" } },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("rawOutput");
+    expect(diag.message).toContain("raw");
+  });
+
+  test("no warning when tool has no outputSchema", async () => {
+    const workflow = makeWorkflow({
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format report",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${start.anything}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("silently skips complex JMESPath expressions", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ items: [{ name: "string" }, "[]"] }),
+        execute: async () => ({ items: [] }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${fetch.items[0].name}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("no warning for root-only expression with no property path", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ result: "string" }),
+        execute: async () => ({ result: "ok" }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+          params: {
+            output: { type: "jmespath", expression: "fetch" },
+          },
+        },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("warns on nested property path failure", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({
+          response: { data: { count: "number" } },
+        }),
+        execute: async () => ({ response: { data: { count: 5 } } }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format",
+          type: "llm-prompt",
+          params: {
+            prompt: "Items: ${fetch.response.data.items}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("items");
+    expect(diag.message).toContain("count");
+  });
+
+  test("validates input.field against workflow inputSchema", async () => {
+    const workflow = makeWorkflow({
+      inputSchema: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+          email: { type: "string" },
+        },
+      },
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "tool-call",
+          params: {
+            toolName: "send-slack-message",
+            toolInput: {
+              channel: { type: "literal", value: "#general" },
+              message: { type: "jmespath", expression: "input.nonexistent" },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("nonexistent");
+    expect(diag.message).toContain("userId");
+  });
+
+  test("no warning for valid input.field reference", async () => {
+    const workflow = makeWorkflow({
+      inputSchema: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+        },
+      },
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "tool-call",
+          params: {
+            toolName: "send-slack-message",
+            toolInput: {
+              channel: { type: "literal", value: "#general" },
+              message: { type: "jmespath", expression: "input.userId" },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("catches invalid path without tools when llm-prompt has outputFormat", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { summary: { type: "string" } },
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+          params: {
+            output: { type: "jmespath", expression: "analyze.nonexistent" },
+          },
+        },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    // Compile without tools
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+  });
+
+  test("does not mask JMESPATH_INVALID_ROOT_REFERENCE for unknown roots", async () => {
+    const workflow = makeWorkflow({
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${unknown_step.field}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    // Root reference error should still fire
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+    ).toBe(true);
+    // Property path warning should NOT fire (unknown root is handled separately)
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("warns on invalid property in for-each target expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: {
+                items: { type: "array", items: { type: "string" } },
+              },
+            },
+          },
+          nextStepId: "loop",
+        },
+        {
+          id: "loop",
+          name: "Loop",
+          description: "Loop",
+          type: "for-each",
+          params: {
+            target: { type: "jmespath", expression: "analyze.results" },
+            itemName: "item",
+            loopBodyStepId: "process",
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "process",
+          name: "Process",
+          description: "Process item",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("results");
+    expect(diag.message).toContain("items");
+  });
+
+  test("catches invalid .data references in daily vulnerability report workflow", async () => {
+    const tools = {
+      queryWarehouseData: tool({
+        inputSchema: type({
+          sql: "string",
+          dataTableContext: "string",
+        }),
+        outputSchema: type([
+          {
+            "string?": "string | number | boolean | null",
+          },
+          "[]",
+        ]),
+        execute: async () => [],
+      }),
+      "send-notification": tool({
+        inputSchema: type({
+          body: "string",
+          subject: "string",
+          destination: "object",
+        }),
+        execute: async () => ({}),
+      }),
+    };
+
+    const workflow: WorkflowDefinition = {
+      initialStepId: "start",
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          type: "start",
+          nextStepId: "query_summary_stats",
+          description: "Start the daily vulnerability report workflow",
+        },
+        {
+          id: "query_summary_stats",
+          name: "Query Summary Statistics",
+          type: "tool-call",
+          params: {
+            toolName: "queryWarehouseData",
+            toolInput: {
+              sql: {
+                type: "literal",
+                value:
+                  "SELECT COUNT(*) AS total_new_vulns FROM otto_dev26.otto_vulnerabilities v WHERE v.partition_date = CURRENT_DATE AND v.first_seen_date = CURRENT_DATE",
+              },
+              dataTableContext: {
+                type: "literal",
+                value: "Summary stats for new vulnerabilities discovered today",
+              },
+            },
+          },
+          nextStepId: "query_severity_breakdown",
+          description: "Query total new vulnerabilities for today",
+        },
+        {
+          id: "query_severity_breakdown",
+          name: "Query Severity Breakdown",
+          type: "tool-call",
+          params: {
+            toolName: "queryWarehouseData",
+            toolInput: {
+              sql: {
+                type: "literal",
+                value:
+                  "SELECT kb.severity, COUNT(*) AS vuln_count FROM otto_dev26.otto_vulnerabilities v LEFT JOIN otto_dev26.otto_qualys_vuln_kb kb ON CAST(kb.qid AS VARCHAR) = v.qualys_qid WHERE v.partition_date = CURRENT_DATE AND v.first_seen_date = CURRENT_DATE GROUP BY kb.severity ORDER BY vuln_count DESC",
+              },
+              dataTableContext: {
+                type: "literal",
+                value:
+                  "New vulnerability counts broken down by severity for today",
+              },
+            },
+          },
+          nextStepId: "query_top_hosts",
+          description: "Count new vulnerabilities grouped by severity",
+        },
+        {
+          id: "query_top_hosts",
+          name: "Query Top 5 Affected Hosts",
+          type: "tool-call",
+          params: {
+            toolName: "queryWarehouseData",
+            toolInput: {
+              sql: {
+                type: "literal",
+                value:
+                  "SELECT v.hostname, COUNT(*) AS new_vuln_count FROM otto_dev26.otto_vulnerabilities v WHERE v.partition_date = CURRENT_DATE AND v.first_seen_date = CURRENT_DATE GROUP BY v.hostname ORDER BY new_vuln_count DESC LIMIT 5",
+              },
+              dataTableContext: {
+                type: "literal",
+                value: "Top 5 hosts by new vulnerability count today",
+              },
+            },
+          },
+          nextStepId: "format_report",
+          description:
+            "Find the 5 hosts with the most new vulnerabilities today",
+        },
+        {
+          id: "format_report",
+          name: "Format Vulnerability Report",
+          type: "llm-prompt",
+          params: {
+            prompt:
+              "You are a security reporting assistant. Format the following vulnerability data into a clean, concise markdown report.\n\nSummary Statistics (JSON): ${query_summary_stats.data}\n\nSeverity Breakdown (JSON): ${query_severity_breakdown.data}\n\nTop 5 Most Affected Hosts (JSON): ${query_top_hosts.data}\n\nFormat the report with the following sections:\n1. A headline showing today's date and the total new vulnerability count\n2. A severity breakdown table\n3. A Top 5 Most Affected Hosts table\n4. A highlighted line showing patchable vulnerabilities\n5. A brief 1-2 sentence executive summary\n\nUse proper markdown. Be concise and factual.",
+            outputFormat: {
+              type: "object",
+              required: ["report_markdown", "report_date"],
+              properties: {
+                report_date: {
+                  type: "string",
+                  description: "The date of the report in YYYY-MM-DD format",
+                },
+                report_markdown: {
+                  type: "string",
+                  description:
+                    "The fully formatted markdown vulnerability report",
+                },
+              },
+            },
+          },
+          nextStepId: "send_notification",
+          description:
+            "Use an LLM to format all query results into a clean markdown report",
+        },
+        {
+          id: "send_notification",
+          name: "Send OttoGuard Notification",
+          type: "tool-call",
+          params: {
+            toolName: "send-notification",
+            toolInput: {
+              body: {
+                type: "jmespath",
+                expression: "format_report.report_markdown",
+              },
+              subject: {
+                type: "template",
+                template:
+                  "Daily Vulnerability Report – ${format_report.report_date}",
+              },
+              destination: {
+                type: "literal",
+                value: {
+                  type: "direct",
+                  method: "ottoguard-ui",
+                },
+              },
+            },
+          },
+          nextStepId: "end_workflow",
+          description:
+            "Send the formatted report as an in-app OttoGuard notification",
+        },
+        {
+          id: "end_workflow",
+          name: "End",
+          type: "end",
+          params: {
+            output: {
+              type: "jmespath",
+              expression: "format_report.report_markdown",
+            },
+          },
+          description: "Workflow complete — daily vulnerability report sent",
+        },
+      ],
+    } as WorkflowDefinition;
+
+    const result = await compileWorkflow(workflow, { tools });
+
+    // The three ${...data} references in the llm-prompt should all be caught
+    const pathDiags = getDiagnostics(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(pathDiags.length).toBe(3);
+
+    // All three should reference the "data" property
+    for (const diag of pathDiags) {
+      expect(diag.severity).toBe("warning");
+      expect(diag.message).toContain("data");
+      expect(diag.location.stepId).toBe("format_report");
+    }
+
+    // The valid references (format_report.report_markdown, format_report.report_date)
+    // should NOT trigger warnings — verify they aren't in the diagnostics
+    const allMessages = pathDiags.map((d) => d.message).join(" ");
+    expect(allMessages).not.toContain("report_markdown");
+    expect(allMessages).not.toContain("report_date");
+  });
+});

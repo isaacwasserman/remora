@@ -128,6 +128,69 @@ function resolveChainOutputSchema(
 }
 
 /**
+ * Discriminated result of resolving a JMESPath expression's property path
+ * against known output schemas. Unlike {@link resolveExpressionSchema},
+ * this distinguishes between "can't validate" and "property doesn't exist".
+ */
+export type ExpressionPathResult =
+  | { status: "resolved"; schema: Record<string, unknown> }
+  | { status: "no_schema" }
+  | { status: "not_simple" }
+  | { status: "unknown_root" }
+  | {
+      status: "property_not_found";
+      failedAtSegment: string;
+      parentSchema: Record<string, unknown>;
+    };
+
+/**
+ * Resolve a JMESPath expression's full property path and report why
+ * resolution failed. Only handles simple dotted paths.
+ */
+export function resolveExpressionPath(
+  expression: string,
+  _contextStepId: string,
+  tools: ToolDefinitionMap | null,
+  workflow: WorkflowDefinition,
+  graph: ExecutionGraph,
+): ExpressionPathResult {
+  const segments = parseSimplePath(expression);
+  if (!segments) return { status: "not_simple" };
+
+  const [rootId, ...fieldPath] = segments;
+  if (!rootId) return { status: "not_simple" };
+
+  let rootSchema: Record<string, unknown> | null = null;
+  if (rootId === "input" && workflow.inputSchema) {
+    rootSchema = workflow.inputSchema as Record<string, unknown>;
+  } else {
+    const referencedStep = graph.stepIndex.get(rootId);
+    if (!referencedStep) return { status: "unknown_root" };
+    rootSchema = getStepOutputSchema(referencedStep, tools, workflow, graph);
+  }
+
+  if (!rootSchema) return { status: "no_schema" };
+  if (fieldPath.length === 0) return { status: "resolved", schema: rootSchema };
+
+  let current = rootSchema;
+  for (const segment of fieldPath) {
+    const properties = current.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    if (!properties?.[segment]) {
+      return {
+        status: "property_not_found",
+        failedAtSegment: segment,
+        parentSchema: current,
+      };
+    }
+    current = properties[segment];
+  }
+
+  return { status: "resolved", schema: current };
+}
+
+/**
  * Resolve a JMESPath output expression to a JSON Schema by tracing
  * through step output schemas. Only handles simple dotted paths.
  * Returns null for complex expressions or when schemas are unavailable.
