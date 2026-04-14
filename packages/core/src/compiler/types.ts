@@ -52,7 +52,8 @@ export type DiagnosticCode =
   | "WAIT_INTERVAL_EXCEEDS_LIMIT"
   | "BACKOFF_MULTIPLIER_OUT_OF_RANGE"
   | "WAIT_TIMEOUT_EXCEEDS_LIMIT"
-  | "UNSUPPORTED_SCHEMA_KEYWORD";
+  | "UNSUPPORTED_SCHEMA_KEYWORD"
+  | "PROMPT_TEMPLATE_EXCEEDS_TOKEN_LIMIT";
 
 /**
  * A structured compiler diagnostic with a severity, location, human-readable message,
@@ -133,6 +134,8 @@ export interface CompilerLimits {
   minBackoffMultiplier?: number;
   /** Upper bound for wait-for-condition timeoutMs in ms. Default: 600_000 (10 min). */
   maxTimeoutMs?: number;
+  /** Maximum token count for prompt templates (llm-prompt and agent-loop). @see {@link MAXIMUM_PROMPT_LENGTH} */
+  maxPromptTokens?: number;
 }
 
 /** The result of compiling a workflow definition. */

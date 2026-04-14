@@ -37,8 +37,9 @@
     "test:e2e": "bun test src/e2e.ts"
   },
   "dependencies": {
+    "@jmespath-community/jmespath": "^1.3.0",
     "arktype": "^2.1.29",
-    "@jmespath-community/jmespath": "^1.3.0"
+    "tokenx": "^1.3.0"
   },
   "peerDependencies": {
     "ai": "^6.0.0",

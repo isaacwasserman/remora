@@ -472,7 +472,7 @@ async function executeStep(
 ): Promise<StepOutput> {
   switch (step.type) {
     case "llm-prompt":
-      return executeLlmPrompt(step, scope, options);
+      return executeLlmPrompt(step, scope, options, timer.resolvedLimits);
     case "extract-data":
       return executeExtractData(step, scope, options, timer.resolvedLimits);
     case "agent-loop":

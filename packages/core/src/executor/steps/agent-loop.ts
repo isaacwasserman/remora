@@ -25,6 +25,7 @@ import {
   evaluateExpression,
   interpolateTemplate,
 } from "../helpers";
+import { interpolateTemplateWithLimits } from "../prompt-truncation";
 import { sanitizeOutputSchema } from "../sanitize-output-schema";
 import type { TraceEntry } from "../state";
 
@@ -44,10 +45,11 @@ export async function executeAgentLoop(
     );
   }
 
-  const interpolatedInstructions = interpolateTemplate(
+  const interpolatedInstructions = interpolateTemplateWithLimits(
     step.params.instructions,
     scope,
     step.id,
+    limits,
   );
 
   const outputSchema = jsonSchema(
