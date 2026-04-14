@@ -174,10 +174,24 @@ export function resolveExpressionPath(
 
   let current = rootSchema;
   for (const segment of fieldPath) {
+    const schemaType = typeof current.type === "string" ? current.type : null;
+
+    // Non-object types (array, string, number, etc.) don't have named properties
+    if (schemaType && schemaType !== "object") {
+      return {
+        status: "property_not_found",
+        failedAtSegment: segment,
+        parentSchema: current,
+      };
+    }
+
+    // Object without declared properties — can't validate further
     const properties = current.properties as
       | Record<string, Record<string, unknown>>
       | undefined;
-    if (!properties?.[segment]) {
+    if (!properties) return { status: "no_schema" };
+
+    if (!properties[segment]) {
       return {
         status: "property_not_found",
         failedAtSegment: segment,

@@ -29,19 +29,28 @@ export function validateExpressionPaths(
     );
 
     if (result.status === "property_not_found") {
+      const parentType =
+        typeof result.parentSchema.type === "string"
+          ? result.parentSchema.type
+          : null;
       const parentProps = result.parentSchema.properties as
         | Record<string, unknown>
         | undefined;
       const available = parentProps ? Object.keys(parentProps) : [];
-      const hint =
-        available.length > 0
-          ? ` Available properties: ${available.map((p) => `'${p}'`).join(", ")}`
-          : "";
+
+      let detail: string;
+      if (parentType && parentType !== "object") {
+        detail = ` The output schema is of type '${parentType}', which has no named properties.`;
+      } else if (available.length > 0) {
+        detail = ` Available properties: ${available.map((p) => `'${p}'`).join(", ")}`;
+      } else {
+        detail = "";
+      }
 
       diagnostics.push({
         severity: "warning",
         location: { stepId: expr.stepId, field: expr.field },
-        message: `Expression '${expr.expression}' references property '${result.failedAtSegment}' which does not exist in the output schema.${hint}`,
+        message: `Expression '${expr.expression}' references property '${result.failedAtSegment}' which does not exist in the output schema.${detail}`,
         code: "JMESPATH_INVALID_PROPERTY_PATH",
       });
     }
