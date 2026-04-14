@@ -4789,3 +4789,729 @@ describe("agent-loop", () => {
     ).toBe(true);
   });
 });
+
+// ─── Expression property path validation ────────────────────────
+
+describe("expression property path validation", () => {
+  test("no warning when property exists in tool outputSchema", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ summary: "string", count: "number" }),
+        execute: async () => ({ summary: "ok", count: 1 }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format report",
+          type: "llm-prompt",
+          params: {
+            prompt: "Summarize: ${fetch.summary}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("no warning when property exists in llm-prompt outputFormat", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze data",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { result: { type: "string" } },
+            },
+          },
+          nextStepId: "notify",
+        },
+        {
+          id: "notify",
+          name: "Notify",
+          description: "Send notification",
+          type: "tool-call",
+          params: {
+            toolName: "send-slack-message",
+            toolInput: {
+              channel: { type: "literal", value: "#general" },
+              message: { type: "jmespath", expression: "analyze.result" },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("warns on invalid property in tool outputSchema", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ result: "string" }),
+        execute: async () => ({ result: "ok" }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format report",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${fetch.data}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.severity).toBe("warning");
+    expect(diag.message).toContain("data");
+    expect(diag.message).toContain("result");
+    expect(diag.location.stepId).toBe("report");
+  });
+
+  test("warns on invalid property in llm-prompt template expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze data",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { summary: { type: "string" } },
+            },
+          },
+          nextStepId: "format",
+        },
+        {
+          id: "format",
+          name: "Format",
+          description: "Format output",
+          type: "llm-prompt",
+          params: {
+            prompt: "Format: ${analyze.nonexistent}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("nonexistent");
+    expect(diag.message).toContain("summary");
+  });
+
+  test("warns on invalid property in agent-loop template expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { findings: { type: "string" } },
+            },
+          },
+          nextStepId: "agent",
+        },
+        {
+          id: "agent",
+          name: "Agent",
+          description: "Run agent",
+          type: "agent-loop",
+          params: {
+            instructions: "Process ${analyze.wrong_field}",
+            tools: ["do-thing"],
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("wrong_field");
+    expect(diag.message).toContain("findings");
+  });
+
+  test("warns on invalid property in switch-case switchOn expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Classify this",
+            outputFormat: {
+              type: "object",
+              properties: { category: { type: "string" } },
+            },
+          },
+          nextStepId: "branch",
+        },
+        {
+          id: "branch",
+          name: "Branch",
+          description: "Branch on category",
+          type: "switch-case",
+          params: {
+            switchOn: {
+              type: "jmespath",
+              expression: "analyze.classification",
+            },
+            cases: [
+              {
+                value: { type: "literal", value: "critical" },
+                branchBodyStepId: "done",
+              },
+            ],
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("classification");
+    expect(diag.message).toContain("category");
+  });
+
+  test("warns on invalid property in end step output expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { summary: { type: "string" } },
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+          params: {
+            output: { type: "jmespath", expression: "analyze.report" },
+          },
+        },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("report");
+  });
+
+  test("warns on invalid property in extract-data sourceData expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { raw: { type: "string" } },
+            },
+          },
+          nextStepId: "extract",
+        },
+        {
+          id: "extract",
+          name: "Extract",
+          description: "Extract data",
+          type: "extract-data",
+          params: {
+            sourceData: {
+              type: "jmespath",
+              expression: "analyze.rawOutput",
+            },
+            outputFormat: {
+              type: "object",
+              properties: { name: { type: "string" } },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("rawOutput");
+    expect(diag.message).toContain("raw");
+  });
+
+  test("no warning when tool has no outputSchema", async () => {
+    const workflow = makeWorkflow({
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format report",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${start.anything}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("silently skips complex JMESPath expressions", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ items: [{ name: "string" }, "[]"] }),
+        execute: async () => ({ items: [] }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${fetch.items[0].name}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("no warning for root-only expression with no property path", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({ result: "string" }),
+        execute: async () => ({ result: "ok" }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+          params: {
+            output: { type: "jmespath", expression: "fetch" },
+          },
+        },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("warns on nested property path failure", async () => {
+    const tools = {
+      "get-data": tool({
+        inputSchema: type({}),
+        outputSchema: type({
+          response: { data: { count: "number" } },
+        }),
+        execute: async () => ({ response: { data: { count: 5 } } }),
+      }),
+    };
+
+    const workflow = makeWorkflow({
+      initialStepId: "fetch",
+      steps: [
+        {
+          id: "fetch",
+          name: "Fetch",
+          description: "Get data",
+          type: "tool-call",
+          params: { toolName: "get-data", toolInput: {} },
+          nextStepId: "report",
+        },
+        {
+          id: "report",
+          name: "Report",
+          description: "Format",
+          type: "llm-prompt",
+          params: {
+            prompt: "Items: ${fetch.response.data.items}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("items");
+    expect(diag.message).toContain("count");
+  });
+
+  test("validates input.field against workflow inputSchema", async () => {
+    const workflow = makeWorkflow({
+      inputSchema: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+          email: { type: "string" },
+        },
+      },
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "tool-call",
+          params: {
+            toolName: "send-slack-message",
+            toolInput: {
+              channel: { type: "literal", value: "#general" },
+              message: { type: "jmespath", expression: "input.nonexistent" },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("nonexistent");
+    expect(diag.message).toContain("userId");
+  });
+
+  test("no warning for valid input.field reference", async () => {
+    const workflow = makeWorkflow({
+      inputSchema: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+        },
+      },
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "tool-call",
+          params: {
+            toolName: "send-slack-message",
+            toolInput: {
+              channel: { type: "literal", value: "#general" },
+              message: { type: "jmespath", expression: "input.userId" },
+            },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("catches invalid path without tools when llm-prompt has outputFormat", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: { summary: { type: "string" } },
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+          params: {
+            output: { type: "jmespath", expression: "analyze.nonexistent" },
+          },
+        },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    // Compile without tools
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+  });
+
+  test("does not mask JMESPATH_INVALID_ROOT_REFERENCE for unknown roots", async () => {
+    const workflow = makeWorkflow({
+      steps: [
+        {
+          id: "start",
+          name: "Start",
+          description: "Start",
+          type: "llm-prompt",
+          params: {
+            prompt: "Data: ${unknown_step.field}",
+            outputFormat: { type: "object" },
+          },
+          nextStepId: "done",
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow);
+    // Root reference error should still fire
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+    ).toBe(true);
+    // Property path warning should NOT fire (unknown root is handled separately)
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(false);
+  });
+
+  test("warns on invalid property in for-each target expression", async () => {
+    const workflow = makeWorkflow({
+      initialStepId: "analyze",
+      steps: [
+        {
+          id: "analyze",
+          name: "Analyze",
+          description: "Analyze",
+          type: "llm-prompt",
+          params: {
+            prompt: "Analyze this",
+            outputFormat: {
+              type: "object",
+              properties: {
+                items: { type: "array", items: { type: "string" } },
+              },
+            },
+          },
+          nextStepId: "loop",
+        },
+        {
+          id: "loop",
+          name: "Loop",
+          description: "Loop",
+          type: "for-each",
+          params: {
+            target: { type: "jmespath", expression: "analyze.results" },
+            itemName: "item",
+            loopBodyStepId: "process",
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "process",
+          name: "Process",
+          description: "Process item",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+        },
+        { id: "done", name: "Done", description: "End", type: "end" },
+      ] as WorkflowDefinition["steps"],
+    });
+
+    const result = await compileWorkflow(workflow, { tools: testTools });
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_PROPERTY_PATH"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_INVALID_PROPERTY_PATH",
+    );
+    expect(diag.message).toContain("results");
+    expect(diag.message).toContain("items");
+  });
+});

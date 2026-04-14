@@ -6,7 +6,7 @@ import {
   validateJmespathSyntax,
 } from "../utils/jmespath-helpers";
 
-interface ExpressionInfo {
+export interface ExpressionInfo {
   expression: string;
   stepId: string;
   field: string;
@@ -77,7 +77,7 @@ function collectFromExpressionValue(
   }
 }
 
-function collectExpressions(workflow: WorkflowDefinition): {
+export function collectExpressions(workflow: WorkflowDefinition): {
   expressions: ExpressionInfo[];
   templateDiagnostics: Diagnostic[];
 } {
