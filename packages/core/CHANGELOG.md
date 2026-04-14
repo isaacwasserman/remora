@@ -1,5 +1,11 @@
 # @remoraflow/core
 
+## 0.7.1
+
+### Patch Changes
+
+- 642e815: Change expression path diagnostics to errors instead of warnings
+
 ## 0.7.0
 
 ### Minor Changes
