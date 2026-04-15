@@ -430,6 +430,11 @@ export function WorkflowViewer({
       editStructuralKey !== prevEditStructuralKeyRef.current;
     prevEditStructuralKeyRef.current = editStructuralKey;
 
+    if (skipNextLayoutEffectRef.current) {
+      skipNextLayoutEffectRef.current = false;
+      return;
+    }
+
     if (structureChanged) {
       // Clear user drag/resize overrides — old positions are meaningless
       // for the new structure. Don't store dagre positions as overrides;
@@ -748,23 +753,26 @@ export function WorkflowViewer({
   );
 
   // --- Edit mode: auto-layout ---
-  // Mirrors the direction-switch path: clear overrides and measurements,
-  // set estimate-based nodes, then let the measurement useEffect re-layout
-  // with real DOM sizes for accurate positioning.
+  const skipNextLayoutEffectRef = useRef(false);
   const handleAutoLayout = useCallback(() => {
     positionOverridesRef.current.clear();
     dimensionOverridesRef.current.clear();
-    measuredDimensionsRef.current.clear();
-    initialMeasureDoneRef.current = false;
+    const dims =
+      measuredDimensionsRef.current.size > 0
+        ? measuredDimensionsRef.current
+        : undefined;
     const fresh = buildEditableLayout(
       activeWorkflow,
       activeDiagnostics,
       undefined,
       undefined,
       undefined,
-      undefined,
+      dims,
       direction,
     );
+    // Prevent the big layout useEffect from overwriting with a data-only
+    // update on the next render — auto-layout's result is authoritative.
+    skipNextLayoutEffectRef.current = true;
     setNodes(fresh.nodes);
     setEdges(fresh.edges);
   }, [activeWorkflow, activeDiagnostics, setNodes, setEdges, direction]);
