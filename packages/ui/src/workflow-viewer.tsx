@@ -14,6 +14,7 @@ import {
   type EdgeTypes,
   MiniMap,
   type NodeTypes,
+  type OnNodesChange,
   ReactFlow,
   useEdgesState,
   useNodes,
@@ -182,6 +183,13 @@ export function WorkflowViewer({
     Map<string, { width: number; height: number }>
   >(new Map());
 
+  // Stores actual DOM-measured node dimensions. Populated by React Flow's
+  // onNodesChange "dimensions" events after nodes render, then fed back
+  // into the next dagre layout call for accurate sizing.
+  const measuredDimensionsRef = useRef<
+    Map<string, { width: number; height: number }>
+  >(new Map());
+
   // --- Tool schemas ---
   const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
   useEffect(() => {
@@ -250,6 +258,10 @@ export function WorkflowViewer({
   const prevIsEditingRef = useRef(isEditing);
 
   const layout = useMemo(() => {
+    const dims =
+      measuredDimensionsRef.current.size > 0
+        ? measuredDimensionsRef.current
+        : undefined;
     if (isEditing) {
       return buildEditableLayout(
         activeWorkflow,
@@ -257,7 +269,7 @@ export function WorkflowViewer({
         undefined,
         positionOverridesRef.current,
         dimensionOverridesRef.current,
-        undefined,
+        dims,
         direction,
       );
     }
@@ -265,7 +277,7 @@ export function WorkflowViewer({
       activeWorkflow,
       activeDiagnostics,
       executionState,
-      undefined,
+      dims,
       paused,
       direction,
     );
@@ -278,8 +290,25 @@ export function WorkflowViewer({
     direction,
   ]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
+
+  // Intercept dimension changes to capture real DOM measurements.
+  const onNodesChange: OnNodesChange = useCallback(
+    (changes) => {
+      onNodesChangeBase(changes);
+      for (const change of changes) {
+        if (
+          change.type === "dimensions" &&
+          change.dimensions?.width &&
+          change.dimensions?.height
+        ) {
+          measuredDimensionsRef.current.set(change.id, change.dimensions);
+        }
+      }
+    },
+    [onNodesChangeBase],
+  );
 
   const prevEditStructuralKeyRef = useRef(editStructuralKey);
 
@@ -298,11 +327,15 @@ export function WorkflowViewer({
         // auto-layout so the graph snaps back to clean Dagre positions.
         positionOverridesRef.current.clear();
         dimensionOverridesRef.current.clear();
+        const freshDims =
+          measuredDimensionsRef.current.size > 0
+            ? measuredDimensionsRef.current
+            : undefined;
         const fresh = buildLayout(
           activeWorkflow,
           activeDiagnostics,
           executionState,
-          undefined,
+          freshDims,
           paused,
           direction,
         );
@@ -656,13 +689,17 @@ export function WorkflowViewer({
   const handleAutoLayout = useCallback(() => {
     positionOverridesRef.current.clear();
     dimensionOverridesRef.current.clear();
+    const dims =
+      measuredDimensionsRef.current.size > 0
+        ? measuredDimensionsRef.current
+        : undefined;
     const fresh = buildEditableLayout(
       activeWorkflow,
       activeDiagnostics,
       undefined,
       undefined,
       undefined,
-      undefined,
+      dims,
       direction,
     );
     setNodes(fresh.nodes);
