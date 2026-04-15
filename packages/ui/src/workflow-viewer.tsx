@@ -296,8 +296,9 @@ export function WorkflowViewer({
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
 
   // Intercept dimension changes to capture real DOM measurements.
-  // On the first batch, trigger a one-time re-layout so the initial
-  // render uses accurate sizes instead of heuristic estimates.
+  // Once all initial measurements arrive (debounced via rAF), trigger a
+  // one-time re-layout so the page load uses accurate sizes.
+  const relayoutRafRef = useRef(0);
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       onNodesChangeBase(changes);
@@ -313,32 +314,37 @@ export function WorkflowViewer({
         }
       }
       if (hasDimensionChange && !initialMeasureDoneRef.current) {
-        initialMeasureDoneRef.current = true;
-        const dims = measuredDimensionsRef.current;
-        if (isEditing) {
-          const fresh = buildEditableLayout(
-            activeWorkflow,
-            activeDiagnostics,
-            undefined,
-            positionOverridesRef.current,
-            dimensionOverridesRef.current,
-            dims,
-            direction,
-          );
-          setNodes(fresh.nodes);
-          setEdges(fresh.edges);
-        } else {
-          const fresh = buildLayout(
-            activeWorkflow,
-            activeDiagnostics,
-            executionState,
-            dims,
-            paused,
-            direction,
-          );
-          setNodes(fresh.nodes);
-          setEdges(fresh.edges);
-        }
+        // Cancel any previously scheduled re-layout so we wait for ALL
+        // measurement batches (ResizeObserver may fire across frames).
+        cancelAnimationFrame(relayoutRafRef.current);
+        relayoutRafRef.current = requestAnimationFrame(() => {
+          initialMeasureDoneRef.current = true;
+          const dims = measuredDimensionsRef.current;
+          if (isEditing) {
+            const fresh = buildEditableLayout(
+              activeWorkflow,
+              activeDiagnostics,
+              undefined,
+              positionOverridesRef.current,
+              dimensionOverridesRef.current,
+              dims,
+              direction,
+            );
+            setNodes(fresh.nodes);
+            setEdges(fresh.edges);
+          } else {
+            const fresh = buildLayout(
+              activeWorkflow,
+              activeDiagnostics,
+              executionState,
+              dims,
+              paused,
+              direction,
+            );
+            setNodes(fresh.nodes);
+            setEdges(fresh.edges);
+          }
+        });
       }
     },
     [
