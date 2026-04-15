@@ -10,6 +10,7 @@ import { validateForeachTarget } from "./passes/validate-foreach-target";
 import { validateJmespath } from "./passes/validate-jmespath";
 import { validateLimits } from "./passes/validate-limits";
 import { validateOutputSchemas } from "./passes/validate-output-schemas";
+import { validatePromptSize } from "./passes/validate-prompt-size";
 import { validateReferences } from "./passes/validate-references";
 import { validateToolInputTypes } from "./passes/validate-tool-input-types";
 import { validateTools } from "./passes/validate-tools";
@@ -66,7 +67,10 @@ export async function compileWorkflow(
   // Pass 2b: Validate sleep/wait literal values against configured limits
   diagnostics.push(...validateLimits(workflow, options?.limits));
 
-  // Pass 2c: Warn about unsupported JSON Schema keywords in outputFormat
+  // Pass 2c: Validate prompt template sizes against token limits
+  diagnostics.push(...validatePromptSize(workflow, options?.limits));
+
+  // Pass 2d: Warn about unsupported JSON Schema keywords in outputFormat
   diagnostics.push(...validateOutputSchemas(workflow));
 
   // Pass 3: Extract tool schemas (needed by control flow and for-each validation)

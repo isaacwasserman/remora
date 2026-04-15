@@ -1,4 +1,8 @@
 import type { Agent, LanguageModel, ToolSet } from "ai";
+import {
+  MAXIMUM_PROMPT_LENGTH,
+  MAXIMUM_PROMPT_VARIABLE_LENGTH,
+} from "../prompt-size";
 import type { WorkflowStep } from "../types";
 import type { WorkflowExecutionStateChannel } from "./channel";
 import type { DurableContext } from "./context";
@@ -51,6 +55,10 @@ export interface ExecutorLimits {
   probeResultMaxBytes?: number;
   /** Maximum probe steps for extract-data probe mode. @see {@link DEFAULT_EXECUTOR_LIMITS} */
   probeMaxSteps?: number;
+  /** Maximum token count for a fully rendered prompt. @see {@link MAXIMUM_PROMPT_LENGTH} */
+  maxPromptTokens?: number;
+  /** Maximum token count for any single interpolated variable in a prompt. @see {@link MAXIMUM_PROMPT_VARIABLE_LENGTH} */
+  maxPromptVariableTokens?: number;
 }
 
 /** Options for {@link executeWorkflow}. */
@@ -150,6 +158,8 @@ export const DEFAULT_EXECUTOR_LIMITS: Required<ExecutorLimits> = {
   probeThresholdBytes: 50_000, // 50KB
   probeResultMaxBytes: 10_000, // 10KB
   probeMaxSteps: 10,
+  maxPromptTokens: MAXIMUM_PROMPT_LENGTH,
+  maxPromptVariableTokens: MAXIMUM_PROMPT_VARIABLE_LENGTH,
 };
 
 export class ExecutionTimer {

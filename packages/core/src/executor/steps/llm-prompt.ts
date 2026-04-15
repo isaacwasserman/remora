@@ -1,8 +1,13 @@
 import { jsonSchema, Output, stepCountIs, ToolLoopAgent } from "ai";
 import type { WorkflowStep } from "../../types";
 import { ConfigurationError, StepExecutionError } from "../errors";
-import type { ResolvedExecuteWorkflowOptions } from "../executor-types";
+import {
+  DEFAULT_EXECUTOR_LIMITS,
+  type ExecutorLimits,
+  type ResolvedExecuteWorkflowOptions,
+} from "../executor-types";
 import { classifyLlmError, interpolateTemplate } from "../helpers";
+import { interpolateTemplateWithLimits } from "../prompt-truncation";
 import { sanitizeOutputSchema } from "../sanitize-output-schema";
 import type { TraceEntry } from "../state";
 
@@ -10,6 +15,7 @@ export async function executeLlmPrompt(
   step: WorkflowStep & { type: "llm-prompt" },
   scope: Record<string, unknown>,
   options: ResolvedExecuteWorkflowOptions,
+  limits?: Required<ExecutorLimits>,
 ): Promise<{ output: unknown; trace?: TraceEntry[] }> {
   if (!options.model) {
     throw new ConfigurationError(
@@ -19,7 +25,16 @@ export async function executeLlmPrompt(
     );
   }
 
-  const prompt = interpolateTemplate(step.params.prompt, scope, step.id);
+  const resolvedLimits = limits ?? {
+    ...DEFAULT_EXECUTOR_LIMITS,
+    ...options.limits,
+  };
+  const prompt = interpolateTemplateWithLimits(
+    step.params.prompt,
+    scope,
+    step.id,
+    resolvedLimits,
+  );
 
   const agent = new ToolLoopAgent({
     model: options.model,

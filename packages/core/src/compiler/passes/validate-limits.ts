@@ -1,3 +1,4 @@
+import { MAXIMUM_PROMPT_LENGTH } from "../../prompt-size";
 import type { WorkflowDefinition } from "../../types";
 import type { CompilerLimits, Diagnostic } from "../types";
 
@@ -7,6 +8,7 @@ const DEFAULT_LIMITS: Required<CompilerLimits> = {
   maxBackoffMultiplier: 2,
   minBackoffMultiplier: 1,
   maxTimeoutMs: 600_000, // 10 minutes
+  maxPromptTokens: MAXIMUM_PROMPT_LENGTH,
 };
 
 /**

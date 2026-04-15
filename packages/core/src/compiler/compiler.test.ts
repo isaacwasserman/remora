@@ -4919,7 +4919,7 @@ describe("expression property path validation", () => {
       result.diagnostics,
       "JMESPATH_INVALID_PROPERTY_PATH",
     );
-    expect(diag.severity).toBe("warning");
+    expect(diag.severity).toBe("error");
     expect(diag.message).toContain("data");
     expect(diag.message).toContain("result");
     expect(diag.location.stepId).toBe("report");
@@ -5697,7 +5697,7 @@ describe("expression property path validation", () => {
 
     // All three should reference the "data" property
     for (const diag of pathDiags) {
-      expect(diag.severity).toBe("warning");
+      expect(diag.severity).toBe("error");
       expect(diag.message).toContain("data");
       expect(diag.location.stepId).toBe("format_report");
     }
