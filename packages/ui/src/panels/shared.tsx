@@ -95,13 +95,13 @@ export function TypeBadge({ type }: { type: string }) {
 
 export function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-xs font-semibold text-foreground mb-2">{children}</div>
+    <div className="text-xs font-semibold text-foreground">{children}</div>
   );
 }
 
 export function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[11px] font-medium text-muted-foreground mb-1">
+    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
       {children}
     </div>
   );

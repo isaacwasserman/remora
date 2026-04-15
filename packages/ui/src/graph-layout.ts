@@ -82,6 +82,49 @@ function renderExpression(
 
 const DEFAULT_NODE_SIZE = { w: NODE_WIDTH, h: NODE_HEIGHT };
 
+/**
+ * Estimate node height based on step type and content.
+ * BaseNode structure: py-2.5 padding top/bottom, header ~24px, name ~18px,
+ * description ~16px per line, content varies by type.
+ * Handle areas add ~8px total.
+ */
+function estimateStepHeight(step: WorkflowStep): number {
+  const BASE = 70; // header + name + padding + handles
+  const DESC_LINE = 16;
+  const descLines = step.description
+    ? Math.min(Math.ceil(step.description.length / 40), 3)
+    : 0;
+
+  switch (step.type) {
+    case "start":
+      return BASE + descLines * DESC_LINE;
+    case "end":
+      return BASE + descLines * DESC_LINE + (step.params?.output ? 30 : 0);
+    case "tool-call": {
+      const inputCount = Object.keys(step.params.toolInput).length;
+      // tool name row + each input row
+      return BASE + descLines * DESC_LINE + 28 + inputCount * 20;
+    }
+    case "llm-prompt":
+      // prompt preview is line-clamped to 3 lines
+      return BASE + descLines * DESC_LINE + 60;
+    case "extract-data":
+      return BASE + descLines * DESC_LINE + 50;
+    case "agent-loop":
+      // instructions preview (2 lines) + tools count
+      return (
+        BASE +
+        descLines * DESC_LINE +
+        50 +
+        (step.params.tools.length > 0 ? 20 : 0)
+      );
+    case "sleep":
+      return BASE + descLines * DESC_LINE + 24;
+    default:
+      return NODE_HEIGHT;
+  }
+}
+
 function collectChildSteps(
   step: WorkflowStep,
   stepMap: Map<string, WorkflowStep>,
@@ -180,6 +223,7 @@ function getNodeDimensions(
   groupIds: Set<string>,
   computedSizes: Map<string, { w: number; h: number }>,
   nodeDimensions?: Map<string, { width: number; height: number }>,
+  stepMap?: Map<string, WorkflowStep>,
 ): { w: number; h: number } {
   if (groupIds.has(nodeId)) {
     return computedSizes.get(nodeId) ?? DEFAULT_NODE_SIZE;
@@ -187,6 +231,10 @@ function getNodeDimensions(
   const measured = nodeDimensions?.get(nodeId);
   if (measured) {
     return { w: measured.width, h: measured.height };
+  }
+  const step = stepMap?.get(nodeId);
+  if (step) {
+    return { w: NODE_WIDTH, h: estimateStepHeight(step) };
   }
   return DEFAULT_NODE_SIZE;
 }
@@ -267,6 +315,7 @@ export function buildLayout(
         groupIds,
         computedSizes,
         nodeDimensions,
+        stepMap,
       );
       subG.setNode(childId, { width: w, height: h });
     }
@@ -315,6 +364,7 @@ export function buildLayout(
           groupIds,
           computedSizes,
           nodeDimensions,
+          stepMap,
         );
         w = dims.w;
         h = dims.h;
@@ -377,6 +427,7 @@ export function buildLayout(
         groupIds,
         computedSizes,
         nodeDimensions,
+        stepMap,
       );
       topG.setNode(step.id, { width: w, height: h });
     }
@@ -419,6 +470,7 @@ export function buildLayout(
       groupIds,
       computedSizes,
       nodeDimensions,
+      stepMap,
     );
     topLevelPositions.set(stepId, {
       x: pos.x - w / 2,
@@ -438,6 +490,7 @@ export function buildLayout(
       position: startNodePos,
       data: {},
       selectable: false,
+      measured: { width: START_NODE_SIZE, height: START_NODE_SIZE },
     });
   }
 
@@ -559,11 +612,19 @@ export function buildLayout(
         nodeData.outputSchema = workflow.outputSchema;
       }
 
+      const { w: nw, h: nh } = getNodeDimensions(
+        id,
+        groupIds,
+        computedSizes,
+        nodeDimensions,
+        stepMap,
+      );
       nodes.push({
         id,
         type: stepNodeType(step),
         position: pos,
         data: nodeData,
+        measured: { width: nw, height: nh },
         ...(parentId ? { parentId, extent: "parent" as const } : {}),
       });
     }

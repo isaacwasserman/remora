@@ -50,7 +50,6 @@ import { ToolCallNode } from "./nodes/tool-call-node";
 import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
 import { StepEditorPanel } from "./panels/step-editor-panel";
-import { useThemeColors } from "./theme";
 import { groupStructuralKey } from "./utils/group-refs";
 import { createDefaultStep } from "./utils/step-defaults";
 
@@ -129,7 +128,6 @@ export function WorkflowViewer({
   toolSchemas: toolSchemasProp,
   hideDetailPanel = false,
 }: WorkflowViewerProps) {
-  const theme = useThemeColors();
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -674,16 +672,16 @@ export function WorkflowViewer({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
+            fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+            minZoom={0.1}
             nodesDraggable={isEditing}
             nodesConnectable={isEditing}
             defaultEdgeOptions={{
               type: "workflow",
             }}
             proOptions={{ hideAttribution: true }}
-            colorMode={theme.dark ? "dark" : "light"}
           >
-            <Background color={theme.border} size={3} />
+            <Background size={3} />
             <Controls showInteractive={false} />
             {showMinimap && (
               <MiniMap
@@ -693,8 +691,6 @@ export function WorkflowViewer({
                 style={{
                   width: effectiveMinimapWidth,
                   height: effectiveMinimapHeight,
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: theme.card,
                 }}
                 nodeColor={"rgba(0, 0, 0, 0.1)"}
               />

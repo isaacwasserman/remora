@@ -8,7 +8,7 @@ import type {
 import type React from "react";
 import { JsonViewer } from "../editors/json-viewer";
 import type { StepExecutionSummary } from "../execution-state";
-import { SectionHeader, TypeBadge } from "./shared";
+import { Label, SectionHeader, TypeBadge } from "./shared";
 
 function jsonString(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -36,12 +36,9 @@ function renderExpression(
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
   const colors: Record<string, string> = {
     pending: "bg-muted text-muted-foreground border border-border",
-    running:
-      "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
-    completed:
-      "bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800",
-    failed:
-      "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800",
+    running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+    completed: "bg-green-500/10 text-green-600 border border-green-500/20",
+    failed: "bg-destructive/10 text-destructive border border-destructive/20",
     skipped: "bg-muted text-muted-foreground border border-border",
   };
   return (
@@ -64,7 +61,7 @@ function ResolvedCode({
   if (typeof value === "string") {
     return (
       <pre
-        className="text-xs text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40 rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] cursor-default border border-emerald-200/60 dark:border-emerald-900/50"
+        className="text-xs text-emerald-600 bg-emerald-500/10 rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] cursor-default border border-emerald-500/20"
         title={expression}
       >
         {display}
@@ -110,7 +107,7 @@ function StepParams({
                       </span>
                       <span className="text-muted-foreground/40">=</span>
                       <span
-                        className={`font-mono ${hasResolved ? "text-emerald-700 dark:text-emerald-300" : "text-foreground"}`}
+                        className={`font-mono ${hasResolved ? "text-emerald-600" : "text-foreground"}`}
                         title={hasResolved ? renderExpression(val) : undefined}
                       >
                         {hasResolved
@@ -350,14 +347,6 @@ function StepParams({
   }
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[11px] font-medium text-muted-foreground mb-1">
-      {children}
-    </div>
-  );
-}
-
 function Code({ children }: { children: React.ReactNode }) {
   return (
     <pre className="text-xs rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] text-foreground bg-muted/60 border border-border/50">
@@ -384,12 +373,9 @@ function formatValue(value: unknown): string {
 
 const recordStatusColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground border border-border",
-  running:
-    "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
-  completed:
-    "bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800",
-  failed:
-    "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800",
+  running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+  completed: "bg-green-500/10 text-green-600 border border-green-500/20",
+  failed: "bg-destructive/10 text-destructive border border-destructive/20",
   skipped: "bg-muted text-muted-foreground border border-border",
 };
 
@@ -433,7 +419,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
           </span>
         )}
         {record.retries.length > 0 && (
-          <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+          <span className="text-[11px] font-medium text-amber-600">
             {record.retries.length}{" "}
             {record.retries.length === 1 ? "retry" : "retries"}
           </span>
@@ -463,7 +449,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
         <TraceSection trace={record.trace} />
       )}
       {record.error && (
-        <div className="text-xs p-2.5 rounded-md bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800/60">
+        <div className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
           <div className="font-semibold font-mono">{record.error.code}</div>
           <div className="mt-1 leading-relaxed">{record.error.message}</div>
         </div>
@@ -492,37 +478,40 @@ export function StepDetailPanel({
         </button>
       </div>
 
-      <div className="px-4 py-4 space-y-5">
-        <div className="font-medium text-sm text-foreground">{step.name}</div>
+      <div className="px-4 py-4 space-y-4">
+        <div className="space-y-3">
+          <div>
+            <div className="font-medium text-sm text-foreground">
+              {step.name}
+            </div>
+            {step.description && (
+              <div className="text-xs text-muted-foreground leading-relaxed mt-1">
+                {step.description}
+              </div>
+            )}
+          </div>
 
-        <div>
-          <Label>Step ID</Label>
-          <div className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1 inline-block">
-            {step.id}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Step ID</Label>
+              <div className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1.5 truncate">
+                {step.id}
+              </div>
+            </div>
+            {step.nextStepId && (
+              <div>
+                <Label>Next Step</Label>
+                <div className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1.5 truncate">
+                  {step.nextStepId}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {step.description && (
-          <div>
-            <Label>Description</Label>
-            <div className="text-xs text-muted-foreground leading-relaxed">
-              {step.description}
-            </div>
-          </div>
-        )}
-
-        {step.nextStepId && (
-          <div>
-            <Label>Next Step</Label>
-            <div className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1 inline-block">
-              {step.nextStepId}
-            </div>
-          </div>
-        )}
-
         <div className="border-t pt-4 border-border">
           <SectionHeader>Parameters</SectionHeader>
-          <div className="mt-1">
+          <div className="mt-2">
             <StepParams
               step={step}
               resolvedInputs={
@@ -538,7 +527,7 @@ export function StepDetailPanel({
         {executionSummary && (
           <div className="border-t border-border pt-4">
             <SectionHeader>Execution</SectionHeader>
-            <div className="mt-1 space-y-3">
+            <div className="mt-2 space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <StatusBadge summary={executionSummary} />
                 {executionSummary.latestDurationMs !== undefined && (
@@ -571,7 +560,7 @@ export function StepDetailPanel({
                 )}
 
               {executionSummary.latestError && (
-                <div className="text-xs p-2.5 rounded-md bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800/60">
+                <div className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
                   <div className="font-semibold font-mono">
                     {executionSummary.latestError.code}
                   </div>
@@ -582,7 +571,7 @@ export function StepDetailPanel({
               )}
 
               {executionSummary.totalRetries > 0 && (
-                <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                <div className="text-[11px] font-medium text-amber-600">
                   {executionSummary.totalRetries}{" "}
                   {executionSummary.totalRetries === 1 ? "retry" : "retries"}{" "}
                   attempted
@@ -595,7 +584,7 @@ export function StepDetailPanel({
         {executionRecords && executionRecords.length > 0 && (
           <div className="border-t border-border pt-4">
             <SectionHeader>Execution History</SectionHeader>
-            <div className="space-y-2 mt-1">
+            <div className="space-y-2 mt-2">
               {executionRecords.map((record, i) => (
                 <ExecutionRecordCard
                   key={`${record.stepId}-${i}`}
@@ -609,14 +598,14 @@ export function StepDetailPanel({
         {diagnostics.length > 0 && (
           <div className="border-t pt-4 border-border">
             <SectionHeader>Diagnostics</SectionHeader>
-            <div className="space-y-2 mt-1">
+            <div className="space-y-2 mt-2">
               {diagnostics.map((d) => (
                 <div
                   key={`${d.code}-${d.message}`}
                   className={`text-xs p-2.5 rounded-md ${
                     d.severity === "error"
-                      ? "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800/60"
-                      : "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/60"
+                      ? "bg-destructive/10 text-destructive border border-destructive/20"
+                      : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
                   }`}
                 >
                   <div className="font-semibold font-mono">{d.code}</div>

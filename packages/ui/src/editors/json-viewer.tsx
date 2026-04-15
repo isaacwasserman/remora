@@ -14,15 +14,13 @@ function buildViewerTheme(dark: boolean) {
         fontFamily:
           'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
         borderRadius: "calc(var(--radius) - 2px)",
-        border: "1px solid var(--color-border, hsl(var(--border)))",
-        backgroundColor: dark
-          ? "rgba(255,255,255,0.03)"
-          : "var(--color-muted, hsl(var(--muted)))",
+        border: "1px solid var(--color-border, var(--border))",
+        backgroundColor: "var(--color-muted, var(--muted))",
       },
       "&.cm-focused": { outline: "none" },
       ".cm-content": {
         padding: "8px 0",
-        color: "var(--color-foreground, hsl(var(--foreground)))",
+        color: "var(--color-foreground, var(--foreground))",
         cursor: "default",
       },
       ".cm-line": {
