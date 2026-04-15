@@ -40,7 +40,7 @@ export type { JsonViewerProps } from "./editors/json-viewer";
 export { JsonViewer } from "./editors/json-viewer";
 export type { StepExecutionSummary } from "./execution-state";
 export { deriveStepSummaries } from "./execution-state";
-export type { StepNodeData } from "./graph-layout";
+export type { LayoutDirection, StepNodeData } from "./graph-layout";
 export { buildEditableLayout, buildLayout } from "./graph-layout";
 export type {
   UseWorkflowExecutionOptions,

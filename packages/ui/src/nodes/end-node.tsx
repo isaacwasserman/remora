@@ -15,8 +15,14 @@ function renderExpr(
 }
 
 export function EndNode({ data, selected }: NodeProps) {
-  const { step, diagnostics, executionSummary, outputSchema, paused } =
-    data as unknown as StepNodeData;
+  const {
+    step,
+    diagnostics,
+    executionSummary,
+    outputSchema,
+    paused,
+    layoutDirection,
+  } = data as unknown as StepNodeData;
   if (step?.type !== "end") return null;
 
   const schema = outputSchema as
@@ -40,6 +46,7 @@ export function EndNode({ data, selected }: NodeProps) {
       hasSourceEdge={false}
       executionSummary={executionSummary}
       paused={paused}
+      layoutDirection={layoutDirection}
     >
       {step.params?.output && (
         <div className="flex gap-1.5 text-[11px]">

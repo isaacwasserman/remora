@@ -20,8 +20,14 @@ function formatValue(value: unknown): string {
 }
 
 export function ToolCallNode({ data, selected }: NodeProps) {
-  const { step, diagnostics, hasSourceEdge, executionSummary, paused } =
-    data as unknown as StepNodeData;
+  const {
+    step,
+    diagnostics,
+    hasSourceEdge,
+    executionSummary,
+    paused,
+    layoutDirection,
+  } = data as unknown as StepNodeData;
   if (step.type !== "tool-call") return null;
 
   const entries = Object.entries(step.params.toolInput);
@@ -43,6 +49,7 @@ export function ToolCallNode({ data, selected }: NodeProps) {
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
       paused={paused}
+      layoutDirection={layoutDirection}
     >
       <div className="text-xs font-mono font-medium text-foreground">
         {step.params.toolName}

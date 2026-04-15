@@ -27,11 +27,16 @@ export function ForEachNode({ data, selected }: NodeProps) {
     hasSourceEdge,
     executionSummary,
     paused,
+    layoutDirection,
   } = data as unknown as StepNodeData & {
     isGroup?: boolean;
     groupWidth?: number;
     groupHeight?: number;
   };
+  const targetPosition =
+    layoutDirection === "horizontal" ? Position.Left : Position.Top;
+  const sourcePosition =
+    layoutDirection === "horizontal" ? Position.Right : Position.Bottom;
   if (step.type !== "for-each") return null;
 
   if (isGroup) {
@@ -86,7 +91,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
         )}
         <Handle
           type="target"
-          position={Position.Top}
+          position={targetPosition}
           className={
             isEditing
               ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
@@ -105,7 +110,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
         {(hasSourceEdge || isEditing) && (
           <Handle
             type="source"
-            position={Position.Bottom}
+            position={sourcePosition}
             className={
               isEditing
                 ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
@@ -137,6 +142,7 @@ export function ForEachNode({ data, selected }: NodeProps) {
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
       paused={paused}
+      layoutDirection={layoutDirection}
     >
       <div className="flex gap-1.5 text-[11px]">
         <span className="text-muted-foreground shrink-0">target:</span>

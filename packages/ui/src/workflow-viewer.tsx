@@ -32,6 +32,7 @@ import {
   buildLayout,
   GROUP_HEADER,
   GROUP_PADDING,
+  type LayoutDirection,
 } from "./graph-layout";
 import { useContextMenu } from "./hooks/use-context-menu";
 import { useEditableWorkflow } from "./hooks/use-editable-workflow";
@@ -102,6 +103,8 @@ export interface WorkflowViewerProps {
   toolSchemas?: ToolDefinitionMap;
   /** Hide the built-in detail/editor panel. Use this when rendering `StepDetailPanel` or `StepEditorPanel` externally. */
   hideDetailPanel?: boolean;
+  /** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). @see {@link LayoutDirection} */
+  layout?: LayoutDirection;
 }
 
 /**
@@ -127,6 +130,7 @@ export function WorkflowViewer({
   tools,
   toolSchemas: toolSchemasProp,
   hideDetailPanel = false,
+  layout: direction = "vertical",
 }: WorkflowViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -201,8 +205,8 @@ export function WorkflowViewer({
         (s) =>
           `${s.id}:${s.type}:${s.nextStepId ?? ""}${groupStructuralKey(s)}`,
       )
-      .join("|")}|init:${activeWorkflow.initialStepId}`;
-  }, [isEditing, activeWorkflow]);
+      .join("|")}|init:${activeWorkflow.initialStepId}|dir:${direction}`;
+  }, [isEditing, activeWorkflow, direction]);
 
   // Structural key for view mode — changes only when the workflow graph shape changes,
   // not when execution state updates. This lets us skip full layout rebuilds during execution.
@@ -213,8 +217,8 @@ export function WorkflowViewer({
         (s) =>
           `${s.id}:${s.type}:${s.nextStepId ?? ""}${groupStructuralKey(s)}`,
       )
-      .join("|")}|init:${activeWorkflow.initialStepId}`;
-  }, [isEditing, activeWorkflow]);
+      .join("|")}|init:${activeWorkflow.initialStepId}|dir:${direction}`;
+  }, [isEditing, activeWorkflow, direction]);
 
   const prevViewStructuralKeyRef = useRef(viewStructuralKey);
   const prevIsEditingRef = useRef(isEditing);
@@ -227,6 +231,8 @@ export function WorkflowViewer({
         undefined,
         positionOverridesRef.current,
         dimensionOverridesRef.current,
+        undefined,
+        direction,
       );
     }
     return buildLayout(
@@ -235,8 +241,16 @@ export function WorkflowViewer({
       executionState,
       undefined,
       paused,
+      direction,
     );
-  }, [activeWorkflow, activeDiagnostics, executionState, isEditing, paused]);
+  }, [
+    activeWorkflow,
+    activeDiagnostics,
+    executionState,
+    isEditing,
+    paused,
+    direction,
+  ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
@@ -264,6 +278,7 @@ export function WorkflowViewer({
           executionState,
           undefined,
           paused,
+          direction,
         );
         setNodes(fresh.nodes);
         setEdges(fresh.edges);
@@ -324,6 +339,7 @@ export function WorkflowViewer({
     activeDiagnostics,
     executionState,
     paused,
+    direction,
   ]);
 
   // --- Container resize ---
@@ -620,10 +636,12 @@ export function WorkflowViewer({
       undefined,
       undefined,
       undefined,
+      undefined,
+      direction,
     );
     setNodes(fresh.nodes);
     setEdges(fresh.edges);
-  }, [activeWorkflow, activeDiagnostics, setNodes, setEdges]);
+  }, [activeWorkflow, activeDiagnostics, setNodes, setEdges, direction]);
 
   // --- Edit context ---
   const editContextValue = useMemo(
