@@ -13,12 +13,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  type LayoutDirection,
   ReplaySlider,
   Switch,
   useWorkflowExecution,
   WorkflowViewer,
 } from "@remoraflow/ui";
 import {
+  ArrowDown,
+  ArrowRight,
   BookOpen,
   Check,
   ChevronDown,
@@ -76,6 +79,8 @@ export function App() {
   );
   const [isEditing, setIsEditing] = useState(true);
   const [dark, setDark] = useState(false);
+  const [layoutDirection, setLayoutDirection] =
+    useState<LayoutDirection>("vertical");
 
   // Settings
   const [apiKey, setApiKey] = useState(loadApiKey);
@@ -528,6 +533,28 @@ export function App() {
             </a>
           </Button>
 
+          {/* Layout direction toggle */}
+          <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5">
+            <Button
+              variant={layoutDirection === "vertical" ? "secondary" : "ghost"}
+              size="icon-xs"
+              onClick={() => setLayoutDirection("vertical")}
+              title="Vertical layout"
+              className={layoutDirection === "vertical" ? "shadow-sm" : ""}
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={layoutDirection === "horizontal" ? "secondary" : "ghost"}
+              size="icon-xs"
+              onClick={() => setLayoutDirection("horizontal")}
+              title="Horizontal layout"
+              className={layoutDirection === "horizontal" ? "shadow-sm" : ""}
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
           {/* Theme controls */}
           <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5">
             <Button
@@ -571,6 +598,7 @@ export function App() {
             toolSchemas={toolSchemas}
             executionState={execution.executionState ?? undefined}
             paused={execution.isPaused}
+            layout={layoutDirection}
           />
         </div>
 
