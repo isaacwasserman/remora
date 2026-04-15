@@ -10,6 +10,15 @@ function deepEqual(a: unknown, b: unknown): boolean {
 function normalizeSchemaShape(schema: unknown): unknown {
   if (schema === null || schema === undefined) return schema;
   if (typeof schema === "string") return schema;
+  // Normalize __literal to its type name for uniform comparison
+  if (
+    typeof schema === "object" &&
+    schema !== null &&
+    "__literal" in schema &&
+    Object.keys(schema).length === 1
+  ) {
+    return typeof (schema as { __literal: unknown }).__literal;
+  }
   if (Array.isArray(schema)) {
     // Uniform array [elementSchema, length] → normalize element, drop length
     if (schema.length === 2 && typeof schema[1] === "number") {
@@ -46,7 +55,7 @@ function mostCommon<T>(arr: T[]): T | null {
     }
   });
 
-  let max = { element: arr[0] as T, count: 0 };
+  let max: { element: T | null; count: number } = { element: null, count: 0 };
   for (const entry of counts.values()) {
     if (entry.count > max.count) max = entry;
   }
@@ -54,10 +63,73 @@ function mostCommon<T>(arr: T[]): T | null {
   return max.element;
 }
 
+const MAX_INLINE_SCALAR_LENGTH = 200;
+
+/**
+ * Null-aware deep equality: two schemas are equal if they match structurally
+ * with "null" considered compatible with any other type.
+ */
+function nullAwareEqual(a: unknown, b: unknown): boolean {
+  if (a === "null" || b === "null") return true;
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => nullAwareEqual(v, b[i]));
+  }
+  if (
+    typeof a === "object" &&
+    a !== null &&
+    typeof b === "object" &&
+    b !== null
+  ) {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    return keysA.every(
+      (k) =>
+        k in b &&
+        nullAwareEqual(
+          (a as Record<string, unknown>)[k],
+          (b as Record<string, unknown>)[k],
+        ),
+    );
+  }
+  return false;
+}
+
+/**
+ * Merges multiple object schemas into one by picking the non-null type for
+ * each key. E.g. `{ a: "null", b: "string" }` + `{ a: "number", b: "null" }`
+ * → `{ a: "number", b: "string" }`.
+ */
+function mergeObjectSchemas(schemas: unknown[]): unknown {
+  if (schemas.length === 0) return {};
+  if (
+    typeof schemas[0] !== "object" ||
+    schemas[0] === null ||
+    Array.isArray(schemas[0])
+  ) {
+    return schemas[0];
+  }
+  const merged: Record<string, unknown> = {};
+  for (const schema of schemas) {
+    if (typeof schema !== "object" || schema === null || Array.isArray(schema))
+      continue;
+    for (const [key, val] of Object.entries(schema)) {
+      if (val !== "null" && (!merged[key] || merged[key] === "null")) {
+        merged[key] = val;
+      }
+    }
+  }
+  return merged;
+}
+
 export function inferSchema(
   value: unknown,
   types: unknown[] = [],
   maxKeys = 20,
+  inArray = false,
 ) {
   let schema: unknown;
   if (value === null) {
@@ -67,7 +139,7 @@ export function inferSchema(
   } else if (typeof value === "object") {
     if (Array.isArray(value)) {
       const elementSchemas = value.map((element) =>
-        inferSchema(element, types, maxKeys),
+        inferSchema(element, types, maxKeys, true),
       );
 
       const mostCommonElementSchema = mostCommon(elementSchemas);
@@ -82,7 +154,27 @@ export function inferSchema(
       if (allElementsHaveSameSchema) {
         schema = [mostCommonElementSchema, value.length];
       } else {
-        schema = elementSchemas;
+        // Retry treating null as compatible with any type — rows that
+        // differ only in which fields are null should unify.
+        const nullAwareCount = elementSchemas.filter((s) =>
+          nullAwareEqual(s, mostCommonElementSchema),
+        ).length;
+        const percentNullAware = nullAwareCount / elementSchemas.length;
+
+        if (percentNullAware >= 0.5) {
+          // Merge all matching schemas to recover the non-null type
+          // for every key (e.g. hostname: "string" from rows that
+          // had it non-null).
+          const merged = mergeObjectSchemas(elementSchemas);
+          schema = [merged, value.length];
+        } else if (elementSchemas.length > maxKeys) {
+          schema = [
+            ...elementSchemas.slice(0, maxKeys),
+            `...${elementSchemas.length - maxKeys} more`,
+          ];
+        } else {
+          schema = elementSchemas;
+        }
       }
     } else {
       const keys = Object.keys(value);
@@ -93,7 +185,12 @@ export function inferSchema(
       if (totalKeys >= 3) {
         const sampleKeys = keys.slice(0, maxKeys);
         const valueSchemas = sampleKeys.map((key) =>
-          inferSchema((value as Record<string, unknown>)[key], [], maxKeys),
+          inferSchema(
+            (value as Record<string, unknown>)[key],
+            [],
+            maxKeys,
+            inArray,
+          ),
         );
 
         // Compare normalized schemas (ignoring array lengths)
@@ -132,6 +229,7 @@ export function inferSchema(
           (value as Record<string, unknown>)[key],
           types,
           maxKeys,
+          inArray,
         );
       }
 
@@ -142,11 +240,15 @@ export function inferSchema(
       schema = _schema;
     }
   } else if (typeof value === "string") {
-    schema = "string";
+    if (!inArray && value.length <= MAX_INLINE_SCALAR_LENGTH) {
+      schema = { __literal: value };
+    } else {
+      schema = "string";
+    }
   } else if (typeof value === "number") {
-    schema = "number";
+    schema = !inArray ? { __literal: value } : "number";
   } else if (typeof value === "boolean") {
-    schema = "boolean";
+    schema = !inArray ? { __literal: value } : "boolean";
   } else {
     schema = "unknown";
   }
@@ -190,18 +292,24 @@ function schemaToString(schema: unknown, indent?: string | number): string {
 
     // Handle objects
     if (typeof value === "object") {
+      // Check for literal marker: { __literal: actualValue }
+      if ("__literal" in value && Object.keys(value).length === 1) {
+        const lit = (value as { __literal: unknown }).__literal;
+        return typeof lit === "string" ? JSON.stringify(lit) : String(lit);
+      }
+
       // Check for dictionary marker: { __dict: [valueSchema, count] }
       const entries = Object.entries(value);
-      const first = entries[0];
+      const firstEntry = entries[0];
       if (
         entries.length === 1 &&
-        first !== undefined &&
-        first[0] === "__dict" &&
-        Array.isArray(first[1]) &&
-        first[1].length === 2 &&
-        typeof first[1][1] === "number"
+        firstEntry &&
+        firstEntry[0] === "__dict" &&
+        Array.isArray(firstEntry[1]) &&
+        firstEntry[1].length === 2 &&
+        typeof firstEntry[1][1] === "number"
       ) {
-        const [valueSchema, count] = first[1];
+        const [valueSchema, count] = firstEntry[1];
         if (!pretty || !indentStr) {
           return `{ [key]: ${stringify(valueSchema, depth)} }[${count}]`;
         }
