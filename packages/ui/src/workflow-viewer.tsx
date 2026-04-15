@@ -748,20 +748,21 @@ export function WorkflowViewer({
   );
 
   // --- Edit mode: auto-layout ---
+  // Mirrors the direction-switch path: clear overrides and measurements,
+  // set estimate-based nodes, then let the measurement useEffect re-layout
+  // with real DOM sizes for accurate positioning.
   const handleAutoLayout = useCallback(() => {
     positionOverridesRef.current.clear();
     dimensionOverridesRef.current.clear();
-    const dims =
-      measuredDimensionsRef.current.size > 0
-        ? measuredDimensionsRef.current
-        : undefined;
+    measuredDimensionsRef.current.clear();
+    initialMeasureDoneRef.current = false;
     const fresh = buildEditableLayout(
       activeWorkflow,
       activeDiagnostics,
       undefined,
       undefined,
       undefined,
-      dims,
+      undefined,
       direction,
     );
     setNodes(fresh.nodes);
