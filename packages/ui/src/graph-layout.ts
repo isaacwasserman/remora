@@ -306,7 +306,12 @@ export function buildLayout(
     }
 
     const subG = new dagre.graphlib.Graph();
-    subG.setGraph({ rankdir, ranksep: 60, nodesep: 40 });
+    subG.setGraph({
+      rankdir,
+      ranksep: 60,
+      nodesep: 40,
+      rankalign: direction === "horizontal" ? "top" : "center",
+    });
     subG.setDefaultEdgeLabel(() => ({}));
 
     // Add a synthetic header node for this group
@@ -412,7 +417,12 @@ export function buildLayout(
 
   // --- Step 4: Top-level dagre layout ---
   const topG = new dagre.graphlib.Graph();
-  topG.setGraph({ rankdir, ranksep: 60, nodesep: 40 });
+  topG.setGraph({
+    rankdir,
+    ranksep: 60,
+    nodesep: 40,
+    rankalign: direction === "horizontal" ? "top" : "center",
+  });
   topG.setDefaultEdgeLabel(() => ({}));
 
   // Start node — skip pseudo-node when initialStepId is a "start" step
@@ -484,39 +494,6 @@ export function buildLayout(
       x: pos.x - w / 2,
       y: pos.y - h / 2,
     });
-  }
-
-  // In horizontal mode, dagre center-aligns nodes within each rank.
-  // Top-align instead so nodes with different heights share the same y.
-  if (direction === "horizontal") {
-    // Group nodes by their dagre center-x (which identifies the rank).
-    const rankGroups = new Map<number, string[]>();
-    const allPositionedIds = [...topLevelPositions.keys()];
-    for (const id of allPositionedIds) {
-      const dagreNode = id === START_NODE_ID ? topG.node(id) : topG.node(id);
-      if (!dagreNode) continue;
-      const centerX = Math.round(dagreNode.x);
-      let group = rankGroups.get(centerX);
-      if (!group) {
-        group = [];
-        rankGroups.set(centerX, group);
-      }
-      group.push(id);
-    }
-    for (const ids of rankGroups.values()) {
-      if (ids.length <= 1) continue;
-      let minY = Number.POSITIVE_INFINITY;
-      for (const id of ids) {
-        const pos = topLevelPositions.get(id);
-        if (pos && pos.y < minY) minY = pos.y;
-      }
-      for (const id of ids) {
-        const pos = topLevelPositions.get(id);
-        if (pos) {
-          topLevelPositions.set(id, { x: pos.x, y: minY });
-        }
-      }
-    }
   }
 
   // --- Step 5: Build React Flow nodes ---
