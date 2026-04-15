@@ -496,6 +496,18 @@ export function buildLayout(
     });
   }
 
+  // In horizontal mode, top-align all top-level nodes so they share the
+  // same y coordinate regardless of height differences.
+  if (direction === "horizontal") {
+    let minY = Number.POSITIVE_INFINITY;
+    for (const pos of topLevelPositions.values()) {
+      if (pos.y < minY) minY = pos.y;
+    }
+    for (const [id, pos] of topLevelPositions) {
+      topLevelPositions.set(id, { x: pos.x, y: minY });
+    }
+  }
+
   // --- Step 5: Build React Flow nodes ---
   const nodes: Node[] = [];
 
