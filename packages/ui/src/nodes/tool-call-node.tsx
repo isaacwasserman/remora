@@ -34,9 +34,9 @@ export function ToolCallNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="Tool Call"
-      typeLabelColor="text-blue-500"
+      typeLabelColor="rf:text-blue-500"
       accent="#3b82f6"
-      icon={<Wrench className="w-3.5 h-3.5" />}
+      icon={<Wrench className="rf:w-3.5 rf:h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -44,19 +44,21 @@ export function ToolCallNode({ data, selected }: NodeProps) {
       executionSummary={executionSummary}
       paused={paused}
     >
-      <div className="text-xs font-mono font-medium text-foreground">
+      <div className="rf:text-xs rf:font-mono rf:font-medium rf:text-foreground">
         {step.params.toolName}
       </div>
       {entries.length > 0 && (
-        <div className="mt-1.5 space-y-0.5">
+        <div className="rf:mt-1.5 rf:space-y-0.5">
           {entries.map(([key, val]) => {
             const resolvedVal = resolved?.[key];
             const hasResolved = resolvedVal !== undefined;
             return (
-              <div key={key} className="flex gap-1.5 text-[11px]">
-                <span className="text-muted-foreground shrink-0">{key}:</span>
+              <div key={key} className="rf:flex rf:gap-1.5 rf:text-[11px]">
+                <span className="rf:text-muted-foreground rf:shrink-0">
+                  {key}:
+                </span>
                 <span
-                  className={`font-mono truncate ${hasResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
+                  className={`rf:font-mono rf:truncate ${hasResolved ? "rf:text-emerald-700 rf:dark:text-emerald-400" : "rf:text-muted-foreground"}`}
                   title={hasResolved ? renderExpr(val) : undefined}
                 >
                   {hasResolved ? formatValue(resolvedVal) : renderExpr(val)}

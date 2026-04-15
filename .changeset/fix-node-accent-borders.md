@@ -2,4 +2,4 @@
 "@remoraflow/ui": patch
 ---
 
-Fix package styles overriding host application CSS by keeping utilities inside `@layer remoraflow` with `important: true` so they beat host CSS resets without raising baseline specificity
+Fix package styles overriding host application CSS by prefixing all Tailwind utility classes with `rf:` to eliminate class name collisions with the host app

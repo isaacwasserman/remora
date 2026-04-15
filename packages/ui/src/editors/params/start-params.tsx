@@ -10,12 +10,12 @@ export function StartParams({
 }) {
   const hasSchema = !!workflowInputSchema;
   return (
-    <div className="space-y-3">
-      <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer select-none group">
+    <div className="rf:space-y-3">
+      <label className="rf:flex rf:items-center rf:gap-2.5 rf:text-xs rf:text-foreground rf:cursor-pointer rf:select-none rf:group">
         <input
           type="checkbox"
           checked={hasSchema}
-          className="rounded border-border accent-foreground"
+          className="rounded rf:border-border rf:accent-foreground"
           onChange={(e) => {
             if (e.target.checked) {
               onWorkflowMetaChange?.({

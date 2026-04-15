@@ -13,9 +13,9 @@ export function AgentLoopNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="Agent Loop"
-      typeLabelColor="text-teal-500"
+      typeLabelColor="rf:text-teal-500"
       accent="#14b8a6"
-      icon={<Bot className="w-3.5 h-3.5" />}
+      icon={<Bot className="rf:w-3.5 rf:h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -23,13 +23,13 @@ export function AgentLoopNode({ data, selected }: NodeProps) {
       executionSummary={executionSummary}
       paused={paused}
     >
-      <div className="text-[11px] text-muted-foreground italic line-clamp-2 bg-muted rounded p-1.5 font-mono">
+      <div className="rf:text-[11px] rf:text-muted-foreground rf:italic rf:line-clamp-2 rf:bg-muted rounded rf:p-1.5 rf:font-mono">
         {step.params.instructions}
       </div>
       {step.params.tools.length > 0 && (
-        <div className="mt-1.5 flex gap-1.5 text-[11px]">
-          <span className="text-muted-foreground shrink-0">tools:</span>
-          <span className="font-mono text-muted-foreground truncate">
+        <div className="rf:mt-1.5 rf:flex rf:gap-1.5 rf:text-[11px]">
+          <span className="rf:text-muted-foreground rf:shrink-0">tools:</span>
+          <span className="rf:font-mono rf:text-muted-foreground rf:truncate">
             {step.params.tools.join(", ")}
           </span>
         </div>

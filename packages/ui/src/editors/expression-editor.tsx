@@ -187,9 +187,9 @@ export function ExpressionEditor({
   );
 
   return (
-    <div className="space-y-1.5">
+    <div className="rf:space-y-1.5">
       {label && (
-        <div className="text-[11px] font-medium text-muted-foreground mb-1">
+        <div className="rf:text-[11px] rf:font-medium rf:text-muted-foreground rf:mb-1">
           {label}
         </div>
       )}
@@ -223,7 +223,7 @@ export function ExpressionEditor({
                     });
                   }}
                 >
-                  <SelectTrigger className="h-8 text-xs font-mono w-full">
+                  <SelectTrigger className="rf:h-8 rf:text-xs rf:font-mono rf:w-full">
                     <SelectValue placeholder="-- select --" />
                   </SelectTrigger>
                   <SelectContent>
@@ -262,7 +262,7 @@ export function ExpressionEditor({
                       onChange={(e) =>
                         handleLiteralChange(e.target.value, "string")
                       }
-                      className="h-8 text-xs font-mono"
+                      className="rf:h-8 rf:text-xs rf:font-mono"
                       placeholder="Enter value..."
                     />
                   </TabsContent>
@@ -274,7 +274,7 @@ export function ExpressionEditor({
                       onChange={(e) =>
                         handleLiteralChange(e.target.value, "number")
                       }
-                      className="h-8 text-xs font-mono"
+                      className="rf:h-8 rf:text-xs rf:font-mono"
                       placeholder="0"
                     />
                   </TabsContent>
@@ -289,7 +289,7 @@ export function ExpressionEditor({
                         })
                       }
                     >
-                      <SelectTrigger className="h-8 text-xs font-mono w-full">
+                      <SelectTrigger className="rf:h-8 rf:text-xs rf:font-mono rf:w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -323,7 +323,7 @@ export function ExpressionEditor({
                     expression: e.target.value,
                   })
                 }
-                className="h-8 text-xs font-mono"
+                className="rf:h-8 rf:text-xs rf:font-mono"
                 placeholder="stepId.outputKey"
               />
             </TabsContent>
@@ -339,7 +339,7 @@ export function ExpressionEditor({
                     })
                   }
                   rows={3}
-                  className="text-xs font-mono resize-y"
+                  className="rf:text-xs rf:font-mono rf:resize-y"
                   placeholder="Hello ${stepId.name}, your total is ${order.total}"
                 />
               </TabsContent>
@@ -370,7 +370,7 @@ function LiteralWidget({
           type="text"
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 text-xs font-mono"
+          className="rf:h-8 rf:text-xs rf:font-mono"
           placeholder="Enter value..."
         />
       );
@@ -380,7 +380,7 @@ function LiteralWidget({
           type="number"
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 text-xs font-mono"
+          className="rf:h-8 rf:text-xs rf:font-mono"
           placeholder="0"
         />
       );
@@ -395,7 +395,7 @@ function LiteralWidget({
             })
           }
         >
-          <SelectTrigger className="h-8 text-xs font-mono w-full">
+          <SelectTrigger className="rf:h-8 rf:text-xs rf:font-mono rf:w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

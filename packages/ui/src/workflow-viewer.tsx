@@ -109,7 +109,7 @@ export interface WorkflowViewerProps {
  * Supports step selection via callback, minimap, and zoom controls.
  *
  * Dark mode is detected automatically via the `dark` class on `<html>`,
- * following the shadcn/Tailwind convention (`darkMode: "class"`).
+ * following the shadcn/Tailwind convention (`rf:darkMode: "class"`).
  *
  * Requires `@xyflow/react` as a peer dependency.
  */

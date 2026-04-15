@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 /**
  * Detects dark mode by observing the `dark` class on `<html>`,
- * following the shadcn/Tailwind convention (`darkMode: "class"`).
+ * following the shadcn/Tailwind convention (`rf:darkMode: "class"`).
  */
 export function useDarkMode(): boolean {
   const [dark, setDark] = useState(

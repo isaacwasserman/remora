@@ -116,7 +116,7 @@ export function JsonViewer({ value, className }: JsonViewerProps) {
   return (
     <div
       ref={containerRef}
-      className={cn("json-viewer", className)}
+      className={cn("rf:json-viewer", className)}
       style={hidden ? { display: "none" } : undefined}
     />
   );

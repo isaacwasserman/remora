@@ -11,7 +11,7 @@ export function ExtractDataParams({
   onChange: StepOnChange;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="rf:space-y-3">
       <ExpressionEditor
         label="Source Data"
         value={step.params.sourceData as Expression}

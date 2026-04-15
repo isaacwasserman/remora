@@ -138,6 +138,6 @@ export function JsonCodeEditor({
   }, []);
 
   return (
-    <div ref={containerRef} className={cn("json-code-editor", className)} />
+    <div ref={containerRef} className={cn("rf:json-code-editor", className)} />
   );
 }

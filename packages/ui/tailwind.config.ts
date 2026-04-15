@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss";
 
 export default {
-  important: true,
+  prefix: "rf",
 } satisfies Config;

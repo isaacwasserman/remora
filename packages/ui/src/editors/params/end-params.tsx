@@ -17,8 +17,8 @@ export function EndParams({
   const hasOutput = !!step.params?.output;
   const hasSchema = !!workflowOutputSchema;
   return (
-    <div className="space-y-3">
-      <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer select-none group">
+    <div className="rf:space-y-3">
+      <label className="rf:flex rf:items-center rf:gap-2.5 rf:text-xs rf:text-foreground rf:cursor-pointer rf:select-none rf:group">
         <input
           type="checkbox"
           checked={hasOutput}
@@ -33,7 +33,7 @@ export function EndParams({
               onChange({ params: undefined } as Record<string, unknown>);
             }
           }}
-          className="rounded border-border accent-foreground"
+          className="rounded rf:border-border rf:accent-foreground"
         />
         Has output expression
       </label>
@@ -44,7 +44,7 @@ export function EndParams({
           onChange={(val) => onChange({ params: { output: val } })}
         />
       )}
-      <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer select-none group">
+      <label className="rf:flex rf:items-center rf:gap-2.5 rf:text-xs rf:text-foreground rf:cursor-pointer rf:select-none rf:group">
         <input
           type="checkbox"
           checked={hasSchema}
@@ -62,7 +62,7 @@ export function EndParams({
               });
             }
           }}
-          className="rounded border-border accent-foreground"
+          className="rounded rf:border-border rf:accent-foreground"
         />
         Workflow has output schema
       </label>
