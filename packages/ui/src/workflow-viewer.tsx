@@ -313,27 +313,16 @@ export function WorkflowViewer({
     [onNodesChangeBase],
   );
 
-  // After React Flow measures nodes and updates `nodes` state with real
-  // `measured` values, re-layout once with accurate dimensions. The guard
-  // ref prevents this from firing more than once per workflow structure.
+  // After React Flow measures nodes (populating measuredDimensionsRef via
+  // onNodesChange), re-layout once with accurate dimensions. We watch
+  // `nodes` as a trigger (it changes when dimension events are processed)
+  // but read from measuredDimensionsRef — which only contains real DOM
+  // measurements, not the heuristic estimates we pre-set on `node.measured`.
   useEffect(() => {
     if (initialMeasureDoneRef.current) return;
-    const dims = new Map<string, { width: number; height: number }>();
-    for (const node of nodes) {
-      if (node.measured?.width && node.measured?.height) {
-        dims.set(node.id, {
-          width: node.measured.width,
-          height: node.measured.height,
-        });
-      }
-    }
-    if (dims.size === 0) return;
+    if (measuredDimensionsRef.current.size === 0) return;
     initialMeasureDoneRef.current = true;
-    // Sync ref so subsequent layouts (direction changes etc.) also use
-    // real measurements.
-    for (const [id, d] of dims) {
-      measuredDimensionsRef.current.set(id, d);
-    }
+    const dims = measuredDimensionsRef.current;
     if (isEditing) {
       const fresh = buildEditableLayout(
         activeWorkflow,
@@ -359,7 +348,6 @@ export function WorkflowViewer({
       setEdges(fresh.edges);
     }
   }, [
-    nodes,
     activeWorkflow,
     activeDiagnostics,
     executionState,
