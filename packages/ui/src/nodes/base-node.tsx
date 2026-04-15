@@ -27,7 +27,7 @@ function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
       if (paused) {
         return (
           <svg
-            className="rf:w-3.5 rf:h-3.5 rf:text-amber-500 rf:shrink-0"
+            className="w-3.5 h-3.5 text-amber-500 shrink-0"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"
@@ -40,12 +40,12 @@ function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
         );
       }
       return (
-        <span className="rf:inline-block rf:w-3.5 rf:h-3.5 rf:rounded-full rf:border-2 rf:border-blue-400 rf:border-t-transparent rf:animate-spin rf:shrink-0" />
+        <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
       );
     case "completed":
       return (
         <svg
-          className="rf:w-3.5 rf:h-3.5 rf:text-green-500 rf:shrink-0"
+          className="w-3.5 h-3.5 text-green-500 shrink-0"
           viewBox="0 0 16 16"
           fill="currentColor"
           aria-hidden="true"
@@ -58,7 +58,7 @@ function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
     case "failed":
       return (
         <svg
-          className="rf:w-3.5 rf:h-3.5 rf:text-red-500 rf:shrink-0"
+          className="w-3.5 h-3.5 text-red-500 shrink-0"
           viewBox="0 0 16 16"
           fill="currentColor"
           aria-hidden="true"
@@ -100,34 +100,34 @@ export function BaseNode({
     switch (executionSummary.status) {
       case "running":
         ringClass = paused
-          ? "rf:ring-2 rf:ring-amber-400"
-          : "rf:ring-2 rf:ring-blue-400 rf:animate-pulse";
+          ? "ring-2 ring-amber-400"
+          : "ring-2 ring-blue-400 animate-pulse";
         break;
       case "completed":
-        ringClass = "rf:ring-2 rf:ring-green-400";
+        ringClass = "ring-2 ring-green-400";
         break;
       case "failed":
-        ringClass = "rf:ring-2 rf:ring-red-500";
+        ringClass = "ring-2 ring-red-500";
         break;
       case "skipped":
-        opacityClass = "rf:opacity-50";
+        opacityClass = "opacity-50";
         break;
     }
   } else {
-    if (hasErrors) ringClass = "rf:ring-2 rf:ring-red-500";
-    else if (hasWarnings) ringClass = "rf:ring-2 rf:ring-amber-400";
-    else if (selected) ringClass = "rf:ring-2 rf:ring-blue-400";
+    if (hasErrors) ringClass = "ring-2 ring-red-500";
+    else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
+    else if (selected) ringClass = "ring-2 ring-blue-400";
   }
 
   const hasRing = hasErrors || hasWarnings || selected || !!executionSummary;
 
   const handleClass = isEditing
-    ? "rf:!w-3 rf:!h-3 rf:!bg-blue-400 rf:hover:!bg-blue-500 rf:!border-2 rf:!border-background"
-    : "rf:!w-2 rf:!h-2 rf:!bg-muted-foreground";
+    ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+    : "!w-2 !h-2 !bg-muted-foreground";
 
   return (
     <div
-      className={`rf:rounded-lg rf:shadow-md rf:dark:shadow-foreground/[0.06] rf:border-l-4 rf:w-[300px] rf:transition-shadow rf:duration-150 rf:bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "rf:hover:ring-2 rf:hover:ring-ring"} ${isEditing ? "rf:cursor-grab rf:active:cursor-grabbing rf:group" : ""} rf:relative`}
+      className={`rounded-lg shadow-md dark:shadow-foreground/[0.06] border-l-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"} ${isEditing ? "cursor-grab active:cursor-grabbing group" : ""} relative`}
       style={{ borderLeftColor: accent }}
     >
       {isEditing && (
@@ -137,7 +137,7 @@ export function BaseNode({
             e.stopPropagation();
             onDeleteStep(id);
           }}
-          className="rf:absolute rf:-top-2 rf:-right-2 rf:z-10 rf:w-5 rf:h-5 rf:rounded-full rf:bg-muted-foreground/70 rf:text-white rf:text-xs rf:flex rf:items-center rf:justify-center rf:hover:bg-muted-foreground rf:shadow-sm rf:transition-opacity rf:opacity-0 rf:group-hover:opacity-100"
+          className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
           title="Delete step"
         >
           &times;
@@ -146,21 +146,21 @@ export function BaseNode({
       {(hasTargetEdge || (isEditing && hasTargetEdge !== false)) && (
         <Handle type="target" position={Position.Top} className={handleClass} />
       )}
-      <div className="rf:px-3 rf:py-2.5">
-        <div className="rf:flex rf:items-center rf:justify-between rf:gap-2">
-          <div className="rf:flex rf:items-center rf:gap-1.5 rf:min-w-0">
+      <div className="px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
             {icon && (
-              <span className={`rf:shrink-0 ${typeLabelColor}`}>{icon}</span>
+              <span className={`shrink-0 ${typeLabelColor}`}>{icon}</span>
             )}
             <span
-              className={`rf:text-[10px] rf:font-semibold rf:uppercase rf:tracking-wide rf:shrink-0 ${typeLabelColor}`}
+              className={`text-[10px] font-semibold uppercase tracking-wide shrink-0 ${typeLabelColor}`}
             >
               {typeLabel}
             </span>
           </div>
-          <div className="rf:flex rf:items-center rf:gap-1.5 rf:shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {executionSummary && executionSummary.totalRetries > 0 && (
-              <span className="rf:text-[10px] rf:px-1 rf:py-0.5 rounded rf:bg-amber-100 rf:text-amber-600 rf:dark:bg-amber-900/50 rf:dark:text-amber-400 rf:font-medium">
+              <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 font-medium">
                 {executionSummary.totalRetries}{" "}
                 {executionSummary.totalRetries === 1 ? "retry" : "retries"}
               </span>
@@ -170,10 +170,10 @@ export function BaseNode({
             )}
             {(hasErrors || hasWarnings) && (
               <span
-                className={`rf:text-xs rf:px-1.5 rf:py-0.5 rf:rounded-full rf:font-medium ${
+                className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                   hasErrors
-                    ? "rf:bg-red-100 rf:text-red-700 rf:dark:bg-red-900/50 rf:dark:text-red-400"
-                    : "rf:bg-amber-100 rf:text-amber-700 rf:dark:bg-amber-900/50 rf:dark:text-amber-400"
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
                 }`}
               >
                 {diagnostics.length}
@@ -181,19 +181,15 @@ export function BaseNode({
             )}
           </div>
         </div>
-        <div className="rf:font-medium rf:text-sm rf:truncate rf:text-foreground">
+        <div className="font-medium text-sm truncate text-foreground">
           {name}
         </div>
-        <div className="rf:text-[11px] rf:font-mono rf:text-muted-foreground">
-          {id}
-        </div>
-        <div className="rf:text-[11px] rf:mt-1 rf:text-muted-foreground">
+        <div className="text-[11px] font-mono text-muted-foreground">{id}</div>
+        <div className="text-[11px] mt-1 text-muted-foreground">
           {description}
         </div>
         {children && (
-          <div className="rf:mt-2 rf:border-t rf:pt-2 rf:border-border">
-            {children}
-          </div>
+          <div className="mt-2 border-t pt-2 border-border">{children}</div>
         )}
       </div>
       {(hasSourceEdge || (isEditing && hasSourceEdge !== false)) && (

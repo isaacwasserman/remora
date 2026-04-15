@@ -123,27 +123,27 @@ function DiagnosticsSection({ diagnostics }: { diagnostics: Diagnostic[] }) {
   const warnings = diagnostics.filter((d) => d.severity === "warning");
 
   return (
-    <div className="rf:space-y-1.5">
+    <div className="space-y-1.5">
       {errors.map((d, i) => (
         <div
-          key={`rf:err-${d.code}-${i}`}
-          className="rf:flex rf:gap-2 rf:items-start rf:text-[11px] rf:text-red-700 rf:dark:text-red-300 rf:bg-red-50 rf:dark:bg-red-950/30 rf:rounded-md rf:px-2.5 rf:py-2 border rf:border-red-200/80 rf:dark:border-red-900/60"
+          key={`err-${d.code}-${i}`}
+          className="flex gap-2 items-start text-[11px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded-md px-2.5 py-2 border border-red-200/80 dark:border-red-900/60"
         >
-          <span className="rf:shrink-0 rf:font-semibold rf:bg-red-100 rf:dark:bg-red-900/50 rf:px-1.5 rf:py-0.5 rounded rf:text-[10px]">
+          <span className="shrink-0 font-semibold bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded text-[10px]">
             Error
           </span>
-          <span className="rf:leading-relaxed">{d.message}</span>
+          <span className="leading-relaxed">{d.message}</span>
         </div>
       ))}
       {warnings.map((d, i) => (
         <div
-          key={`rf:warn-${d.code}-${i}`}
-          className="rf:flex rf:gap-2 rf:items-start rf:text-[11px] rf:text-amber-700 rf:dark:text-amber-300 rf:bg-amber-50 rf:dark:bg-amber-950/30 rf:rounded-md rf:px-2.5 rf:py-2 border rf:border-amber-200/80 rf:dark:border-amber-900/60"
+          key={`warn-${d.code}-${i}`}
+          className="flex gap-2 items-start text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-md px-2.5 py-2 border border-amber-200/80 dark:border-amber-900/60"
         >
-          <span className="rf:shrink-0 rf:font-semibold rf:bg-amber-100 rf:dark:bg-amber-900/50 rf:px-1.5 rf:py-0.5 rounded rf:text-[10px]">
+          <span className="shrink-0 font-semibold bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px]">
             Warn
           </span>
-          <span className="rf:leading-relaxed">{d.message}</span>
+          <span className="leading-relaxed">{d.message}</span>
         </div>
       ))}
     </div>
@@ -163,19 +163,19 @@ export function StepEditorPanel({
   onClose,
 }: StepEditorPanelProps) {
   return (
-    <div className="rf:w-[360px] rf:border-l rf:h-full rf:min-h-0 rf:overflow-y-auto rf:bg-card rf:border-border">
-      <div className="rf:sticky rf:top-0 rf:z-10 rf:border-b rf:px-4 rf:py-3 rf:flex rf:items-center rf:justify-between rf:bg-card/95 rf:backdrop-blur-sm rf:border-border">
+    <div className="w-[360px] border-l h-full min-h-0 overflow-y-auto bg-card border-border">
+      <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
         <TypeBadge type={step.type} />
         <button
           type="button"
           onClick={onClose}
-          className="rf:text-lg rf:leading-none rf:text-muted-foreground rf:hover:text-foreground rf:shrink-0 rf:rounded-md rf:w-7 rf:h-7 rf:flex rf:items-center rf:justify-center rf:hover:bg-muted rf:transition-colors"
+          className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0 rounded-md w-7 h-7 flex items-center justify-center hover:bg-muted transition-colors"
         >
           &times;
         </button>
       </div>
 
-      <div className="rf:px-4 rf:py-4 rf:space-y-5">
+      <div className="px-4 py-4 space-y-5">
         <DiagnosticsSection diagnostics={diagnostics} />
 
         <div>
@@ -183,7 +183,7 @@ export function StepEditorPanel({
           <Input
             value={step.name}
             onChange={(e) => onChange({ name: e.target.value })}
-            className="rf:h-9 rf:text-sm"
+            className="h-9 text-sm"
             placeholder="Step name"
           />
         </div>
@@ -196,12 +196,12 @@ export function StepEditorPanel({
             value={step.description}
             onChange={(e) => onChange({ description: e.target.value })}
             rows={2}
-            className="rf:text-xs rf:resize-y"
+            className="text-xs resize-y"
             placeholder="What does this step do?"
           />
         </div>
 
-        <div className="rf:border-t rf:pt-4 rf:border-border">
+        <div className="border-t pt-4 border-border">
           <SectionHeader>Parameters</SectionHeader>
           <StepParamsEditor
             step={step}

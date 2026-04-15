@@ -31,9 +31,9 @@ export function EndNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="End"
-      typeLabelColor="rf:text-muted-foreground"
+      typeLabelColor="text-muted-foreground"
       accent="#6b7280"
-      icon={<Hand className="rf:w-3.5 rf:h-3.5" />}
+      icon={<Hand className="w-3.5 h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -42,24 +42,24 @@ export function EndNode({ data, selected }: NodeProps) {
       paused={paused}
     >
       {step.params?.output && (
-        <div className="rf:flex rf:gap-1.5 rf:text-[11px]">
-          <span className="rf:text-muted-foreground rf:shrink-0">output:</span>
-          <span className="rf:font-mono rf:text-muted-foreground rf:truncate">
+        <div className="flex gap-1.5 text-[11px]">
+          <span className="text-muted-foreground shrink-0">output:</span>
+          <span className="font-mono text-muted-foreground truncate">
             {renderExpr(step.params.output)}
           </span>
         </div>
       )}
       {schemaProperties.length > 0 && (
-        <div className="rf:mt-1 rf:space-y-0.5">
-          <div className="rf:text-[10px] rf:text-muted-foreground rf:uppercase rf:tracking-wide rf:font-semibold">
+        <div className="mt-1 space-y-0.5">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold">
             Output Schema
           </div>
           {schemaProperties.map(([key, val]) => (
-            <div key={key} className="rf:flex rf:gap-1.5 rf:text-[11px]">
-              <span className="rf:text-muted-foreground rf:font-medium rf:shrink-0">
+            <div key={key} className="flex gap-1.5 text-[11px]">
+              <span className="text-muted-foreground font-medium shrink-0">
                 {key}
               </span>
-              <span className="rf:font-mono rf:text-muted-foreground">
+              <span className="font-mono text-muted-foreground">
                 {val?.type}
               </span>
             </div>

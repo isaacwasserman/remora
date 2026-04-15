@@ -49,14 +49,12 @@ export function StepIdInput({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={handleBlur}
         className={cn(
-          "rf:h-8 rf:text-xs rf:font-mono",
-          error && "rf:border-red-500 rf:focus-visible:ring-red-500/50",
+          "h-8 text-xs font-mono",
+          error && "border-red-500 focus-visible:ring-red-500/50",
         )}
         placeholder="step_id"
       />
-      {error && (
-        <div className="rf:text-[10px] rf:text-red-500 rf:mt-0.5">{error}</div>
-      )}
+      {error && <div className="text-[10px] text-red-500 mt-0.5">{error}</div>}
     </div>
   );
 }
@@ -81,7 +79,7 @@ export function StepIdDropdown({
         value={value || "__empty__"}
         onValueChange={(val) => onChange(val === "__empty__" ? "" : val)}
       >
-        <SelectTrigger className="rf:h-8 rf:text-xs rf:font-mono rf:w-full">
+        <SelectTrigger className="h-8 text-xs font-mono w-full">
           <SelectValue placeholder="— none —" />
         </SelectTrigger>
         <SelectContent>

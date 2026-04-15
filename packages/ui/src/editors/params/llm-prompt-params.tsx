@@ -12,7 +12,7 @@ export function LlmPromptParams({
   onChange: StepOnChange;
 }) {
   return (
-    <div className="rf:space-y-3">
+    <div className="space-y-3">
       <div>
         <Label>Prompt</Label>
         <Textarea
@@ -23,7 +23,7 @@ export function LlmPromptParams({
             })
           }
           rows={4}
-          className="rf:text-xs rf:font-mono rf:resize-y"
+          className="text-xs font-mono resize-y"
           placeholder="Write your prompt here. Use ${stepId.field} for interpolation."
         />
       </div>

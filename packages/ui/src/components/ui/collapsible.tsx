@@ -11,7 +11,7 @@ function CollapsibleTrigger({
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
   return (
     <CollapsiblePrimitive.CollapsibleTrigger
-      data-slot="rf:collapsible-trigger"
+      data-slot="collapsible-trigger"
       {...props}
     />
   );
@@ -22,7 +22,7 @@ function CollapsibleContent({
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
   return (
     <CollapsiblePrimitive.CollapsibleContent
-      data-slot="rf:collapsible-content"
+      data-slot="collapsible-content"
       {...props}
     />
   );
