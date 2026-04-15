@@ -266,8 +266,10 @@ export function WorkflowViewer({
   const prevIsEditingRef = useRef(isEditing);
 
   const layout = useMemo(() => {
+    // layoutReady transitions false→true when real DOM measurements arrive,
+    // forcing this memo to recompute with accurate dimensions from the ref.
     const dims =
-      measuredDimensionsRef.current.size > 0
+      layoutReady && measuredDimensionsRef.current.size > 0
         ? measuredDimensionsRef.current
         : undefined;
     if (isEditing) {
@@ -289,10 +291,6 @@ export function WorkflowViewer({
       paused,
       direction,
     );
-    // layoutReady transitions false→true once when real DOM measurements
-    // arrive, forcing this memo to recompute with accurate dimensions
-    // from the ref so the big useEffect's data-only updates use real sizes.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional dep on layoutReady
   }, [
     activeWorkflow,
     activeDiagnostics,
@@ -300,6 +298,7 @@ export function WorkflowViewer({
     isEditing,
     paused,
     direction,
+    layoutReady,
   ]);
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
@@ -330,7 +329,11 @@ export function WorkflowViewer({
   // measurements, not the heuristic estimates we pre-set on `node.measured`.
   useEffect(() => {
     if (initialMeasureDoneRef.current) return;
-    if (measuredDimensionsRef.current.size === 0) return;
+    // nodes is in the dep array so this effect re-fires when React Flow
+    // processes dimension changes. We read from measuredDimensionsRef
+    // (populated by onNodesChange) rather than node.measured because
+    // buildLayout pre-sets measured with heuristic estimates.
+    if (nodes.length === 0 || measuredDimensionsRef.current.size === 0) return;
     initialMeasureDoneRef.current = true;
     const dims = measuredDimensionsRef.current;
     if (isEditing) {
@@ -358,8 +361,8 @@ export function WorkflowViewer({
       setEdges(fresh.edges);
     }
     setLayoutReady(true);
-    // biome-ignore lint/correctness/useExhaustiveDependencies: nodes triggers re-evaluation when React Flow measures dimensions
   }, [
+    nodes,
     activeWorkflow,
     activeDiagnostics,
     executionState,
