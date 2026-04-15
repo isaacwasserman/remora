@@ -91,15 +91,20 @@ function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
   const prevDirection = useRef(direction);
 
   useEffect(() => {
-    if (prevDirection.current === direction) return;
-    prevDirection.current = direction;
-    // Schedule after the current render so Handle components have
-    // re-rendered with their new `position` props.
-    requestAnimationFrame(() => {
-      const ids = nodes.map((n) => n.id);
-      if (ids.length > 0) updateNodeInternals(ids);
-      fitView({ padding: 0.2, maxZoom: 1 });
+    const dirChanged = prevDirection.current !== direction;
+    if (dirChanged) prevDirection.current = direction;
+
+    const ids = nodes.map((n) => n.id);
+    if (ids.length === 0) return;
+
+    // Always refresh handle positions so edges track the correct side.
+    // This is cheap and necessary because the measurement re-layout cycle
+    // replaces nodes multiple times after a direction switch.
+    const raf = requestAnimationFrame(() => {
+      updateNodeInternals(ids);
+      if (dirChanged) fitView({ padding: 0.2, maxZoom: 1 });
     });
+    return () => cancelAnimationFrame(raf);
   }, [direction, nodes, updateNodeInternals, fitView]);
 
   return null;
