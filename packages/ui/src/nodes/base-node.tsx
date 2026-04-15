@@ -127,8 +127,8 @@ export function BaseNode({
 
   return (
     <div
-      className={`rounded-lg shadow-md dark:shadow-foreground/[0.06] border-l-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"} ${isEditing ? "cursor-grab active:cursor-grabbing group" : ""} relative`}
-      style={{ borderLeftColor: accent }}
+      className={`rounded-lg shadow-md dark:shadow-foreground/[0.06] border-l-4 border-t-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"} ${isEditing ? "cursor-grab active:cursor-grabbing group" : ""} relative`}
+      style={{ borderLeftColor: accent, borderTopColor: accent }}
     >
       {isEditing && (
         <button
