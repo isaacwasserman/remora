@@ -17,6 +17,7 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import type { ToolSet } from "ai";
 import { Braces, LayoutGrid } from "lucide-react";
@@ -74,6 +75,29 @@ const edgeTypes: EdgeTypes = {
 };
 
 import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
+
+/**
+ * Rendered inside `<ReactFlow>` to call `updateNodeInternals` when the layout
+ * direction changes. This forces React Flow to recalculate handle positions so
+ * edges connect at the correct side (left/right vs top/bottom).
+ */
+function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
+  const { getNodes, updateNodeInternals } = useReactFlow();
+  const prevDirection = useRef(direction);
+
+  useEffect(() => {
+    if (prevDirection.current === direction) return;
+    prevDirection.current = direction;
+    // Schedule after the current render so Handle components have
+    // re-rendered with their new `position` props.
+    requestAnimationFrame(() => {
+      const ids = getNodes().map((n) => n.id);
+      if (ids.length > 0) updateNodeInternals(ids);
+    });
+  }, [direction, getNodes, updateNodeInternals]);
+
+  return null;
+}
 
 /** Props for the {@link WorkflowViewer} component. */
 export interface WorkflowViewerProps {
@@ -699,6 +723,7 @@ export function WorkflowViewer({
             }}
             proOptions={{ hideAttribution: true }}
           >
+            <HandlePositionUpdater direction={direction} />
             <Background size={3} />
             <Controls showInteractive={false} />
             {showMinimap && (
