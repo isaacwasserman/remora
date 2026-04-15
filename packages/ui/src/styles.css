@@ -1,14 +1,14 @@
-/* tw-animate-css is intentionally outside @layer remoraflow so animations
-   always apply regardless of cascade layer ordering in the host app. */
+/* All utilities use !important (via tailwind.config.ts) so that layered
+   utility declarations always beat an unlayered host preflight/reset.
+   CSS !important cascade: layered !important > unlayered !important > unlayered normal,
+   which means the package's utilities work regardless of how the host app
+   orders its own CSS, while staying inside @layer remoraflow so they never
+   raise the baseline specificity of the host's non-!important rules. */
+@config "../tailwind.config.ts";
 @import "tw-animate-css";
 @import "tailwindcss/preflight" layer(remoraflow);
 @import "tailwindcss/theme" layer(remoraflow);
-/* Utilities are intentionally NOT layered. Layered utility classes lose to any
-   unlayered CSS reset (e.g. the host's Tailwind preflight or a `* { … }` rule)
-   because the CSS cascade resolves layers before specificity. Keeping utilities
-   unlayered lets class selectors (specificity 0-1-0) beat universal resets
-   (specificity 0-0-0) through normal specificity rules. */
-@import "tailwindcss/utilities";
+@import "tailwindcss/utilities" layer(remoraflow);
 @import "@xyflow/react/dist/style.css" layer(remoraflow);
 
 @source "./";
