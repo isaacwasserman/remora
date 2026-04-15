@@ -1,9 +1,7 @@
-/* tw-animate-css is intentionally outside @layer remoraflow so animations
-   always apply regardless of cascade layer ordering in the host app. */
 @import "tw-animate-css";
 @import "tailwindcss/preflight" layer(remoraflow);
 @import "tailwindcss/theme" layer(remoraflow);
-@import "tailwindcss/utilities" layer(remoraflow);
+@import "tailwindcss/utilities";
 @import "@xyflow/react/dist/style.css" layer(remoraflow);
 
 @source "./";
