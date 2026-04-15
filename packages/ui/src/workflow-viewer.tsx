@@ -189,6 +189,8 @@ export function WorkflowViewer({
   const measuredDimensionsRef = useRef<
     Map<string, { width: number; height: number }>
   >(new Map());
+  // Flipped to true once initial measurements arrive and a re-layout is done.
+  const initialMeasureDoneRef = useRef(false);
 
   // --- Tool schemas ---
   const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
@@ -294,9 +296,12 @@ export function WorkflowViewer({
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
 
   // Intercept dimension changes to capture real DOM measurements.
+  // On the first batch, trigger a one-time re-layout so the initial
+  // render uses accurate sizes instead of heuristic estimates.
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       onNodesChangeBase(changes);
+      let hasDimensionChange = false;
       for (const change of changes) {
         if (
           change.type === "dimensions" &&
@@ -304,10 +309,49 @@ export function WorkflowViewer({
           change.dimensions?.height
         ) {
           measuredDimensionsRef.current.set(change.id, change.dimensions);
+          hasDimensionChange = true;
+        }
+      }
+      if (hasDimensionChange && !initialMeasureDoneRef.current) {
+        initialMeasureDoneRef.current = true;
+        const dims = measuredDimensionsRef.current;
+        if (isEditing) {
+          const fresh = buildEditableLayout(
+            activeWorkflow,
+            activeDiagnostics,
+            undefined,
+            positionOverridesRef.current,
+            dimensionOverridesRef.current,
+            dims,
+            direction,
+          );
+          setNodes(fresh.nodes);
+          setEdges(fresh.edges);
+        } else {
+          const fresh = buildLayout(
+            activeWorkflow,
+            activeDiagnostics,
+            executionState,
+            dims,
+            paused,
+            direction,
+          );
+          setNodes(fresh.nodes);
+          setEdges(fresh.edges);
         }
       }
     },
-    [onNodesChangeBase],
+    [
+      onNodesChangeBase,
+      activeWorkflow,
+      activeDiagnostics,
+      executionState,
+      isEditing,
+      paused,
+      direction,
+      setNodes,
+      setEdges,
+    ],
   );
 
   const prevEditStructuralKeyRef = useRef(editStructuralKey);
@@ -343,6 +387,8 @@ export function WorkflowViewer({
         setEdges(fresh.edges);
       } else if (viewStructureChanged) {
         // Workflow graph shape changed — full layout reset needed
+        measuredDimensionsRef.current.clear();
+        initialMeasureDoneRef.current = false;
         setNodes(layout.nodes);
         setEdges(layout.edges);
       } else {
@@ -376,6 +422,8 @@ export function WorkflowViewer({
       // overrides should only come from explicit user actions (drag/resize).
       positionOverridesRef.current.clear();
       dimensionOverridesRef.current.clear();
+      measuredDimensionsRef.current.clear();
+      initialMeasureDoneRef.current = false;
       setNodes(layout.nodes);
       setEdges(layout.edges);
     } else {
