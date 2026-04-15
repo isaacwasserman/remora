@@ -486,6 +486,39 @@ export function buildLayout(
     });
   }
 
+  // In horizontal mode, dagre center-aligns nodes within each rank.
+  // Top-align instead so nodes with different heights share the same y.
+  if (direction === "horizontal") {
+    // Group nodes by their dagre center-x (which identifies the rank).
+    const rankGroups = new Map<number, string[]>();
+    const allPositionedIds = [...topLevelPositions.keys()];
+    for (const id of allPositionedIds) {
+      const dagreNode = id === START_NODE_ID ? topG.node(id) : topG.node(id);
+      if (!dagreNode) continue;
+      const centerX = Math.round(dagreNode.x);
+      let group = rankGroups.get(centerX);
+      if (!group) {
+        group = [];
+        rankGroups.set(centerX, group);
+      }
+      group.push(id);
+    }
+    for (const ids of rankGroups.values()) {
+      if (ids.length <= 1) continue;
+      let minY = Number.POSITIVE_INFINITY;
+      for (const id of ids) {
+        const pos = topLevelPositions.get(id);
+        if (pos && pos.y < minY) minY = pos.y;
+      }
+      for (const id of ids) {
+        const pos = topLevelPositions.get(id);
+        if (pos) {
+          topLevelPositions.set(id, { x: pos.x, y: minY });
+        }
+      }
+    }
+  }
+
   // --- Step 5: Build React Flow nodes ---
   const nodes: Node[] = [];
 
