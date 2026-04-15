@@ -3,7 +3,12 @@
 @import "tw-animate-css";
 @import "tailwindcss/preflight" layer(remoraflow);
 @import "tailwindcss/theme" layer(remoraflow);
-@import "tailwindcss/utilities" layer(remoraflow);
+/* Utilities are intentionally NOT layered. Layered utility classes lose to any
+   unlayered CSS reset (e.g. the host's Tailwind preflight or a `* { … }` rule)
+   because the CSS cascade resolves layers before specificity. Keeping utilities
+   unlayered lets class selectors (specificity 0-1-0) beat universal resets
+   (specificity 0-0-0) through normal specificity rules. */
+@import "tailwindcss/utilities";
 @import "@xyflow/react/dist/style.css" layer(remoraflow);
 
 @source "./";
