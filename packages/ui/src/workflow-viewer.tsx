@@ -295,14 +295,11 @@ export function WorkflowViewer({
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
 
-  // Intercept dimension changes to capture real DOM measurements.
-  // Once all initial measurements arrive (debounced via rAF), trigger a
-  // one-time re-layout so the page load uses accurate sizes.
-  const relayoutRafRef = useRef(0);
+  // Intercept dimension changes to keep measuredDimensionsRef up to date
+  // for subsequent layouts (direction changes, auto-layout, etc.).
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       onNodesChangeBase(changes);
-      let hasDimensionChange = false;
       for (const change of changes) {
         if (
           change.type === "dimensions" &&
@@ -310,55 +307,68 @@ export function WorkflowViewer({
           change.dimensions?.height
         ) {
           measuredDimensionsRef.current.set(change.id, change.dimensions);
-          hasDimensionChange = true;
         }
       }
-      if (hasDimensionChange && !initialMeasureDoneRef.current) {
-        // Cancel any previously scheduled re-layout so we wait for ALL
-        // measurement batches (ResizeObserver may fire across frames).
-        cancelAnimationFrame(relayoutRafRef.current);
-        relayoutRafRef.current = requestAnimationFrame(() => {
-          initialMeasureDoneRef.current = true;
-          const dims = measuredDimensionsRef.current;
-          if (isEditing) {
-            const fresh = buildEditableLayout(
-              activeWorkflow,
-              activeDiagnostics,
-              undefined,
-              positionOverridesRef.current,
-              dimensionOverridesRef.current,
-              dims,
-              direction,
-            );
-            setNodes(fresh.nodes);
-            setEdges(fresh.edges);
-          } else {
-            const fresh = buildLayout(
-              activeWorkflow,
-              activeDiagnostics,
-              executionState,
-              dims,
-              paused,
-              direction,
-            );
-            setNodes(fresh.nodes);
-            setEdges(fresh.edges);
-          }
+    },
+    [onNodesChangeBase],
+  );
+
+  // After React Flow measures nodes and updates `nodes` state with real
+  // `measured` values, re-layout once with accurate dimensions. The guard
+  // ref prevents this from firing more than once per workflow structure.
+  useEffect(() => {
+    if (initialMeasureDoneRef.current) return;
+    const dims = new Map<string, { width: number; height: number }>();
+    for (const node of nodes) {
+      if (node.measured?.width && node.measured?.height) {
+        dims.set(node.id, {
+          width: node.measured.width,
+          height: node.measured.height,
         });
       }
-    },
-    [
-      onNodesChangeBase,
-      activeWorkflow,
-      activeDiagnostics,
-      executionState,
-      isEditing,
-      paused,
-      direction,
-      setNodes,
-      setEdges,
-    ],
-  );
+    }
+    if (dims.size === 0) return;
+    initialMeasureDoneRef.current = true;
+    // Sync ref so subsequent layouts (direction changes etc.) also use
+    // real measurements.
+    for (const [id, d] of dims) {
+      measuredDimensionsRef.current.set(id, d);
+    }
+    if (isEditing) {
+      const fresh = buildEditableLayout(
+        activeWorkflow,
+        activeDiagnostics,
+        undefined,
+        positionOverridesRef.current,
+        dimensionOverridesRef.current,
+        dims,
+        direction,
+      );
+      setNodes(fresh.nodes);
+      setEdges(fresh.edges);
+    } else {
+      const fresh = buildLayout(
+        activeWorkflow,
+        activeDiagnostics,
+        executionState,
+        dims,
+        paused,
+        direction,
+      );
+      setNodes(fresh.nodes);
+      setEdges(fresh.edges);
+    }
+  }, [
+    nodes,
+    activeWorkflow,
+    activeDiagnostics,
+    executionState,
+    isEditing,
+    paused,
+    direction,
+    setNodes,
+    setEdges,
+  ]);
 
   const prevEditStructuralKeyRef = useRef(editStructuralKey);
 
