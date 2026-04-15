@@ -397,7 +397,6 @@ export function WorkflowViewer({
         // Workflow graph shape changed — full layout reset needed
         measuredDimensionsRef.current.clear();
         initialMeasureDoneRef.current = false;
-        setLayoutReady(false);
         setNodes(layout.nodes);
         setEdges(layout.edges);
       } else {
@@ -433,7 +432,6 @@ export function WorkflowViewer({
       dimensionOverridesRef.current.clear();
       measuredDimensionsRef.current.clear();
       initialMeasureDoneRef.current = false;
-      setLayoutReady(false);
       setNodes(layout.nodes);
       setEdges(layout.edges);
     } else {
