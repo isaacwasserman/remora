@@ -19,6 +19,7 @@ import {
   useEdgesState,
   useNodes,
   useNodesState,
+  useReactFlow,
   useUpdateNodeInternals,
 } from "@xyflow/react";
 import type { ToolSet } from "ai";
@@ -86,6 +87,7 @@ import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
 function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
   const nodes = useNodes();
   const updateNodeInternals = useUpdateNodeInternals();
+  const { fitView } = useReactFlow();
   const prevDirection = useRef(direction);
 
   useEffect(() => {
@@ -96,8 +98,9 @@ function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
     requestAnimationFrame(() => {
       const ids = nodes.map((n) => n.id);
       if (ids.length > 0) updateNodeInternals(ids);
+      fitView({ padding: 0.2, maxZoom: 1 });
     });
-  }, [direction, nodes, updateNodeInternals]);
+  }, [direction, nodes, updateNodeInternals, fitView]);
 
   return null;
 }
