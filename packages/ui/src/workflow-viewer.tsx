@@ -289,9 +289,10 @@ export function WorkflowViewer({
       paused,
       direction,
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutReady
-    // transitions false→true once when real DOM measurements arrive,
-    // forcing this memo to recompute with accurate dimensions from the ref.
+    // layoutReady transitions false→true once when real DOM measurements
+    // arrive, forcing this memo to recompute with accurate dimensions
+    // from the ref so the big useEffect's data-only updates use real sizes.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional dep on layoutReady
   }, [
     activeWorkflow,
     activeDiagnostics,
@@ -357,6 +358,7 @@ export function WorkflowViewer({
       setEdges(fresh.edges);
     }
     setLayoutReady(true);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: nodes triggers re-evaluation when React Flow measures dimensions
   }, [
     activeWorkflow,
     activeDiagnostics,
