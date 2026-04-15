@@ -16,8 +16,9 @@ import {
   type NodeTypes,
   ReactFlow,
   useEdgesState,
+  useNodes,
   useNodesState,
-  useReactFlow,
+  useUpdateNodeInternals,
 } from "@xyflow/react";
 import type { ToolSet } from "ai";
 import { Braces, LayoutGrid } from "lucide-react";
@@ -82,7 +83,8 @@ import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
  * edges connect at the correct side (left/right vs top/bottom).
  */
 function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
-  const { getNodes, updateNodeInternals } = useReactFlow();
+  const nodes = useNodes();
+  const updateNodeInternals = useUpdateNodeInternals();
   const prevDirection = useRef(direction);
 
   useEffect(() => {
@@ -91,10 +93,10 @@ function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
     // Schedule after the current render so Handle components have
     // re-rendered with their new `position` props.
     requestAnimationFrame(() => {
-      const ids = getNodes().map((n) => n.id);
+      const ids = nodes.map((n) => n.id);
       if (ids.length > 0) updateNodeInternals(ids);
     });
-  }, [direction, getNodes, updateNodeInternals]);
+  }, [direction, nodes, updateNodeInternals]);
 
   return null;
 }
