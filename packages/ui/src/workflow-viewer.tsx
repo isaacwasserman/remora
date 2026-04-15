@@ -289,6 +289,9 @@ export function WorkflowViewer({
       paused,
       direction,
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutReady
+    // transitions false→true once when real DOM measurements arrive,
+    // forcing this memo to recompute with accurate dimensions from the ref.
   }, [
     activeWorkflow,
     activeDiagnostics,
