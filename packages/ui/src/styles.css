@@ -1,6 +1,8 @@
 @import "tw-animate-css";
-@import "tailwindcss";
-@import "@xyflow/react/dist/style.css";
+@import "tailwindcss/preflight" layer(remoraflow);
+@import "tailwindcss/theme" layer(remoraflow);
+@import "tailwindcss/utilities" layer(remoraflow);
+@import "@xyflow/react/dist/style.css" layer(remoraflow);
 
 @source "./";
 
@@ -32,57 +34,36 @@
 	--radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
-	--radius: 0.625rem;
-	--background: #ffffff;
-	--foreground: #0a0a0a;
-	--card: #ffffff;
-	--card-foreground: #0a0a0a;
-	--popover: #ffffff;
-	--popover-foreground: #0a0a0a;
-	--primary: #6d28d9;
-	--primary-foreground: #fafafa;
-	--secondary: #f5f5f5;
-	--secondary-foreground: #171717;
-	--muted: #f5f5f5;
-	--muted-foreground: #737373;
-	--accent: #f5f5f5;
-	--accent-foreground: #171717;
-	--destructive: #dc2626;
-	--destructive-foreground: #dc2626;
-	--border: #e5e5e5;
-	--input: #e5e5e5;
-	--ring: #6d28d9;
-}
-
-.dark {
-	--background: #0a0a0a;
-	--foreground: #fafafa;
-	--card: #0a0a0a;
-	--card-foreground: #fafafa;
-	--popover: #0a0a0a;
-	--popover-foreground: #fafafa;
-	--primary: #7c3aed;
-	--primary-foreground: #fafafa;
-	--secondary: #262626;
-	--secondary-foreground: #fafafa;
-	--muted: #262626;
-	--muted-foreground: #a3a3a3;
-	--accent: #262626;
-	--accent-foreground: #fafafa;
-	--destructive: #991b1b;
-	--destructive-foreground: #ef4444;
-	--border: #262626;
-	--input: #262626;
-	--ring: #7c3aed;
-}
-
-@layer base {
-	*,
-	::after,
-	::before,
-	::backdrop,
-	::file-selector-button {
-		border-color: var(--color-border, currentColor);
-	}
+/*
+ * Map React Flow's --xy-* variables to shadcn/Tailwind theme tokens.
+ * This lets the host app's theme control the entire viewer appearance.
+ * React Flow resolves: var(--xy-foo, var(--xy-foo-default))
+ * so setting --xy-foo here wins over the built-in defaults.
+ */
+.react-flow {
+	--xy-background-color: var(--color-background, var(--background));
+	--xy-node-color: var(--color-card-foreground, var(--card-foreground));
+	--xy-node-border: 1px solid var(--color-border, var(--border));
+	--xy-node-background-color: var(--color-card, var(--card));
+	--xy-node-group-background-color: var(--color-muted, var(--muted));
+	--xy-node-border-radius: var(--radius-lg, 0.625rem);
+	--xy-node-boxshadow-hover: 0 1px 4px 1px color-mix(in oklab, var(--color-foreground, var(--foreground)) 8%, transparent);
+	--xy-node-boxshadow-selected: 0 0 0 1.5px var(--color-primary, var(--primary));
+	--xy-handle-background-color: var(--color-primary, var(--primary));
+	--xy-edge-stroke: var(--color-border, var(--border));
+	--xy-edge-stroke-selected: var(--color-primary, var(--primary));
+	--xy-connectionline-stroke: var(--color-muted-foreground, var(--muted-foreground));
+	--xy-selection-background-color: color-mix(in oklab, var(--color-primary, var(--primary)) 8%, transparent);
+	--xy-minimap-background-color: var(--color-card, var(--card));
+	--xy-minimap-mask-background-color: color-mix(in oklab, var(--color-background, var(--background)) 70%, transparent);
+	--xy-minimap-node-background-color: var(--color-muted, var(--muted));
+	--xy-controls-button-background-color: var(--color-card, var(--card));
+	--xy-controls-button-background-color-hover: var(--color-accent, var(--accent));
+	--xy-controls-button-color: var(--color-foreground, var(--foreground));
+	--xy-controls-button-color-hover: var(--color-foreground, var(--foreground));
+	--xy-controls-button-border-color: var(--color-border, var(--border));
+	--xy-controls-box-shadow: 0 0 2px 1px color-mix(in oklab, var(--color-foreground, var(--foreground)) 6%, transparent);
+	--xy-edge-label-background-color: var(--color-card, var(--card));
+	--xy-background-pattern-color: var(--color-border, var(--border));
+	--xy-attribution-background-color: color-mix(in oklab, var(--color-card, var(--card)) 50%, transparent);
 }

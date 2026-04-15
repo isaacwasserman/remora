@@ -23,7 +23,7 @@ export function buildJsonHighlightStyle(dark: boolean) {
     },
     {
       tag: tags.punctuation,
-      color: "var(--color-muted-foreground, hsl(var(--muted-foreground)))",
+      color: "var(--color-muted-foreground, var(--muted-foreground))",
     },
   ]);
 }
@@ -39,29 +39,29 @@ export function buildEditorTheme(
         fontFamily:
           'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
         borderRadius: "calc(var(--radius) - 2px)",
-        border: "1px solid var(--color-border, hsl(var(--border)))",
+        border: "1px solid var(--color-border, var(--border))",
         backgroundColor: dark
-          ? "var(--color-input, hsl(var(--input)))"
-          : "var(--color-background, hsl(var(--background)))",
+          ? "var(--color-input, var(--input))"
+          : "var(--color-background, var(--background))",
       },
       "&.cm-focused": {
         outline: "none",
-        borderColor: "var(--color-ring, hsl(var(--ring)))",
+        borderColor: "var(--color-ring, var(--ring))",
         boxShadow:
-          "0 0 0 3px color-mix(in srgb, var(--color-ring, hsl(var(--ring))) 50%, transparent)",
+          "0 0 0 3px color-mix(in srgb, var(--color-ring, var(--ring)) 50%, transparent)",
       },
       ".cm-content": {
         padding: "8px 0",
-        caretColor: "var(--color-foreground, hsl(var(--foreground)))",
-        color: "var(--color-foreground, hsl(var(--foreground)))",
+        caretColor: "var(--color-foreground, var(--foreground))",
+        color: "var(--color-foreground, var(--foreground))",
       },
       ".cm-cursor": {
-        borderLeftColor: "var(--color-foreground, hsl(var(--foreground)))",
+        borderLeftColor: "var(--color-foreground, var(--foreground))",
       },
       ".cm-gutters": {
         backgroundColor: "transparent",
         borderRight: "none",
-        color: "var(--color-muted-foreground, hsl(var(--muted-foreground)))",
+        color: "var(--color-muted-foreground, var(--muted-foreground))",
         paddingLeft: "2px",
       },
       ".cm-lineNumbers .cm-gutterElement": {
@@ -70,7 +70,7 @@ export function buildEditorTheme(
       },
       ".cm-activeLineGutter": {
         backgroundColor: "transparent",
-        color: "var(--color-foreground, hsl(var(--foreground)))",
+        color: "var(--color-foreground, var(--foreground))",
       },
       ".cm-activeLine": {
         backgroundColor: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
@@ -86,27 +86,25 @@ export function buildEditorTheme(
       ".cm-lintRange-error": {
         backgroundImage: "none",
         textDecoration:
-          "wavy underline var(--color-destructive, hsl(var(--destructive)))",
+          "wavy underline var(--color-destructive, var(--destructive))",
         textDecorationSkipInk: "none",
       },
       ".cm-lint-marker-error": {
         content: "'!'",
       },
       ".cm-tooltip-lint": {
-        backgroundColor: "var(--color-popover, hsl(var(--popover)))",
-        border: "1px solid var(--color-border, hsl(var(--border)))",
+        backgroundColor: "var(--color-popover, var(--popover))",
+        border: "1px solid var(--color-border, var(--border))",
         borderRadius: "calc(var(--radius) - 2px)",
-        color:
-          "var(--color-popover-foreground, hsl(var(--popover-foreground)))",
+        color: "var(--color-popover-foreground, var(--popover-foreground))",
         fontSize: "11px",
       },
       ".cm-diagnostic-error": {
-        borderLeft:
-          "3px solid var(--color-destructive, hsl(var(--destructive)))",
-        color: "var(--color-destructive, hsl(var(--destructive)))",
+        borderLeft: "3px solid var(--color-destructive, var(--destructive))",
+        color: "var(--color-destructive, var(--destructive))",
       },
       ".cm-placeholder": {
-        color: "var(--color-muted-foreground, hsl(var(--muted-foreground)))",
+        color: "var(--color-muted-foreground, var(--muted-foreground))",
       },
       ".cm-scroller": {
         maxHeight: scrollerMaxHeight ?? "300px",
