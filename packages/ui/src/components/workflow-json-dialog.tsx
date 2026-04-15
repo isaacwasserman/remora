@@ -69,7 +69,7 @@ export function WorkflowJsonDialog({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="rf:fixed rf:inset-0 rf:z-50 rf:flex rf:items-center rf:justify-center rf:bg-black/50"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -77,31 +77,31 @@ export function WorkflowJsonDialog({
       ref={dialogRef}
       tabIndex={-1}
     >
-      <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">
+      <div className="rf:bg-card border rf:border-border rf:rounded-xl rf:shadow-xl rf:w-full rf:max-w-2xl rf:mx-4 rf:overflow-hidden rf:flex rf:flex-col rf:max-h-[80vh]">
+        <div className="rf:px-5 rf:pt-4 rf:pb-3 rf:flex rf:items-center rf:justify-between rf:border-b rf:border-border">
+          <h2 className="rf:text-sm rf:font-semibold rf:text-foreground">
             Workflow JSON
           </h2>
-          <div className="flex items-center gap-1">
+          <div className="rf:flex rf:items-center rf:gap-1">
             <button
               type="button"
               onClick={handleCopy}
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50 transition-colors flex items-center gap-1"
+              className="rf:text-xs rf:text-muted-foreground rf:hover:text-foreground rf:px-2 rf:py-1 rf:rounded-md rf:hover:bg-muted/50 rf:transition-colors rf:flex rf:items-center rf:gap-1"
             >
-              <Copy className="w-3.5 h-3.5" />
+              <Copy className="rf:w-3.5 rf:h-3.5" />
               {copied ? "Copied" : "Copy"}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted/50 transition-colors"
+              className="rf:text-muted-foreground rf:hover:text-foreground rf:p-1 rf:rounded-md rf:hover:bg-muted/50 rf:transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="rf:w-4 rf:h-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+        <div className="rf:flex-1 rf:min-h-0 rf:overflow-y-auto rf:p-4">
           <JsonCodeEditor
             value={jsonText}
             onChange={setJsonText}
@@ -111,18 +111,18 @@ export function WorkflowJsonDialog({
         </div>
 
         {parseError && (
-          <div className="px-5 pb-2">
-            <div className="text-[11px] text-destructive bg-destructive/10 rounded-md px-3 py-1.5 truncate">
+          <div className="rf:px-5 rf:pb-2">
+            <div className="rf:text-[11px] rf:text-destructive rf:bg-destructive/10 rf:rounded-md rf:px-3 rf:py-1.5 rf:truncate">
               {parseError}
             </div>
           </div>
         )}
 
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30">
+        <div className="rf:flex rf:justify-end rf:gap-2 rf:px-5 rf:py-3 rf:border-t rf:border-border rf:bg-muted/30">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 border border-border bg-background hover:bg-muted/50 transition-colors text-foreground"
+            className="rf:inline-flex rf:items-center rf:justify-center rf:rounded-md rf:text-xs rf:font-medium rf:h-8 rf:px-3 border rf:border-border rf:bg-background rf:hover:bg-muted/50 rf:transition-colors rf:text-foreground"
           >
             {isEditing ? "Cancel" : "Close"}
           </button>
@@ -131,7 +131,7 @@ export function WorkflowJsonDialog({
               type="button"
               onClick={handleApply}
               disabled={!!parseError}
-              className="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              className="rf:inline-flex rf:items-center rf:justify-center rf:rounded-md rf:text-xs rf:font-medium rf:h-8 rf:px-3 rf:bg-primary rf:text-primary-foreground rf:hover:bg-primary/90 rf:transition-colors rf:disabled:opacity-50 rf:disabled:pointer-events-none"
             >
               Apply
             </button>

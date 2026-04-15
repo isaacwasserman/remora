@@ -2,4 +2,4 @@
 "@remoraflow/ui": patch
 ---
 
-Fix Tailwind utility styles (borders, backgrounds, rings, etc.) not resolving in downstream apps by moving utilities out of `@layer remoraflow`
+Fix package styles overriding host application CSS by prefixing all Tailwind utility classes with `rf:` to eliminate class name collisions with the host app

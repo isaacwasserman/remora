@@ -83,7 +83,7 @@ export function CanvasContextMenu({
     <div
       ref={menuRef}
       style={menuStyle}
-      className="bg-card border border-border rounded-lg shadow-xl py-1 min-w-[180px] text-sm"
+      className="rf:bg-card border rf:border-border rf:rounded-lg rf:shadow-xl rf:py-1 rf:min-w-[180px] rf:text-sm"
     >
       {targetNodeId && (
         <>
@@ -91,7 +91,7 @@ export function CanvasContextMenu({
             <button
               type="button"
               onClick={() => onEditNode(targetNodeId)}
-              className="w-full px-3 py-1.5 text-left text-foreground hover:bg-muted/50 transition-colors"
+              className="rf:w-full rf:px-3 rf:py-1.5 rf:text-left rf:text-foreground rf:hover:bg-muted/50 rf:transition-colors"
             >
               Edit Step
             </button>
@@ -100,15 +100,15 @@ export function CanvasContextMenu({
             <button
               type="button"
               onClick={() => onDeleteNode(targetNodeId)}
-              className="w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className="rf:w-full rf:px-3 rf:py-1.5 rf:text-left rf:text-red-600 rf:dark:text-red-400 rf:hover:bg-red-50 rf:dark:hover:bg-red-900/20 rf:transition-colors"
             >
               Delete Step
             </button>
           )}
-          <div className="border-t border-border my-1" />
+          <div className="rf:border-t rf:border-border rf:my-1" />
         </>
       )}
-      <div className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="rf:px-3 rf:py-1 rf:text-[11px] rf:font-medium rf:uppercase rf:tracking-wide rf:text-muted-foreground">
         Add Step
       </div>
       {STEP_TYPES.map((entry) => (
@@ -116,9 +116,9 @@ export function CanvasContextMenu({
           type="button"
           key={entry.type}
           onClick={() => onAddStep(entry.type, canvasPosition)}
-          className="w-full px-3 py-1.5 text-left text-foreground hover:bg-muted/50 transition-colors flex items-center gap-2"
+          className="rf:w-full rf:px-3 rf:py-1.5 rf:text-left rf:text-foreground rf:hover:bg-muted/50 rf:transition-colors rf:flex rf:items-center rf:gap-2"
         >
-          <entry.icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <entry.icon className="rf:w-3.5 rf:h-3.5 rf:text-muted-foreground rf:shrink-0" />
           {entry.label}
         </button>
       ))}

@@ -15,7 +15,7 @@ export function AgentLoopParams({
   availableToolNames: string[];
 }) {
   return (
-    <div className="space-y-3">
+    <div className="rf:space-y-3">
       <div>
         <Label>Instructions</Label>
         <Textarea
@@ -29,22 +29,22 @@ export function AgentLoopParams({
             })
           }
           rows={4}
-          className="text-xs font-mono resize-y"
+          className="rf:text-xs rf:font-mono rf:resize-y"
           placeholder="Write agent instructions. Use ${stepId.field} for interpolation."
         />
       </div>
       <div>
         <Label>Tools</Label>
         {availableToolNames.length > 0 ? (
-          <div className="space-y-1">
+          <div className="rf:space-y-1">
             {availableToolNames.map((name) => (
               <label
                 key={name}
-                className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer select-none"
+                className="rf:flex rf:items-center rf:gap-2.5 rf:text-xs rf:text-foreground rf:cursor-pointer rf:select-none"
               >
                 <input
                   type="checkbox"
-                  className="rounded border-border accent-foreground"
+                  className="rounded rf:border-border rf:accent-foreground"
                   checked={step.params.tools.includes(name)}
                   onChange={(e) => {
                     const tools = e.target.checked
@@ -73,7 +73,7 @@ export function AgentLoopParams({
                 },
               })
             }
-            className="h-8 text-xs font-mono"
+            className="rf:h-8 rf:text-xs rf:font-mono"
             placeholder="tool1, tool2"
           />
         )}

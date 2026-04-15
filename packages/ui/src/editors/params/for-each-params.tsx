@@ -15,7 +15,7 @@ export function ForEachParams({
   allStepIds: string[];
 }) {
   return (
-    <div className="space-y-3">
+    <div className="rf:space-y-3">
       <ExpressionEditor
         label="Target Array"
         value={step.params.target as Expression}
@@ -32,7 +32,7 @@ export function ForEachParams({
               params: { ...step.params, itemName: e.target.value },
             })
           }
-          className="h-8 text-xs font-mono"
+          className="rf:h-8 rf:text-xs rf:font-mono"
           placeholder="item"
         />
       </div>

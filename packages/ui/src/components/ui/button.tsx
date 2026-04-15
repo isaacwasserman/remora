@@ -5,30 +5,32 @@ import type * as React from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "rf:inline-flex rf:shrink-0 rf:items-center rf:justify-center rf:gap-2 rf:rounded-md rf:text-sm rf:font-medium rf:whitespace-nowrap rf:transition-all rf:outline-none rf:focus-visible:border-ring rf:focus-visible:ring-[3px] rf:focus-visible:ring-ring/50 rf:disabled:pointer-events-none rf:disabled:opacity-50 rf:aria-invalid:border-destructive rf:aria-invalid:ring-destructive/20 rf:dark:aria-invalid:ring-destructive/40 rf:[rf:[[&_svg]:_svg]:_svg]:pointer-events-none rf:[rf:[[&_svg]:_svg]:_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "rf:bg-primary rf:text-primary-foreground rf:hover:bg-primary/90",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+          "rf:bg-destructive rf:text-white rf:hover:bg-destructive/90 rf:focus-visible:ring-destructive/20 rf:dark:bg-destructive/60 rf:dark:focus-visible:ring-destructive/40",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border rf:bg-background rf:shadow-xs rf:hover:bg-accent rf:hover:text-accent-foreground rf:dark:border-input rf:dark:bg-input/30 rf:dark:hover:bg-input/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "rf:bg-secondary rf:text-secondary-foreground rf:hover:bg-secondary/80",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "rf:hover:bg-accent rf:hover:text-accent-foreground rf:dark:hover:bg-accent/50",
+        link: "rf:text-primary rf:underline-offset-4 rf:hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "rf:h-9 rf:px-4 rf:py-2 rf:has-[>svg]:px-3",
+        xs: "rf:h-6 rf:gap-1 rf:rounded-md rf:px-2 rf:text-xs rf:has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "rf:h-8 rf:gap-1.5 rf:rounded-md rf:px-3 rf:has-[>svg]:px-2.5",
+        lg: "rf:h-10 rf:rounded-md rf:px-6 rf:has-[>svg]:px-4",
+        icon: "rf:size-9",
+        "icon-xs":
+          "rf:size-6 rf:rounded-md [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "rf:size-8",
+        "icon-lg": "rf:size-10",
       },
     },
     defaultVariants: {

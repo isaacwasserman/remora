@@ -58,7 +58,7 @@ export function ToolCallParams({
   const displayKeys = schemaKeys ?? Object.keys(step.params.toolInput);
 
   return (
-    <div className="space-y-3">
+    <div className="rf:space-y-3">
       <div>
         <Label>Tool Name</Label>
         {availableToolNames.length > 0 ? (
@@ -70,7 +70,7 @@ export function ToolCallParams({
               })
             }
           >
-            <SelectTrigger className="h-8 text-xs font-mono w-full">
+            <SelectTrigger className="rf:h-8 rf:text-xs rf:font-mono rf:w-full">
               <SelectValue placeholder="-- select tool --" />
             </SelectTrigger>
             <SelectContent>
@@ -89,20 +89,20 @@ export function ToolCallParams({
                 params: { ...step.params, toolName: e.target.value },
               })
             }
-            className="h-8 text-xs font-mono"
+            className="rf:h-8 rf:text-xs rf:font-mono"
             placeholder="tool-name"
           />
         )}
       </div>
       {schema?.description && (
-        <p className="text-[11px] text-muted-foreground leading-snug">
+        <p className="rf:text-[11px] rf:text-muted-foreground rf:leading-snug">
           {schema.description}
         </p>
       )}
       {displayKeys.length > 0 && (
         <div>
           <Label>Tool Inputs</Label>
-          <div className="space-y-2">
+          <div className="rf:space-y-2">
             {displayKeys.map((key) => {
               const expr = step.params.toolInput[key] as Expression | undefined;
               const isRequired = requiredKeys.has(key);
@@ -112,20 +112,20 @@ export function ToolCallParams({
               return (
                 <div
                   key={key}
-                  className="border border-border/70 rounded-lg p-3 bg-muted/20"
+                  className="border rf:border-border/70 rf:rounded-lg rf:p-3 rf:bg-muted/20"
                 >
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="text-xs font-mono font-medium text-foreground">
+                  <div className="rf:flex rf:items-center rf:gap-1.5 rf:mb-1.5">
+                    <span className="rf:text-xs rf:font-mono rf:font-medium rf:text-foreground">
                       {key}
                     </span>
                     {isRequired && (
-                      <span className="text-[10px] font-semibold text-red-500 bg-red-50 dark:bg-red-950/30 px-1.5 py-0.5 rounded">
+                      <span className="rf:text-[10px] rf:font-semibold rf:text-red-500 rf:bg-red-50 rf:dark:bg-red-950/30 rf:px-1.5 rf:py-0.5 rounded">
                         required
                       </span>
                     )}
                   </div>
                   {propSchema?.description && (
-                    <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
+                    <p className="rf:text-[10px] rf:text-muted-foreground rf:mb-2 rf:leading-relaxed">
                       {propSchema.description}
                     </p>
                   )}

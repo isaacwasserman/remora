@@ -13,7 +13,7 @@ export function WaitForConditionParams({
   allStepIds: string[];
 }) {
   return (
-    <div className="space-y-3">
+    <div className="rf:space-y-3">
       <StepIdDropdown
         label="Condition Step"
         value={step.params.conditionStepId}

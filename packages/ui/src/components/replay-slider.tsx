@@ -27,7 +27,7 @@ export function ReplaySlider({
 
   const latestStatus = stateHistory[stateHistory.length - 1]?.status;
   const base =
-    "w-[72px] h-[24px] text-[11px] font-medium rounded flex items-center justify-center";
+    "rf:w-[72px] rf:h-[24px] rf:text-[11px] rf:font-medium rounded rf:flex rf:items-center rf:justify-center";
 
   let badge: React.ReactNode;
   if (replayIndex !== null) {
@@ -36,43 +36,47 @@ export function ReplaySlider({
         variant="outline"
         size="xs"
         onClick={onGoLive}
-        className="w-[72px]"
+        className="rf:w-[72px]"
       >
         Live
       </Button>
     );
   } else if (isRunning) {
     badge = (
-      <span className={`${base} text-green-600 dark:text-green-400 gap-1`}>
-        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+      <span
+        className={`${base} rf:text-green-600 rf:dark:text-green-400 rf:gap-1`}
+      >
+        <span className="rf:w-1.5 rf:h-1.5 rf:rounded-full rf:bg-green-500 rf:animate-pulse" />
         Live
       </span>
     );
   } else if (latestStatus === "completed") {
     badge = (
-      <span className={`${base} text-green-600 dark:text-green-400`}>
+      <span className={`${base} rf:text-green-600 rf:dark:text-green-400`}>
         Complete
       </span>
     );
   } else if (latestStatus === "failed") {
     badge = (
-      <span className={`${base} text-red-600 dark:text-red-400`}>Failed</span>
+      <span className={`${base} rf:text-red-600 rf:dark:text-red-400`}>
+        Failed
+      </span>
     );
   } else {
     badge = <span className={base} />;
   }
 
   return (
-    <div className="bg-card dark:bg-secondary/40 border-t border-border px-4 py-2 flex items-center gap-3 shrink-0">
+    <div className="rf:bg-card rf:dark:bg-secondary/40 rf:border-t rf:border-border rf:px-4 rf:py-2 rf:flex rf:items-center rf:gap-3 rf:shrink-0">
       <input
         type="range"
         min={0}
         max={stateHistory.length - 1}
         value={currentIndex}
         onChange={handleChange}
-        className="flex-1 h-1.5 accent-primary"
+        className="rf:flex-1 rf:h-1.5 rf:accent-primary"
       />
-      <span className="text-xs text-muted-foreground tabular-nums min-w-[60px] text-right">
+      <span className="rf:text-xs rf:text-muted-foreground rf:tabular-nums rf:min-w-[60px] rf:text-right">
         {currentIndex + 1} / {stateHistory.length}
       </span>
       {badge}

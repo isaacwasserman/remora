@@ -44,23 +44,23 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
       switch (executionSummary.status) {
         case "running":
           ringClass = paused
-            ? "ring-2 ring-amber-400"
-            : "ring-2 ring-blue-400 animate-pulse";
+            ? "rf:ring-2 rf:ring-amber-400"
+            : "rf:ring-2 rf:ring-blue-400 rf:animate-pulse";
           break;
         case "completed":
-          ringClass = "ring-2 ring-green-400";
+          ringClass = "rf:ring-2 rf:ring-green-400";
           break;
         case "failed":
-          ringClass = "ring-2 ring-red-500";
+          ringClass = "rf:ring-2 rf:ring-red-500";
           break;
       }
-    } else if (hasErrors) ringClass = "ring-2 ring-red-500";
-    else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
-    else if (selected) ringClass = "ring-2 ring-orange-400";
+    } else if (hasErrors) ringClass = "rf:ring-2 rf:ring-red-500";
+    else if (hasWarnings) ringClass = "rf:ring-2 rf:ring-amber-400";
+    else if (selected) ringClass = "rf:ring-2 rf:ring-orange-400";
 
     return (
       <div
-        className={`rounded-xl border-2 border-dashed transition-colors duration-150 border-orange-300 bg-orange-50/30 dark:border-orange-700 dark:bg-orange-950/30 ${ringClass} ${isEditing ? "group" : ""} relative`}
+        className={`rf:rounded-xl rf:border-2 rf:border-dashed rf:transition-colors rf:duration-150 rf:border-orange-300 rf:bg-orange-50/30 rf:dark:border-orange-700 rf:dark:bg-orange-950/30 ${ringClass} ${isEditing ? "rf:group" : ""} rf:relative`}
         style={{ width: groupWidth, height: groupHeight }}
       >
         {isEditing && (
@@ -70,7 +70,7 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
               e.stopPropagation();
               onDeleteStep(step.id);
             }}
-            className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
+            className="rf:absolute rf:-top-2 rf:-right-2 rf:z-10 rf:w-5 rf:h-5 rf:rounded-full rf:bg-muted-foreground/70 rf:text-white rf:text-xs rf:flex rf:items-center rf:justify-center rf:hover:bg-muted-foreground rf:shadow-sm rf:transition-opacity rf:opacity-0 rf:group-hover:opacity-100"
             title="Delete step"
           >
             &times;
@@ -81,16 +81,16 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
           position={Position.Top}
           className={
             isEditing
-              ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
-              : "!bg-orange-500 !w-2.5 !h-2.5"
+              ? "rf:!w-3 rf:!h-3 rf:!bg-blue-400 rf:hover:!bg-blue-500 rf:!border-2 rf:!border-background"
+              : "rf:!bg-orange-500 rf:!w-2.5 rf:!h-2.5"
           }
         />
-        <div className="px-3 py-2 flex items-center gap-2">
-          <Timer className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-orange-500">
+        <div className="rf:px-3 rf:py-2 rf:flex rf:items-center rf:gap-2">
+          <Timer className="rf:w-3.5 rf:h-3.5 rf:text-orange-500 rf:shrink-0" />
+          <span className="rf:text-[10px] rf:font-semibold rf:uppercase rf:tracking-wide rf:text-orange-500">
             Wait
           </span>
-          <span className="text-sm font-medium text-foreground truncate">
+          <span className="rf:text-sm rf:font-medium rf:text-foreground rf:truncate">
             {step.name}
           </span>
         </div>
@@ -100,8 +100,8 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
             position={Position.Bottom}
             className={
               isEditing
-                ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
-                : "!bg-orange-500 !w-2.5 !h-2.5"
+                ? "rf:!w-3 rf:!h-3 rf:!bg-blue-400 rf:hover:!bg-blue-500 rf:!border-2 rf:!border-background"
+                : "rf:!bg-orange-500 rf:!w-2.5 rf:!h-2.5"
             }
           />
         )}
@@ -115,9 +115,9 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="Wait For Condition"
-      typeLabelColor="text-orange-500"
+      typeLabelColor="rf:text-orange-500"
       accent="#f97316"
-      icon={<Timer className="w-3.5 h-3.5" />}
+      icon={<Timer className="rf:w-3.5 rf:h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -125,16 +125,18 @@ export function WaitForConditionNode({ data, selected }: NodeProps) {
       executionSummary={executionSummary}
       paused={paused}
     >
-      <div className="flex gap-1.5 text-[11px]">
-        <span className="text-muted-foreground shrink-0">until:</span>
-        <span className="font-mono text-muted-foreground truncate">
+      <div className="rf:flex rf:gap-1.5 rf:text-[11px]">
+        <span className="rf:text-muted-foreground rf:shrink-0">until:</span>
+        <span className="rf:font-mono rf:text-muted-foreground rf:truncate">
           {renderExpr(step.params.condition)}
         </span>
       </div>
       {step.params.maxAttempts && (
-        <div className="mt-0.5 flex gap-1.5 text-[11px]">
-          <span className="text-muted-foreground shrink-0">max attempts:</span>
-          <span className="font-mono text-muted-foreground">
+        <div className="rf:mt-0.5 rf:flex rf:gap-1.5 rf:text-[11px]">
+          <span className="rf:text-muted-foreground rf:shrink-0">
+            max attempts:
+          </span>
+          <span className="rf:font-mono rf:text-muted-foreground">
             {renderExpr(step.params.maxAttempts)}
           </span>
         </div>

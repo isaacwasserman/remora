@@ -25,9 +25,9 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="LLM Prompt"
-      typeLabelColor="text-violet-500"
+      typeLabelColor="rf:text-violet-500"
       accent="#8b5cf6"
-      icon={<Sparkles className="w-3.5 h-3.5" />}
+      icon={<Sparkles className="rf:w-3.5 rf:h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -36,19 +36,19 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
       paused={paused}
     >
       <div
-        className={`text-[11px] italic line-clamp-3 rounded p-1.5 font-mono ${
+        className={`rf:text-[11px] rf:italic rf:line-clamp-3 rounded rf:p-1.5 rf:font-mono ${
           resolvedPrompt
-            ? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50"
-            : "text-muted-foreground bg-muted"
+            ? "rf:text-emerald-700 rf:bg-emerald-50 rf:dark:text-emerald-400 rf:dark:bg-emerald-950/50"
+            : "rf:text-muted-foreground rf:bg-muted"
         }`}
         title={resolvedPrompt ? step.params.prompt : undefined}
       >
         {resolvedPrompt ?? step.params.prompt}
       </div>
       {outputKeys.length > 0 && (
-        <div className="mt-1.5 text-[11px] text-muted-foreground">
+        <div className="rf:mt-1.5 rf:text-[11px] rf:text-muted-foreground">
           <span>output: </span>
-          <span className="font-mono text-muted-foreground">
+          <span className="rf:font-mono rf:text-muted-foreground">
             {outputKeys.join(", ")}
           </span>
         </div>
