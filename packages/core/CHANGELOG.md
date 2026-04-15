@@ -1,5 +1,18 @@
 # @remoraflow/core
 
+## 0.8.0
+
+### Minor Changes
+
+- 499f437: Add prompt size limits to prevent context window overflow in LLM prompts and workflows.
+
+  - Compile-time validation: emits `PROMPT_TEMPLATE_EXCEEDS_TOKEN_LIMIT` error when a prompt template exceeds the configured token limit
+  - Execution-time truncation: proportionally truncates interpolated variable portions to fit within the total prompt token limit, with per-variable caps and truncation disclaimers
+  - Configurable via `maxPromptTokens` (compiler + executor) and `maxPromptVariableTokens` (executor), defaulting to 100k and 5k tokens respectively
+  - Uses the `tokenx` package for fast token estimation
+
+- 8538813: Replace schema inference strategy with literal preservation, null-aware array merging, and heterogeneous array truncation
+
 ## 0.7.1
 
 ### Patch Changes

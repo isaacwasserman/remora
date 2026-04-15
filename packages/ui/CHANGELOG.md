@@ -1,5 +1,17 @@
 # @remoraflow/ui
 
+## 0.8.0
+
+### Minor Changes
+
+- 6dc6aea: Replace hardcoded theme with CSS variable mapping for host-app compatibility. Tailwind imports wrapped in `@layer remoraflow` to prevent specificity collisions. React Flow styled via `--xy-*` CSS variables instead of JS-based `useThemeColors`. Smarter initial node height estimation prevents layout thrash on first render.
+
+### Patch Changes
+
+- Updated dependencies [499f437]
+- Updated dependencies [8538813]
+  - @remoraflow/core@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes
