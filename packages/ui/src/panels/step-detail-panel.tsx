@@ -36,8 +36,8 @@ function renderExpression(
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
   const colors: Record<string, string> = {
     pending: "bg-muted text-muted-foreground border border-border",
-    running: "bg-blue-500/10 text-blue-600 border border-blue-500/20 ",
-    completed: "bg-green-500/10 text-green-600 border border-green-500/20 ",
+    running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+    completed: "bg-green-500/10 text-green-600 border border-green-500/20",
     failed: "bg-destructive/10 text-destructive border border-destructive/20",
     skipped: "bg-muted text-muted-foreground border border-border",
   };
@@ -373,8 +373,8 @@ function formatValue(value: unknown): string {
 
 const recordStatusColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground border border-border",
-  running: "bg-blue-500/10 text-blue-600 border border-blue-500/20 ",
-  completed: "bg-green-500/10 text-green-600 border border-green-500/20 ",
+  running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+  completed: "bg-green-500/10 text-green-600 border border-green-500/20",
   failed: "bg-destructive/10 text-destructive border border-destructive/20",
   skipped: "bg-muted text-muted-foreground border border-border",
 };
@@ -419,7 +419,7 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
           </span>
         )}
         {record.retries.length > 0 && (
-          <span className="text-[11px] font-medium text-amber-600 ">
+          <span className="text-[11px] font-medium text-amber-600">
             {record.retries.length}{" "}
             {record.retries.length === 1 ? "retry" : "retries"}
           </span>
@@ -571,7 +571,7 @@ export function StepDetailPanel({
               )}
 
               {executionSummary.totalRetries > 0 && (
-                <div className="text-[11px] font-medium text-amber-600 ">
+                <div className="text-[11px] font-medium text-amber-600">
                   {executionSummary.totalRetries}{" "}
                   {executionSummary.totalRetries === 1 ? "retry" : "retries"}{" "}
                   attempted
@@ -605,7 +605,7 @@ export function StepDetailPanel({
                   className={`text-xs p-2.5 rounded-md ${
                     d.severity === "error"
                       ? "bg-destructive/10 text-destructive border border-destructive/20"
-                      : "bg-amber-500/10 text-amber-600 border border-amber-500/20 "
+                      : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
                   }`}
                 >
                   <div className="font-semibold font-mono">{d.code}</div>

@@ -5,7 +5,6 @@ import {
   getBezierPath,
 } from "@xyflow/react";
 import { useEditContext } from "../edit-context";
-import { useThemeColors } from "../theme";
 
 export function WorkflowEdge({
   id,
@@ -21,7 +20,6 @@ export function WorkflowEdge({
   markerEnd,
   style,
 }: EdgeProps) {
-  const theme = useThemeColors();
   const { isEditing, onDisconnectStep } = useEditContext();
   const edgeKind = (data?.edgeKind as string) ?? "sequential";
   const isContinuation = edgeKind === "continuation";
@@ -37,7 +35,9 @@ export function WorkflowEdge({
     targetPosition,
   });
 
-  let stroke = theme.mutedForeground;
+  // Default stroke uses the React Flow --xy-edge-stroke variable (mapped to
+  // the host theme in styles.css). Override only for execution state coloring.
+  let stroke: string | undefined;
   let strokeWidth = 1.5;
   let opacity = isContinuation ? 0.5 : 1;
 
@@ -60,7 +60,7 @@ export function WorkflowEdge({
         style={{
           ...style,
           strokeDasharray: isContinuation ? "6 3" : undefined,
-          stroke,
+          ...(stroke ? { stroke } : {}),
           strokeWidth,
           opacity,
         }}
