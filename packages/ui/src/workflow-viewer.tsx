@@ -191,6 +191,9 @@ export function WorkflowViewer({
   >(new Map());
   // Flipped to true once initial measurements arrive and a re-layout is done.
   const initialMeasureDoneRef = useRef(false);
+  // Controls visibility — hidden until the measurement re-layout completes
+  // so the estimated layout never flashes on screen.
+  const [layoutReady, setLayoutReady] = useState(false);
 
   // --- Tool schemas ---
   const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
@@ -347,6 +350,7 @@ export function WorkflowViewer({
       setNodes(fresh.nodes);
       setEdges(fresh.edges);
     }
+    setLayoutReady(true);
   }, [
     activeWorkflow,
     activeDiagnostics,
@@ -393,6 +397,7 @@ export function WorkflowViewer({
         // Workflow graph shape changed — full layout reset needed
         measuredDimensionsRef.current.clear();
         initialMeasureDoneRef.current = false;
+        setLayoutReady(false);
         setNodes(layout.nodes);
         setEdges(layout.edges);
       } else {
@@ -428,6 +433,7 @@ export function WorkflowViewer({
       dimensionOverridesRef.current.clear();
       measuredDimensionsRef.current.clear();
       initialMeasureDoneRef.current = false;
+      setLayoutReady(false);
       setNodes(layout.nodes);
       setEdges(layout.edges);
     } else {
@@ -787,7 +793,11 @@ export function WorkflowViewer({
         onKeyDown={onKeyDown}
         tabIndex={-1}
       >
-        <div ref={containerRef} className="flex-1 relative">
+        <div
+          ref={containerRef}
+          className="flex-1 relative"
+          style={layoutReady ? undefined : { visibility: "hidden" }}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
