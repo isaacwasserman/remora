@@ -122,3 +122,15 @@ jobs:
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Vercel production deploy
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::VERCEL_DEPLOY_HOOK_URL secret is not set; skipping production deploy trigger."
+            exit 0
+          fi
+          response=$(curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL")
+          echo "Vercel deploy hook response: $response"
