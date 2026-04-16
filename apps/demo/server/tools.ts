@@ -305,7 +305,7 @@ export const DEMO_TOOLS = {
     inputSchema: type({
       "type?": "string",
       "generation?": "number",
-      "limit?": "number",
+      limit: "number = 20",
     }),
     outputSchema: type({
       count: "number",

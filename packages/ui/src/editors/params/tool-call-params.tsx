@@ -17,7 +17,17 @@ type PropSchema = {
   description?: string;
   type?: string;
   enum?: string[];
+  default?: unknown;
 };
+
+function formatDefaultSummary(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 export function ToolCallParams({
   step,
@@ -102,7 +112,11 @@ export function ToolCallParams({
   }
 
   function addOptional(key: string) {
-    setInput(key, { type: "literal", value: "" });
+    const propSchema = schema?.inputSchema.properties?.[key] as
+      | PropSchema
+      | undefined;
+    const seed = propSchema?.default !== undefined ? propSchema.default : "";
+    setInput(key, { type: "literal", value: seed });
   }
 
   return (
@@ -178,6 +192,14 @@ export function ToolCallParams({
                         required
                       </span>
                     )}
+                    {!isRequired && propSchema?.default !== undefined && (
+                      <span
+                        className="text-[10px] font-mono text-muted-foreground"
+                        title="Value used when this input is omitted"
+                      >
+                        default: {formatDefaultSummary(propSchema.default)}
+                      </span>
+                    )}
                     {!isRequired && (
                       <button
                         type="button"
@@ -214,16 +236,29 @@ export function ToolCallParams({
               const propSchema = schema?.inputSchema.properties?.[key] as
                 | PropSchema
                 | undefined;
+              const hasDefault = propSchema?.default !== undefined;
+              const titleParts = [propSchema?.description];
+              if (hasDefault) {
+                titleParts.push(
+                  `Default: ${formatDefaultSummary(propSchema?.default)}`,
+                );
+              }
+              const title = titleParts.filter(Boolean).join(" — ");
               return (
                 <button
                   key={key}
                   type="button"
                   onClick={() => addOptional(key)}
-                  title={propSchema?.description}
+                  title={title || undefined}
                   className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground border border-dashed border-border hover:border-ring rounded-md px-2 py-1 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   {key}
+                  {hasDefault && (
+                    <span className="text-muted-foreground/70">
+                      = {formatDefaultSummary(propSchema?.default)}
+                    </span>
+                  )}
                 </button>
               );
             })}

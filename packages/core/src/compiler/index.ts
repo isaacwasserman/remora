@@ -126,19 +126,48 @@ export async function compileWorkflow(
   };
 }
 
+/**
+ * Convert a validator-library schema (arktype, zod v4, etc.) to JSON Schema.
+ * Prefers the schema's own `toJsonSchema` / `toJSONSchema` method when
+ * available so extensions like `default`, `examples`, and `title` — which the
+ * AI SDK's `asSchema` wrapper drops — are preserved for UI consumption.
+ */
+async function toJsonSchemaRich(
+  schema: unknown,
+): Promise<Record<string, unknown>> {
+  // Arktype types are callable (functions), so accept both shapes.
+  if (schema && (typeof schema === "object" || typeof schema === "function")) {
+    const obj = schema as Record<string, unknown>;
+    const native =
+      typeof obj.toJsonSchema === "function"
+        ? (obj.toJsonSchema as () => Record<string, unknown>)
+        : typeof obj.toJSONSchema === "function"
+          ? (obj.toJSONSchema as () => Record<string, unknown>)
+          : null;
+    if (native) {
+      try {
+        return native.call(obj);
+      } catch {
+        // Fall through to ai SDK's asSchema if the native converter throws.
+      }
+    }
+  }
+  // biome-ignore lint/suspicious/noExplicitAny: schema shape is validator-specific
+  return (await asSchema(schema as any).jsonSchema) as Record<string, unknown>;
+}
+
 export async function extractToolSchemas(
   tools: ToolSet,
 ): Promise<ToolDefinitionMap> {
   const schemas: ToolDefinitionMap = {};
   for (const [name, toolDef] of Object.entries(tools)) {
-    const jsonSchema = await asSchema(toolDef.inputSchema).jsonSchema;
+    const jsonSchema = await toJsonSchemaRich(toolDef.inputSchema);
     schemas[name] = {
       description: toolDef.description,
       inputSchema: jsonSchema as ToolDefinitionMap[string]["inputSchema"],
     };
     if (toolDef.outputSchema) {
-      schemas[name].outputSchema = (await asSchema(toolDef.outputSchema)
-        .jsonSchema) as Record<string, unknown>;
+      schemas[name].outputSchema = await toJsonSchemaRich(toolDef.outputSchema);
     }
   }
   return schemas;
