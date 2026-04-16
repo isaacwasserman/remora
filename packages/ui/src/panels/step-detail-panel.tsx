@@ -8,6 +8,7 @@ import type {
 import type React from "react";
 import { JsonViewer } from "../editors/json-viewer";
 import type { StepExecutionSummary } from "../execution-state";
+import { useToolDisplayName, useToolSchemas } from "../tool-schemas-context";
 import { Label, SectionHeader, TypeBadge } from "./shared";
 
 function jsonString(value: unknown): string {
@@ -79,6 +80,10 @@ function StepParams({
   resolvedInputs?: unknown;
 }) {
   const resolved = resolvedInputs as Record<string, unknown> | undefined;
+  const toolSchemas = useToolSchemas();
+  const toolCallDisplayName = useToolDisplayName(
+    step.type === "tool-call" ? step.params.toolName : "",
+  );
 
   switch (step.type) {
     case "tool-call":
@@ -87,7 +92,7 @@ function StepParams({
           <div>
             <Label>Tool</Label>
             <div className="text-xs font-mono font-medium text-foreground bg-muted/40 rounded px-2 py-1 inline-block">
-              {step.params.toolName}
+              {toolCallDisplayName}
             </div>
           </div>
           {Object.keys(step.params.toolInput).length > 0 && (
@@ -304,7 +309,11 @@ function StepParams({
           {step.params.tools.length > 0 && (
             <div>
               <Label>Tools</Label>
-              <Code>{step.params.tools.join(", ")}</Code>
+              <Code>
+                {step.params.tools
+                  .map((name) => toolSchemas?.[name]?.displayName ?? name)
+                  .join(", ")}
+              </Code>
             </div>
           )}
           <div>

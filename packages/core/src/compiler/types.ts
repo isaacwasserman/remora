@@ -69,6 +69,13 @@ export interface Diagnostic {
 
 /** JSON Schema representation of a tool's input and output. */
 export interface ToolSchemaDefinition {
+  /**
+   * Optional human-friendly label shown in the UI. When set, viewers render
+   * this instead of the tool's key. The compiled workflow continues to
+   * reference tools by their actual key, so changing the display name is
+   * purely cosmetic.
+   */
+  displayName?: string;
   description?: string;
   inputSchema: {
     required?: string[];

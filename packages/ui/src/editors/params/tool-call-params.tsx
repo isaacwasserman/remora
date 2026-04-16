@@ -74,11 +74,18 @@ export function ToolCallParams({
               <SelectValue placeholder="-- select tool --" />
             </SelectTrigger>
             <SelectContent>
-              {availableToolNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
+              {availableToolNames.map((name) => {
+                const toolSchema = toolSchemas?.[name];
+                return (
+                  <SelectItem
+                    key={name}
+                    value={name}
+                    description={toolSchema?.description}
+                  >
+                    {toolSchema?.displayName ?? name}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         ) : (

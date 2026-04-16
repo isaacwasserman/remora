@@ -1,6 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { Bot } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
+import { useToolSchemas } from "../tool-schemas-context";
 import { BaseNode } from "./base-node";
 
 export function AgentLoopNode({ data, selected }: NodeProps) {
@@ -12,7 +13,12 @@ export function AgentLoopNode({ data, selected }: NodeProps) {
     paused,
     layoutDirection,
   } = data as unknown as StepNodeData;
+  const toolSchemas = useToolSchemas();
   if (step.type !== "agent-loop") return null;
+
+  const toolLabels = step.params.tools.map(
+    (name) => toolSchemas?.[name]?.displayName ?? name,
+  );
 
   return (
     <BaseNode
@@ -33,11 +39,11 @@ export function AgentLoopNode({ data, selected }: NodeProps) {
       <div className="text-[11px] text-muted-foreground italic line-clamp-2 bg-muted rounded p-1.5 font-mono">
         {step.params.instructions}
       </div>
-      {step.params.tools.length > 0 && (
+      {toolLabels.length > 0 && (
         <div className="mt-1.5 flex gap-1.5 text-[11px]">
           <span className="text-muted-foreground shrink-0">tools:</span>
           <span className="font-mono text-muted-foreground truncate">
-            {step.params.tools.join(", ")}
+            {toolLabels.join(", ")}
           </span>
         </div>
       )}

@@ -142,7 +142,7 @@ export function NewWorkflowDialog({
                   {Object.entries(toolSchemas).map(([name, t]) => (
                     <div key={name} className="px-3 py-1.5">
                       <span className="text-[11px] font-medium text-foreground font-mono">
-                        {name}
+                        {t.displayName ?? name}
                       </span>
                       <p className="text-[10px] text-muted-foreground leading-snug">
                         {t.description}
