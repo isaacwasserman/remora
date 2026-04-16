@@ -14,6 +14,9 @@ interface FileEntry {
 
 const VIEWER_FILES: FileEntry[] = [
   { relPath: "components/ui/combobox.tsx", type: "registry:ui" },
+  { relPath: "components/ui/command.tsx", type: "registry:ui" },
+  { relPath: "components/ui/dialog.tsx", type: "registry:ui" },
+  { relPath: "components/ui/popover.tsx", type: "registry:ui" },
   { relPath: "workflow-viewer.tsx", type: "registry:component" },
   { relPath: "graph-layout.ts", type: "registry:component" },
   { relPath: "theme.tsx", type: "registry:component" },
@@ -196,7 +199,7 @@ async function main() {
       "@remoraflow/core",
       "@xyflow/react",
       "@dagrejs/dagre",
-      "@base-ui/react",
+      "cmdk",
       "@codemirror/autocomplete",
       "@codemirror/commands",
       "@codemirror/lang-json",
