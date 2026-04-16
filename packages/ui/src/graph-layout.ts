@@ -41,6 +41,18 @@ const GROUP_HEADER_HEIGHT = 80;
 export const GROUP_PADDING = 30;
 export const GROUP_HEADER = 40;
 
+const RANK_SEP = 60;
+const NODE_SEP = 40;
+
+function dagreGraphOptions(direction: LayoutDirection) {
+  return {
+    rankdir: direction === "horizontal" ? "LR" : "TB",
+    ranksep: RANK_SEP,
+    nodesep: NODE_SEP,
+    rankalign: direction === "horizontal" ? "top" : "center",
+  };
+}
+
 const START_NODE_ID = "__start__";
 
 function getOrThrow<K, V>(map: Map<K, V>, key: K): V {
@@ -256,7 +268,7 @@ export function buildLayout(
     return { nodes: [], edges: [] };
   }
 
-  const rankdir = direction === "horizontal" ? "LR" : "TB";
+  const _rankdir = direction === "horizontal" ? "LR" : "TB";
 
   // --- Step 1: Build maps ---
   const stepSummaries = executionState
@@ -306,12 +318,7 @@ export function buildLayout(
     }
 
     const subG = new dagre.graphlib.Graph();
-    subG.setGraph({
-      rankdir,
-      ranksep: 60,
-      nodesep: 40,
-      rankalign: direction === "horizontal" ? "top" : "center",
-    });
+    subG.setGraph(dagreGraphOptions(direction));
     subG.setDefaultEdgeLabel(() => ({}));
 
     // Add a synthetic header node for this group
@@ -417,12 +424,7 @@ export function buildLayout(
 
   // --- Step 4: Top-level dagre layout ---
   const topG = new dagre.graphlib.Graph();
-  topG.setGraph({
-    rankdir,
-    ranksep: 60,
-    nodesep: 40,
-    rankalign: direction === "horizontal" ? "top" : "center",
-  });
+  topG.setGraph(dagreGraphOptions(direction));
   topG.setDefaultEdgeLabel(() => ({}));
 
   // Start node — skip pseudo-node when initialStepId is a "start" step

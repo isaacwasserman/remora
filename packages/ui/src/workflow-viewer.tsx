@@ -79,30 +79,34 @@ const edgeTypes: EdgeTypes = {
 
 import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
 
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 };
+
 /**
- * Rendered inside `<ReactFlow>` to call `updateNodeInternals` when the layout
- * direction changes. This forces React Flow to recalculate handle positions so
- * edges connect at the correct side (left/right vs top/bottom).
+ * Forces React Flow to recalculate handle positions when layout direction
+ * changes so edges connect at the correct side (left/right vs top/bottom).
+ * Must be rendered inside `<ReactFlow>` to access the React Flow context.
  */
 function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
   const nodes = useNodes();
   const updateNodeInternals = useUpdateNodeInternals();
   const { fitView } = useReactFlow();
-  const prevDirection = useRef(direction);
+  const appliedDirection = useRef(direction);
 
   useEffect(() => {
-    const dirChanged = prevDirection.current !== direction;
-    if (dirChanged) prevDirection.current = direction;
+    // Check if any node's layoutDirection differs from what we last applied.
+    const needsUpdate = nodes.some((n) => {
+      const d = (n.data as Record<string, unknown>)?.layoutDirection;
+      return d !== undefined && d !== appliedDirection.current;
+    });
+    if (!needsUpdate) return;
 
+    appliedDirection.current = direction;
     const ids = nodes.map((n) => n.id);
     if (ids.length === 0) return;
 
-    // Always refresh handle positions so edges track the correct side.
-    // This is cheap and necessary because the measurement re-layout cycle
-    // replaces nodes multiple times after a direction switch.
     const raf = requestAnimationFrame(() => {
       updateNodeInternals(ids);
-      if (dirChanged) fitView({ padding: 0.2, maxZoom: 1 });
+      fitView(FIT_VIEW_OPTIONS);
     });
     return () => cancelAnimationFrame(raf);
   }, [direction, nodes, updateNodeInternals, fitView]);
@@ -191,16 +195,14 @@ export function WorkflowViewer({
     Map<string, { width: number; height: number }>
   >(new Map());
 
-  // Stores actual DOM-measured node dimensions. Populated by React Flow's
-  // onNodesChange "dimensions" events after nodes render, then fed back
-  // into the next dagre layout call for accurate sizing.
+  // Real DOM dimensions captured from React Flow's onNodesChange events,
+  // used instead of heuristic estimates for accurate dagre sizing.
   const measuredDimensionsRef = useRef<
     Map<string, { width: number; height: number }>
   >(new Map());
-  // Flipped to true once initial measurements arrive and a re-layout is done.
   const initialMeasureDoneRef = useRef(false);
-  // Controls visibility — hidden until the measurement re-layout completes
-  // so the estimated layout never flashes on screen.
+  // Hidden until the first measurement-based re-layout completes to
+  // avoid flashing the heuristic-estimated layout.
   const [layoutReady, setLayoutReady] = useState(false);
 
   // --- Tool schemas ---
@@ -309,8 +311,6 @@ export function WorkflowViewer({
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
 
-  // Intercept dimension changes to keep measuredDimensionsRef up to date
-  // for subsequent layouts (direction changes, auto-layout, etc.).
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       onNodesChangeBase(changes);
@@ -327,17 +327,12 @@ export function WorkflowViewer({
     [onNodesChangeBase],
   );
 
-  // After React Flow measures nodes (populating measuredDimensionsRef via
-  // onNodesChange), re-layout once with accurate dimensions. We watch
-  // `nodes` as a trigger (it changes when dimension events are processed)
-  // but read from measuredDimensionsRef — which only contains real DOM
-  // measurements, not the heuristic estimates we pre-set on `node.measured`.
+  // One-time re-layout with real DOM measurements. Depends on `nodes` so it
+  // re-fires when React Flow processes dimension events. Reads from
+  // measuredDimensionsRef (not node.measured) because buildLayout pre-sets
+  // measured with heuristic estimates that would trigger a false positive.
   useEffect(() => {
     if (initialMeasureDoneRef.current) return;
-    // nodes is in the dep array so this effect re-fires when React Flow
-    // processes dimension changes. We read from measuredDimensionsRef
-    // (populated by onNodesChange) rather than node.measured because
-    // buildLayout pre-sets measured with heuristic estimates.
     if (nodes.length === 0 || measuredDimensionsRef.current.size === 0) return;
     initialMeasureDoneRef.current = true;
     const dims = measuredDimensionsRef.current;
@@ -838,7 +833,7 @@ export function WorkflowViewer({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
-            fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+            fitViewOptions={FIT_VIEW_OPTIONS}
             minZoom={0.1}
             nodesDraggable={isEditing}
             nodesConnectable={isEditing}
