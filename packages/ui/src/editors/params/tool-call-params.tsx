@@ -1,6 +1,7 @@
 import type { ToolDefinitionMap, WorkflowStep } from "@remoraflow/core";
 import { Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Input } from "../../components/ui/input";
 import {
   Combobox,
   ComboboxContent,
@@ -12,8 +13,7 @@ import {
   ComboboxItemTitle,
   ComboboxList,
   ComboboxTrigger,
-} from "../../components/ui/combobox";
-import { Input } from "../../components/ui/input";
+} from "../../components/ui/workflow-combobox";
 import { Label } from "../../panels/shared";
 import { ExpressionEditor } from "../expression-editor";
 import type { Expression, StepOnChange } from "./types";
