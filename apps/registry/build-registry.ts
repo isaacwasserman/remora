@@ -18,6 +18,7 @@ const VIEWER_FILES: FileEntry[] = [
   { relPath: "theme.tsx", type: "registry:component" },
   { relPath: "edit-context.tsx", type: "registry:component" },
   { relPath: "execution-state.ts", type: "registry:component" },
+  { relPath: "tool-schemas-context.tsx", type: "registry:component" },
   // hooks
   { relPath: "hooks/use-editable-workflow.ts", type: "registry:component" },
   { relPath: "hooks/use-context-menu.ts", type: "registry:component" },
@@ -95,6 +96,7 @@ const VIEWER_FILES: FileEntry[] = [
 
 const PANEL_FILES: FileEntry[] = [
   { relPath: "execution-state.ts", type: "registry:component" },
+  { relPath: "tool-schemas-context.tsx", type: "registry:component" },
   { relPath: "editors/codemirror-theme.ts", type: "registry:component" },
   { relPath: "editors/json-viewer.tsx", type: "registry:component" },
   { relPath: "panels/shared.tsx", type: "registry:component" },
@@ -108,6 +110,7 @@ function transformImports(
   content: string,
   fileRelPath: string,
   registryFiles: Set<string>,
+  registryName: string,
 ): string {
   const fileDir = path.dirname(fileRelPath);
 
@@ -135,13 +138,24 @@ function transformImports(
         }
       }
 
-      // Viewer-internal file not in this registry item — use the UI package.
-      return `${prefix}@remoraflow/ui${suffix}`;
+      // Viewer-internal file not in this registry item. Consumers install the
+      // registry without @remoraflow/ui, so silently rewriting to that package
+      // produces a runtime "does not provide an export named X" error in their
+      // bundler. Fail the build instead so missing dependencies are caught here.
+      throw new Error(
+        `[registry:${registryName}] ${fileRelPath} imports "${specifier}" ` +
+          `(resolves to "${resolved}") which is not in the registry file list. ` +
+          `Add it to the corresponding FILES array in apps/registry/build-registry.ts.`,
+      );
     },
   );
 }
 
-async function processFiles(files: FileEntry[], registryPrefix: string) {
+async function processFiles(
+  files: FileEntry[],
+  registryPrefix: string,
+  registryName: string,
+) {
   // Build a set of registry-relative paths (without extensions) for lookup.
   const registryFiles = new Set<string>();
   for (const { relPath } of files) {
@@ -151,7 +165,12 @@ async function processFiles(files: FileEntry[], registryPrefix: string) {
   return Promise.all(
     files.map(async ({ relPath, type }) => {
       const raw = await Bun.file(path.join(VIEWER_DIR, relPath)).text();
-      const content = transformImports(raw, relPath, registryFiles);
+      const content = transformImports(
+        raw,
+        relPath,
+        registryFiles,
+        registryName,
+      );
       return { path: `${registryPrefix}/${relPath}`, content, type };
     }),
   );
@@ -161,8 +180,8 @@ async function main() {
   await Bun.$`mkdir -p ${OUTPUT_DIR}`;
 
   const [viewerFiles, panelFiles] = await Promise.all([
-    processFiles(VIEWER_FILES, VIEWER_PREFIX),
-    processFiles(PANEL_FILES, PANEL_PREFIX),
+    processFiles(VIEWER_FILES, VIEWER_PREFIX, "workflow-viewer"),
+    processFiles(PANEL_FILES, PANEL_PREFIX, "workflow-step-detail-panel"),
   ]);
 
   const viewerItem = {
