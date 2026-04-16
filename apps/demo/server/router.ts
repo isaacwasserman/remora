@@ -9,7 +9,7 @@ import {
 } from "@remoraflow/core";
 import { z } from "zod";
 import { logger } from "./logger";
-import { DEMO_TOOLS } from "./tools";
+import { DEMO_TOOL_DISPLAY_NAMES, DEMO_TOOLS } from "./tools";
 
 function createModel(apiKey: string, modelId: string) {
   const openrouter = createOpenAI({
@@ -84,7 +84,12 @@ const generateProc = os
   });
 
 const listToolsProc = os.handler(async () => {
-  return extractToolSchemas(DEMO_TOOLS);
+  const schemas = await extractToolSchemas(DEMO_TOOLS);
+  for (const [name, displayName] of Object.entries(DEMO_TOOL_DISPLAY_NAMES)) {
+    const schema = schemas[name];
+    if (schema) schema.displayName = displayName;
+  }
+  return schemas;
 });
 
 export const router = {

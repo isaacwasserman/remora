@@ -209,6 +209,20 @@ async function readLimitedBody(res: Response): Promise<unknown> {
   return text;
 }
 
+/**
+ * Human-friendly labels for the demo tools. Rendered in the workflow viewer
+ * UI via `ToolSchemaDefinition.displayName`. The compiled workflow still
+ * references tools by the actual keys in `DEMO_TOOLS`.
+ */
+export const DEMO_TOOL_DISPLAY_NAMES: Record<string, string> = {
+  "get-weather": "Get weather",
+  "generate-random-number": "Generate random number",
+  "get-pokemon": "Get Pokémon details",
+  "list-pokemon": "List Pokémon",
+  "get-pokemon-type": "Get Pokémon type matchups",
+  fetch: "HTTP fetch",
+};
+
 export const DEMO_TOOLS = {
   "get-weather": tool({
     description: "Get the current weather for a given location.",
@@ -291,7 +305,7 @@ export const DEMO_TOOLS = {
     inputSchema: type({
       "type?": "string",
       "generation?": "number",
-      "limit?": "number",
+      limit: "number = 20",
     }),
     outputSchema: type({
       count: "number",

@@ -1,4 +1,5 @@
 import type { ToolDefinitionMap, WorkflowStep } from "@remoraflow/core";
+import { Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Input } from "../../components/ui/input";
 import {
@@ -11,6 +12,22 @@ import {
 import { Label } from "../../panels/shared";
 import { ExpressionEditor } from "../expression-editor";
 import type { Expression, StepOnChange } from "./types";
+
+type PropSchema = {
+  description?: string;
+  type?: string;
+  enum?: string[];
+  default?: unknown;
+};
+
+function formatDefaultSummary(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 export function ToolCallParams({
   step,
@@ -29,7 +46,9 @@ export function ToolCallParams({
     : null;
   const requiredKeys = new Set(schema?.inputSchema.required ?? []);
 
-  // When tool name changes, auto-populate missing schema params
+  // When tool name changes, auto-populate missing *required* params and drop
+  // any entries that don't belong to the new schema. Optional inputs are left
+  // to the user to add explicitly.
   const prevToolNameRef = useRef(step.params.toolName);
   useEffect(() => {
     if (step.params.toolName === prevToolNameRef.current) return;
@@ -38,12 +57,16 @@ export function ToolCallParams({
     const newSchema = toolSchemas?.[step.params.toolName];
     if (!newSchema?.inputSchema.properties) return;
 
+    const newRequired = new Set(newSchema.inputSchema.required ?? []);
+    const newProps = newSchema.inputSchema.properties;
     const newInput: Record<string, Expression> = {};
-    for (const key of Object.keys(newSchema.inputSchema.properties)) {
-      newInput[key] = (step.params.toolInput[key] as Expression) ?? {
-        type: "literal",
-        value: "",
-      };
+    for (const key of Object.keys(newProps)) {
+      const existing = step.params.toolInput[key] as Expression | undefined;
+      if (existing) {
+        newInput[key] = existing;
+      } else if (newRequired.has(key)) {
+        newInput[key] = { type: "literal", value: "" };
+      }
     }
     onChange({ params: { ...step.params, toolInput: newInput } });
   }, [
@@ -54,8 +77,47 @@ export function ToolCallParams({
     step.params,
   ]);
 
-  // All keys to render: schema keys (if available) or existing keys
-  const displayKeys = schemaKeys ?? Object.keys(step.params.toolInput);
+  const toolInput = step.params.toolInput;
+
+  // Keys that currently have a value in toolInput — always render these.
+  // When a schema is known, order required keys first (by schema order),
+  // then any present optional keys (by schema order), then extra keys not
+  // in the schema last.
+  const presentKeys = schemaKeys
+    ? [
+        ...schemaKeys.filter((k) => requiredKeys.has(k) || k in toolInput),
+        ...Object.keys(toolInput).filter(
+          (k) => !schemaKeys.includes(k) && !requiredKeys.has(k),
+        ),
+      ]
+    : Object.keys(toolInput);
+
+  // Optional schema keys the user has not added yet.
+  const absentOptionalKeys =
+    schemaKeys?.filter((k) => !requiredKeys.has(k) && !(k in toolInput)) ?? [];
+
+  function setInput(key: string, val: Expression) {
+    onChange({
+      params: {
+        ...step.params,
+        toolInput: { ...toolInput, [key]: val },
+      },
+    });
+  }
+
+  function removeInput(key: string) {
+    const next = { ...toolInput };
+    delete next[key];
+    onChange({ params: { ...step.params, toolInput: next } });
+  }
+
+  function addOptional(key: string) {
+    const propSchema = schema?.inputSchema.properties?.[key] as
+      | PropSchema
+      | undefined;
+    const seed = propSchema?.default !== undefined ? propSchema.default : "";
+    setInput(key, { type: "literal", value: seed });
+  }
 
   return (
     <div className="space-y-3">
@@ -74,11 +136,18 @@ export function ToolCallParams({
               <SelectValue placeholder="-- select tool --" />
             </SelectTrigger>
             <SelectContent>
-              {availableToolNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
+              {availableToolNames.map((name) => {
+                const toolSchema = toolSchemas?.[name];
+                return (
+                  <SelectItem
+                    key={name}
+                    value={name}
+                    description={toolSchema?.description}
+                  >
+                    {toolSchema?.displayName ?? name}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         ) : (
@@ -99,15 +168,15 @@ export function ToolCallParams({
           {schema.description}
         </p>
       )}
-      {displayKeys.length > 0 && (
+      {presentKeys.length > 0 && (
         <div>
           <Label>Tool Inputs</Label>
           <div className="space-y-2">
-            {displayKeys.map((key) => {
-              const expr = step.params.toolInput[key] as Expression | undefined;
+            {presentKeys.map((key) => {
+              const expr = toolInput[key] as Expression | undefined;
               const isRequired = requiredKeys.has(key);
               const propSchema = schema?.inputSchema.properties?.[key] as
-                | { description?: string; type?: string; enum?: string[] }
+                | PropSchema
                 | undefined;
               return (
                 <div
@@ -123,6 +192,25 @@ export function ToolCallParams({
                         required
                       </span>
                     )}
+                    {!isRequired && propSchema?.default !== undefined && (
+                      <span
+                        className="text-[10px] font-mono text-muted-foreground"
+                        title="Value used when this input is omitted"
+                      >
+                        default: {formatDefaultSummary(propSchema.default)}
+                      </span>
+                    )}
+                    {!isRequired && (
+                      <button
+                        type="button"
+                        onClick={() => removeInput(key)}
+                        className="ml-auto text-muted-foreground hover:text-foreground rounded p-0.5 hover:bg-muted/60"
+                        title="Remove optional input"
+                        aria-label={`Remove ${key}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                   {propSchema?.description && (
                     <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
@@ -131,20 +219,47 @@ export function ToolCallParams({
                   )}
                   <ExpressionEditor
                     value={expr ?? { type: "literal" as const, value: "" }}
-                    onChange={(val) =>
-                      onChange({
-                        params: {
-                          ...step.params,
-                          toolInput: {
-                            ...step.params.toolInput,
-                            [key]: val,
-                          },
-                        },
-                      })
-                    }
+                    onChange={(val) => setInput(key, val)}
                     schemaHint={propSchema}
                   />
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {absentOptionalKeys.length > 0 && (
+        <div>
+          <Label>Optional Inputs</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {absentOptionalKeys.map((key) => {
+              const propSchema = schema?.inputSchema.properties?.[key] as
+                | PropSchema
+                | undefined;
+              const hasDefault = propSchema?.default !== undefined;
+              const titleParts = [propSchema?.description];
+              if (hasDefault) {
+                titleParts.push(
+                  `Default: ${formatDefaultSummary(propSchema?.default)}`,
+                );
+              }
+              const title = titleParts.filter(Boolean).join(" — ");
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => addOptional(key)}
+                  title={title || undefined}
+                  className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground border border-dashed border-border hover:border-ring rounded-md px-2 py-1 transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  {key}
+                  {hasDefault && (
+                    <span className="text-muted-foreground/70">
+                      = {formatDefaultSummary(propSchema?.default)}
+                    </span>
+                  )}
+                </button>
               );
             })}
           </div>

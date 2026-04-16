@@ -52,6 +52,11 @@ export { StepDetailPanel } from "./panels/step-detail-panel";
 export type { StepEditorPanelProps } from "./panels/step-editor-panel";
 export { StepEditorPanel } from "./panels/step-editor-panel";
 export { useDarkMode } from "./theme";
+export {
+  ToolSchemasContext,
+  useToolDisplayName,
+  useToolSchemas,
+} from "./tool-schemas-context";
 export { createDefaultStep, resetStepCounter } from "./utils/step-defaults";
 export type { WorkflowViewerProps } from "./workflow-viewer";
 export { WorkflowViewer } from "./workflow-viewer";

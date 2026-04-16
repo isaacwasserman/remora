@@ -1,6 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { Wrench } from "lucide-react";
 import type { StepNodeData } from "../graph-layout";
+import { useToolDisplayName } from "../tool-schemas-context";
 import { BaseNode } from "./base-node";
 
 function renderExpr(
@@ -28,6 +29,8 @@ export function ToolCallNode({ data, selected }: NodeProps) {
     paused,
     layoutDirection,
   } = data as unknown as StepNodeData;
+  const toolName = step.type === "tool-call" ? step.params.toolName : "";
+  const displayName = useToolDisplayName(toolName);
   if (step.type !== "tool-call") return null;
 
   const entries = Object.entries(step.params.toolInput);
@@ -52,7 +55,7 @@ export function ToolCallNode({ data, selected }: NodeProps) {
       layoutDirection={layoutDirection}
     >
       <div className="text-xs font-mono font-medium text-foreground">
-        {step.params.toolName}
+        {displayName}
       </div>
       {entries.length > 0 && (
         <div className="mt-1.5 space-y-0.5">

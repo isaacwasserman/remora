@@ -96,6 +96,7 @@ function StepParamsEditor({
           step={step}
           onChange={onChange}
           availableToolNames={availableToolNames}
+          toolSchemas={toolSchemas}
         />
       );
     case "end":

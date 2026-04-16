@@ -29,7 +29,23 @@ export interface ExpressionEditorProps {
   schemaHint?: {
     type?: string;
     enum?: unknown[];
+    /**
+     * JSON Schema `default`. When present, rendered as placeholder text in
+     * literal inputs to show what the tool will use if the input is left
+     * empty or omitted.
+     */
+    default?: unknown;
   };
+}
+
+function formatDefault(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 type LiteralType = "string" | "number" | "boolean" | "json";
@@ -85,6 +101,13 @@ export function ExpressionEditor({
   const hintedLiteralType = schemaTypeToLiteralType(schemaHint?.type);
   const hasEnum = schemaHint?.enum && schemaHint.enum.length > 0;
   const allowTemplate = !schemaHint?.type || schemaHint.type === "string";
+  const defaultHint = formatDefault(schemaHint?.default);
+  const defaultJsonHint =
+    schemaHint?.default !== undefined
+      ? typeof schemaHint.default === "string"
+        ? schemaHint.default
+        : JSON.stringify(schemaHint.default, null, 2)
+      : undefined;
 
   const [literalType, setLiteralType] = useState<LiteralType>(
     hintedLiteralType ??
@@ -224,7 +247,13 @@ export function ExpressionEditor({
                   }}
                 >
                   <SelectTrigger className="h-8 text-xs font-mono w-full">
-                    <SelectValue placeholder="-- select --" />
+                    <SelectValue
+                      placeholder={
+                        defaultHint !== undefined
+                          ? `default: ${defaultHint}`
+                          : "-- select --"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {schemaHint?.enum?.map((v) => (
@@ -242,6 +271,8 @@ export function ExpressionEditor({
                     handleLiteralChange(raw, hintedLiteralType)
                   }
                   onValueChange={onChange}
+                  defaultHint={defaultHint}
+                  defaultJsonHint={defaultJsonHint}
                 />
               ) : (
                 <Tabs
@@ -263,7 +294,7 @@ export function ExpressionEditor({
                         handleLiteralChange(e.target.value, "string")
                       }
                       className="h-8 text-xs font-mono"
-                      placeholder="Enter value..."
+                      placeholder={defaultHint ?? "Enter value..."}
                     />
                   </TabsContent>
 
@@ -275,7 +306,7 @@ export function ExpressionEditor({
                         handleLiteralChange(e.target.value, "number")
                       }
                       className="h-8 text-xs font-mono"
-                      placeholder="0"
+                      placeholder={defaultHint ?? "0"}
                     />
                   </TabsContent>
 
@@ -307,7 +338,7 @@ export function ExpressionEditor({
                           : JSON.stringify(litVal, null, 2)
                       }
                       onChange={(val) => handleLiteralChange(val, "json")}
-                      placeholderText='{"key": "value"}'
+                      placeholderText={defaultJsonHint ?? '{"key": "value"}'}
                     />
                   </TabsContent>
                 </Tabs>
@@ -357,11 +388,15 @@ function LiteralWidget({
   value,
   onChange,
   onValueChange,
+  defaultHint,
+  defaultJsonHint,
 }: {
   type: LiteralType;
   value: unknown;
   onChange: (raw: string) => void;
   onValueChange: (expr: Expression) => void;
+  defaultHint?: string;
+  defaultJsonHint?: string;
 }) {
   switch (type) {
     case "string":
@@ -371,7 +406,7 @@ function LiteralWidget({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           className="h-8 text-xs font-mono"
-          placeholder="Enter value..."
+          placeholder={defaultHint ?? "Enter value..."}
         />
       );
     case "number":
@@ -381,7 +416,7 @@ function LiteralWidget({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           className="h-8 text-xs font-mono"
-          placeholder="0"
+          placeholder={defaultHint ?? "0"}
         />
       );
     case "boolean":
@@ -411,7 +446,7 @@ function LiteralWidget({
             typeof value === "string" ? value : JSON.stringify(value, null, 2)
           }
           onChange={onChange}
-          placeholderText='{"key": "value"}'
+          placeholderText={defaultJsonHint ?? '{"key": "value"}'}
         />
       );
   }

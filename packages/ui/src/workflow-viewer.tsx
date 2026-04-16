@@ -55,6 +55,7 @@ import { ToolCallNode } from "./nodes/tool-call-node";
 import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
 import { StepEditorPanel } from "./panels/step-editor-panel";
+import { ToolSchemasContext } from "./tool-schemas-context";
 import { groupStructuralKey } from "./utils/group-refs";
 import { createDefaultStep } from "./utils/step-defaults";
 
@@ -138,7 +139,12 @@ export interface WorkflowViewerProps {
   onWorkflowChange?: (workflow: WorkflowDefinition) => void;
   /** Tool definitions (AI SDK ToolSet). Used for tool name autocomplete in the editor. Execute functions are optional. */
   tools?: ToolSet;
-  /** Pre-extracted tool schemas. When provided, skips extracting schemas from `tools`. */
+  /**
+   * Pre-extracted tool schemas. When provided, skips extracting schemas from
+   * `tools`. Each schema may include an optional `displayName` to render a
+   * human-friendly label in the UI; the compiled workflow continues to
+   * reference tools by their actual keys.
+   */
   toolSchemas?: ToolDefinitionMap;
   /** Hide the built-in detail/editor panel. Use this when rendering `StepDetailPanel` or `StepEditorPanel` externally. */
   hideDetailPanel?: boolean;
@@ -804,168 +810,170 @@ export function WorkflowViewer({
 
   // --- Render ---
   return (
-    <EditContext.Provider value={editContextValue}>
-      <div
-        role="application"
-        className="flex h-full w-full min-h-0"
-        onKeyDown={onKeyDown}
-        tabIndex={-1}
-      >
+    <ToolSchemasContext.Provider value={toolSchemas}>
+      <EditContext.Provider value={editContextValue}>
         <div
-          ref={containerRef}
-          className="flex-1 relative"
-          style={layoutReady ? undefined : { visibility: "hidden" }}
+          role="application"
+          className="flex h-full w-full min-h-0"
+          onKeyDown={onKeyDown}
+          tabIndex={-1}
         >
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            onConnect={isEditing ? onConnect : undefined}
-            onNodeDrag={isEditing ? onNodeDrag : undefined}
-            onNodeDragStop={isEditing ? onNodeDragStop : undefined}
-            onPaneContextMenu={isEditing ? onPaneContextMenu : undefined}
-            onNodeContextMenu={isEditing ? onNodeContextMenu : undefined}
-            onDragOver={isEditing ? onDragOver : undefined}
-            onDrop={isEditing ? onDrop : undefined}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            fitViewOptions={FIT_VIEW_OPTIONS}
-            minZoom={0.1}
-            nodesDraggable={isEditing}
-            nodesConnectable={isEditing}
-            defaultEdgeOptions={{
-              type: "workflow",
-            }}
-            proOptions={{ hideAttribution: true }}
+          <div
+            ref={containerRef}
+            className="flex-1 relative"
+            style={layoutReady ? undefined : { visibility: "hidden" }}
           >
-            <HandlePositionUpdater direction={direction} />
-            <Background size={3} />
-            <Controls showInteractive={false} />
-            {showMinimap && (
-              <MiniMap
-                nodeStrokeWidth={2}
-                pannable
-                zoomable
-                style={{
-                  width: effectiveMinimapWidth,
-                  height: effectiveMinimapHeight,
-                }}
-                nodeColor={"rgba(0, 0, 0, 0.1)"}
-              />
-            )}
-          </ReactFlow>
-          <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-            <div className="flex rounded-lg border border-border shadow-md overflow-hidden bg-card divide-x divide-border">
-              {isEditing && (
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={onNodeClick}
+              onPaneClick={onPaneClick}
+              onConnect={isEditing ? onConnect : undefined}
+              onNodeDrag={isEditing ? onNodeDrag : undefined}
+              onNodeDragStop={isEditing ? onNodeDragStop : undefined}
+              onPaneContextMenu={isEditing ? onPaneContextMenu : undefined}
+              onNodeContextMenu={isEditing ? onNodeContextMenu : undefined}
+              onDragOver={isEditing ? onDragOver : undefined}
+              onDrop={isEditing ? onDrop : undefined}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={FIT_VIEW_OPTIONS}
+              minZoom={0.1}
+              nodesDraggable={isEditing}
+              nodesConnectable={isEditing}
+              defaultEdgeOptions={{
+                type: "workflow",
+              }}
+              proOptions={{ hideAttribution: true }}
+            >
+              <HandlePositionUpdater direction={direction} />
+              <Background size={3} />
+              <Controls showInteractive={false} />
+              {showMinimap && (
+                <MiniMap
+                  nodeStrokeWidth={2}
+                  pannable
+                  zoomable
+                  style={{
+                    width: effectiveMinimapWidth,
+                    height: effectiveMinimapHeight,
+                  }}
+                  nodeColor={"rgba(0, 0, 0, 0.1)"}
+                />
+              )}
+            </ReactFlow>
+            <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+              <div className="flex rounded-lg border border-border shadow-md overflow-hidden bg-card divide-x divide-border">
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleAutoLayout}
+                    title="Auto-layout"
+                    className="px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Auto-layout</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleAutoLayout}
-                  title="Auto-layout"
+                  onClick={() => setShowJsonDialog(true)}
+                  title="View JSON"
                   className="px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
                 >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Auto-layout</span>
+                  <Braces className="w-3.5 h-3.5" />
+                  <span>JSON</span>
                 </button>
+              </div>
+              {isEditing && (
+                <StepPalette onAddStep={(type) => handleAddStep(type)} />
               )}
-              <button
-                type="button"
-                onClick={() => setShowJsonDialog(true)}
-                title="View JSON"
-                className="px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
-              >
-                <Braces className="w-3.5 h-3.5" />
-                <span>JSON</span>
-              </button>
             </div>
-            {isEditing && (
-              <StepPalette onAddStep={(type) => handleAddStep(type)} />
+            {contextMenu && (
+              <CanvasContextMenu
+                position={{
+                  x: contextMenu.screenX,
+                  y: contextMenu.screenY,
+                }}
+                canvasPosition={{
+                  x: contextMenu.flowX,
+                  y: contextMenu.flowY,
+                }}
+                onAddStep={(type, pos) => {
+                  handleAddStep(type, pos);
+                  closeContextMenu();
+                }}
+                onClose={closeContextMenu}
+                targetNodeId={contextMenu.nodeId}
+                onDeleteNode={
+                  contextMenu.nodeId
+                    ? (id) => {
+                        handleDeleteStep(id);
+                        closeContextMenu();
+                      }
+                    : undefined
+                }
+                onEditNode={
+                  contextMenu.nodeId
+                    ? (id) => {
+                        selectStepForEditing(id);
+                        closeContextMenu();
+                      }
+                    : undefined
+                }
+              />
+            )}
+            {isEditing && !activeWorkflow?.steps.length && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-muted-foreground text-sm bg-card/80 rounded-lg px-6 py-4 border border-border">
+                  Add a step from the palette or right-click to get started
+                </div>
+              </div>
             )}
           </div>
-          {contextMenu && (
-            <CanvasContextMenu
-              position={{
-                x: contextMenu.screenX,
-                y: contextMenu.screenY,
-              }}
-              canvasPosition={{
-                x: contextMenu.flowX,
-                y: contextMenu.flowY,
-              }}
-              onAddStep={(type, pos) => {
-                handleAddStep(type, pos);
-                closeContextMenu();
-              }}
-              onClose={closeContextMenu}
-              targetNodeId={contextMenu.nodeId}
-              onDeleteNode={
-                contextMenu.nodeId
-                  ? (id) => {
-                      handleDeleteStep(id);
-                      closeContextMenu();
-                    }
-                  : undefined
-              }
-              onEditNode={
-                contextMenu.nodeId
-                  ? (id) => {
-                      selectStepForEditing(id);
-                      closeContextMenu();
-                    }
-                  : undefined
-              }
-            />
-          )}
-          {isEditing && !activeWorkflow?.steps.length && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-muted-foreground text-sm bg-card/80 rounded-lg px-6 py-4 border border-border">
-                Add a step from the palette or right-click to get started
-              </div>
-            </div>
-          )}
+          {!hideDetailPanel &&
+            selectedStep &&
+            (isEditing ? (
+              <StepEditorPanel
+                step={selectedStep}
+                availableToolNames={availableToolNames}
+                allStepIds={allStepIds}
+                toolSchemas={toolSchemas}
+                diagnostics={editDiagnostics.filter(
+                  (d) => d.location.stepId === selectedStep.id,
+                )}
+                workflowInputSchema={
+                  activeWorkflow?.inputSchema as object | undefined
+                }
+                workflowOutputSchema={
+                  activeWorkflow?.outputSchema as object | undefined
+                }
+                onChange={(updates) => updateStep(selectedStep.id, updates)}
+                onWorkflowMetaChange={updateWorkflowMeta}
+                onClose={clearSelection}
+              />
+            ) : (
+              <StepDetailPanel
+                step={selectedStep}
+                diagnostics={selectedDiagnostics}
+                executionSummary={selectedExecutionSummary}
+                executionRecords={selectedExecutionRecords}
+                onClose={clearSelection}
+              />
+            ))}
         </div>
-        {!hideDetailPanel &&
-          selectedStep &&
-          (isEditing ? (
-            <StepEditorPanel
-              step={selectedStep}
-              availableToolNames={availableToolNames}
-              allStepIds={allStepIds}
-              toolSchemas={toolSchemas}
-              diagnostics={editDiagnostics.filter(
-                (d) => d.location.stepId === selectedStep.id,
-              )}
-              workflowInputSchema={
-                activeWorkflow?.inputSchema as object | undefined
-              }
-              workflowOutputSchema={
-                activeWorkflow?.outputSchema as object | undefined
-              }
-              onChange={(updates) => updateStep(selectedStep.id, updates)}
-              onWorkflowMetaChange={updateWorkflowMeta}
-              onClose={clearSelection}
-            />
-          ) : (
-            <StepDetailPanel
-              step={selectedStep}
-              diagnostics={selectedDiagnostics}
-              executionSummary={selectedExecutionSummary}
-              executionRecords={selectedExecutionRecords}
-              onClose={clearSelection}
-            />
-          ))}
-      </div>
-      {showJsonDialog && (
-        <WorkflowJsonDialog
-          workflow={activeWorkflow}
-          isEditing={isEditing}
-          onApply={(wf) => onWorkflowChange?.(wf)}
-          onClose={() => setShowJsonDialog(false)}
-        />
-      )}
-    </EditContext.Provider>
+        {showJsonDialog && (
+          <WorkflowJsonDialog
+            workflow={activeWorkflow}
+            isEditing={isEditing}
+            onApply={(wf) => onWorkflowChange?.(wf)}
+            onClose={() => setShowJsonDialog(false)}
+          />
+        )}
+      </EditContext.Provider>
+    </ToolSchemasContext.Provider>
   );
 }
