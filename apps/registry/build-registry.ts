@@ -59,16 +59,34 @@ const VIEWER_FILES: FileEntry[] = [
   { relPath: "editors/expression-editor.tsx", type: "registry:component" },
   // param editors
   { relPath: "editors/params/types.ts", type: "registry:component" },
-  { relPath: "editors/params/agent-loop-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/agent-loop-params.tsx",
+    type: "registry:component",
+  },
   { relPath: "editors/params/end-params.tsx", type: "registry:component" },
-  { relPath: "editors/params/extract-data-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/extract-data-params.tsx",
+    type: "registry:component",
+  },
   { relPath: "editors/params/for-each-params.tsx", type: "registry:component" },
-  { relPath: "editors/params/llm-prompt-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/llm-prompt-params.tsx",
+    type: "registry:component",
+  },
   { relPath: "editors/params/sleep-params.tsx", type: "registry:component" },
   { relPath: "editors/params/start-params.tsx", type: "registry:component" },
-  { relPath: "editors/params/switch-case-params.tsx", type: "registry:component" },
-  { relPath: "editors/params/tool-call-params.tsx", type: "registry:component" },
-  { relPath: "editors/params/wait-for-condition-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/switch-case-params.tsx",
+    type: "registry:component",
+  },
+  {
+    relPath: "editors/params/tool-call-params.tsx",
+    type: "registry:component",
+  },
+  {
+    relPath: "editors/params/wait-for-condition-params.tsx",
+    type: "registry:component",
+  },
   // panels
   { relPath: "panels/shared.tsx", type: "registry:component" },
   { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
@@ -168,7 +186,14 @@ async function main() {
       "@lezer/highlight",
       "lucide-react",
     ],
-    registryDependencies: ["button", "input", "select", "textarea", "label", "tabs"],
+    registryDependencies: [
+      "button",
+      "input",
+      "select",
+      "textarea",
+      "label",
+      "tabs",
+    ],
     files: viewerFiles,
   };
 
