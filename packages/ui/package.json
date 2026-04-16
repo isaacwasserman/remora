@@ -33,7 +33,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@base-ui/react": "^1.4.0",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-json": "^6.0.2",
@@ -46,6 +45,7 @@
     "@remoraflow/core": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "codemirror": "^6.0.2",
     "lucide-react": "^0.577.0",
     "radix-ui": "^1.4.3",

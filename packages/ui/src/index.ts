@@ -15,11 +15,6 @@ export {
 } from "./components/ui/collapsible";
 export {
   Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxClear,
-  ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxGroup,
@@ -27,13 +22,32 @@ export {
   ComboboxItem,
   ComboboxItemDescription,
   ComboboxItemTitle,
-  ComboboxLabel,
   ComboboxList,
-  ComboboxSeparator,
   ComboboxTrigger,
-  ComboboxValue,
-  useComboboxAnchor,
 } from "./components/ui/combobox";
+export {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from "./components/ui/command";
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+} from "./components/ui/dialog";
 export {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +58,12 @@ export {
 } from "./components/ui/dropdown-menu";
 export { Input } from "./components/ui/input";
 export { Label } from "./components/ui/label";
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "./components/ui/popover";
 export {
   Select,
   SelectContent,
