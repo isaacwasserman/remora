@@ -1,5 +1,16 @@
 # @remoraflow/ui
 
+## 0.9.0
+
+### Minor Changes
+
+- e521599: Add `layout` prop to `WorkflowViewer` for controlling DAG direction (`"vertical"` or `"horizontal"`). Also export the `LayoutDirection` type and accept a `direction` parameter in `buildLayout`/`buildEditableLayout`.
+
+### Patch Changes
+
+- ca01a58: Revert `rf:` class prefix that broke host app styling; restore utilities to `@layer remoraflow`
+  - @remoraflow/core@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
