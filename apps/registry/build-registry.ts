@@ -13,7 +13,7 @@ interface FileEntry {
 }
 
 const VIEWER_FILES: FileEntry[] = [
-  { relPath: "components/ui/combobox.tsx", type: "registry:ui" },
+  { relPath: "components/ui/workflow-combobox.tsx", type: "registry:ui" },
   { relPath: "components/ui/command.tsx", type: "registry:ui" },
   { relPath: "components/ui/dialog.tsx", type: "registry:ui" },
   { relPath: "components/ui/popover.tsx", type: "registry:ui" },
@@ -98,14 +98,11 @@ const VIEWER_FILES: FileEntry[] = [
   { relPath: "panels/step-editor-panel.tsx", type: "registry:component" },
 ];
 
-const PANEL_FILES: FileEntry[] = [
-  { relPath: "execution-state.ts", type: "registry:component" },
-  { relPath: "tool-schemas-context.tsx", type: "registry:component" },
-  { relPath: "editors/codemirror-theme.ts", type: "registry:component" },
-  { relPath: "editors/json-viewer.tsx", type: "registry:component" },
-  { relPath: "panels/shared.tsx", type: "registry:component" },
-  { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
-];
+// The detail panel and all of its dependencies are already shipped by the
+// workflow-viewer registry. Re-listing them here would lay down a second copy
+// at components/workflow-step-detail-panel/... when consumers install both.
+// Instead, this item depends on workflow-viewer and ships no files of its own.
+const PANEL_FILES: FileEntry[] = [];
 
 /** Prefixes that map to shadcn-convention `@/` imports in the consumer's project. */
 const SHADCN_INTERNAL_PREFIXES = ["components/ui/", "lib/"];
@@ -129,17 +126,21 @@ function transformImports(
       // Resolve the relative import to a path relative to the viewer root.
       const resolved = path.normalize(path.join(fileDir, specifier));
 
-      // If the resolved path points to a file in the registry, keep it relative.
-      if (registryFiles.has(resolved)) {
-        return match;
-      }
-
       // If the resolved path points to a shadcn internal file (components/ui/*, lib/*),
-      // rewrite to @/ alias so it resolves in the consumer's shadcn project.
+      // always rewrite to the @/ alias — even when the file is also shipped by this
+      // registry. shadcn relocates registry:ui files to the consumer's ui alias
+      // (e.g. @/client/components/ui), not to a sibling folder of the registry's
+      // other components, so a sibling-relative import won't resolve after install.
       for (const p of SHADCN_INTERNAL_PREFIXES) {
         if (resolved.startsWith(p)) {
           return `${prefix}@/${resolved}${suffix}`;
         }
+      }
+
+      // Otherwise, if the file is shipped by this registry item, keep the
+      // relative path so it resolves to the sibling file shadcn lays down.
+      if (registryFiles.has(resolved)) {
+        return match;
       }
 
       // Viewer-internal file not in this registry item. Consumers install the
@@ -228,15 +229,8 @@ async function main() {
     title: "Workflow Step Detail Panel",
     description:
       "Detail panel that displays step parameters and diagnostics for a selected workflow step. Pair with WorkflowViewer for a complete workflow visualization experience.",
-    dependencies: [
-      "@remoraflow/core",
-      "@codemirror/lang-json",
-      "@codemirror/language",
-      "@codemirror/state",
-      "@codemirror/view",
-      "@lezer/highlight",
-    ],
-    registryDependencies: [],
+    dependencies: [],
+    registryDependencies: ["https://remoraflow.com/r/workflow-viewer.json"],
     files: panelFiles,
   };
 

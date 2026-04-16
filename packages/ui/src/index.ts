@@ -14,18 +14,6 @@ export {
   CollapsibleTrigger,
 } from "./components/ui/collapsible";
 export {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxItemDescription,
-  ComboboxItemTitle,
-  ComboboxList,
-  ComboboxTrigger,
-} from "./components/ui/combobox";
-export {
   Command,
   CommandDialog,
   CommandEmpty,
@@ -73,6 +61,18 @@ export {
 } from "./components/ui/select";
 export { Switch } from "./components/ui/switch";
 export { Textarea } from "./components/ui/textarea";
+export {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemDescription,
+  ComboboxItemTitle,
+  ComboboxList,
+  ComboboxTrigger,
+} from "./components/ui/workflow-combobox";
 export type { ExpressionEditorProps } from "./editors/expression-editor";
 export { ExpressionEditor } from "./editors/expression-editor";
 export type { JsonCodeEditorProps } from "./editors/json-code-editor";
