@@ -129,17 +129,21 @@ function transformImports(
       // Resolve the relative import to a path relative to the viewer root.
       const resolved = path.normalize(path.join(fileDir, specifier));
 
-      // If the resolved path points to a file in the registry, keep it relative.
-      if (registryFiles.has(resolved)) {
-        return match;
-      }
-
       // If the resolved path points to a shadcn internal file (components/ui/*, lib/*),
-      // rewrite to @/ alias so it resolves in the consumer's shadcn project.
+      // always rewrite to the @/ alias — even when the file is also shipped by this
+      // registry. shadcn relocates registry:ui files to the consumer's ui alias
+      // (e.g. @/client/components/ui), not to a sibling folder of the registry's
+      // other components, so a sibling-relative import won't resolve after install.
       for (const p of SHADCN_INTERNAL_PREFIXES) {
         if (resolved.startsWith(p)) {
           return `${prefix}@/${resolved}${suffix}`;
         }
+      }
+
+      // Otherwise, if the file is shipped by this registry item, keep the
+      // relative path so it resolves to the sibling file shadcn lays down.
+      if (registryFiles.has(resolved)) {
+        return match;
       }
 
       // Viewer-internal file not in this registry item. Consumers install the
