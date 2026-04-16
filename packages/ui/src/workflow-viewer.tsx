@@ -449,13 +449,19 @@ export function WorkflowViewer({
     }
 
     if (structureChanged) {
-      // Clear user drag/resize overrides — old positions are meaningless
-      // for the new structure. Don't store dagre positions as overrides;
-      // overrides should only come from explicit user actions (drag/resize).
-      positionOverridesRef.current.clear();
-      dimensionOverridesRef.current.clear();
-      measuredDimensionsRef.current.clear();
-      initialMeasureDoneRef.current = false;
+      // Prune overrides/measurements for removed nodes, but keep them for
+      // nodes that still exist so user-dragged positions survive incremental
+      // edits (e.g. adding a single step).
+      const currentNodeIds = new Set(layout.nodes.map((n) => n.id));
+      for (const id of positionOverridesRef.current.keys()) {
+        if (!currentNodeIds.has(id)) positionOverridesRef.current.delete(id);
+      }
+      for (const id of dimensionOverridesRef.current.keys()) {
+        if (!currentNodeIds.has(id)) dimensionOverridesRef.current.delete(id);
+      }
+      for (const id of measuredDimensionsRef.current.keys()) {
+        if (!currentNodeIds.has(id)) measuredDimensionsRef.current.delete(id);
+      }
       setNodes(layout.nodes);
       setEdges(layout.edges);
     } else {
