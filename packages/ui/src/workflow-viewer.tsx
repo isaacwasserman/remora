@@ -55,6 +55,7 @@ import { ToolCallNode } from "./nodes/tool-call-node";
 import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
 import { StepEditorPanel } from "./panels/step-editor-panel";
+import { useDarkMode } from "./theme";
 import { groupStructuralKey } from "./utils/group-refs";
 import { createDefaultStep } from "./utils/step-defaults";
 
@@ -173,6 +174,7 @@ export function WorkflowViewer({
 }: WorkflowViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const dark = useDarkMode();
 
   // --- Editing operations ---
   const {
@@ -840,6 +842,7 @@ export function WorkflowViewer({
             defaultEdgeOptions={{
               type: "workflow",
             }}
+            colorMode={dark ? "dark" : "light"}
             proOptions={{ hideAttribution: true }}
           >
             <HandlePositionUpdater direction={direction} />
