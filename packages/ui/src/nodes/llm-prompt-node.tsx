@@ -4,8 +4,14 @@ import type { StepNodeData } from "../graph-layout";
 import { BaseNode } from "./base-node";
 
 export function LlmPromptNode({ data, selected }: NodeProps) {
-  const { step, diagnostics, hasSourceEdge, executionSummary, paused } =
-    data as unknown as StepNodeData;
+  const {
+    step,
+    diagnostics,
+    hasSourceEdge,
+    executionSummary,
+    paused,
+    layoutDirection,
+  } = data as unknown as StepNodeData;
   if (step.type !== "llm-prompt") return null;
 
   const outputFormat = step.params.outputFormat as
@@ -34,6 +40,7 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
       hasSourceEdge={hasSourceEdge}
       executionSummary={executionSummary}
       paused={paused}
+      layoutDirection={layoutDirection}
     >
       <div
         className={`text-[11px] italic line-clamp-3 rounded p-1.5 font-mono ${

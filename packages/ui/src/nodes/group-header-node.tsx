@@ -2,6 +2,7 @@ import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import { GitBranch, Repeat, Timer } from "lucide-react";
 import { useEditContext } from "../edit-context";
+import type { LayoutDirection } from "../graph-layout";
 
 interface GroupHeaderData {
   variant: "switch" | "loop" | "condition";
@@ -15,6 +16,7 @@ interface GroupHeaderData {
   itemName?: string;
   // condition
   condition?: string;
+  layoutDirection?: LayoutDirection;
 }
 
 const variantStyles = {
@@ -66,7 +68,10 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
     resolvedTarget,
     itemName,
     condition,
+    layoutDirection,
   } = data as unknown as GroupHeaderData;
+  const sourcePosition =
+    layoutDirection === "horizontal" ? Position.Right : Position.Bottom;
   const s = variantStyles[variant];
 
   return (
@@ -144,7 +149,7 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
       </div>
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={sourcePosition}
         className={
           isEditing
             ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"

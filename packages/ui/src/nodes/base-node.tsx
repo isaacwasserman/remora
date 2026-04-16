@@ -3,6 +3,7 @@ import { Handle, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { useEditContext } from "../edit-context";
 import type { StepExecutionSummary } from "../execution-state";
+import type { LayoutDirection } from "../graph-layout";
 
 interface BaseNodeProps {
   id: string;
@@ -19,6 +20,7 @@ interface BaseNodeProps {
   hasTargetEdge?: boolean;
   executionSummary?: StepExecutionSummary;
   paused?: boolean;
+  layoutDirection?: LayoutDirection;
 }
 
 function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
@@ -88,8 +90,13 @@ export function BaseNode({
   hasTargetEdge = true,
   executionSummary,
   paused,
+  layoutDirection = "vertical",
 }: BaseNodeProps) {
   const { isEditing, onDeleteStep } = useEditContext();
+  const targetPosition =
+    layoutDirection === "horizontal" ? Position.Left : Position.Top;
+  const sourcePosition =
+    layoutDirection === "horizontal" ? Position.Right : Position.Bottom;
   const hasErrors = diagnostics.some((d) => d.severity === "error");
   const hasWarnings =
     !hasErrors && diagnostics.some((d) => d.severity === "warning");
@@ -144,7 +151,11 @@ export function BaseNode({
         </button>
       )}
       {(hasTargetEdge || (isEditing && hasTargetEdge !== false)) && (
-        <Handle type="target" position={Position.Top} className={handleClass} />
+        <Handle
+          type="target"
+          position={targetPosition}
+          className={handleClass}
+        />
       )}
       <div className="px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -195,7 +206,7 @@ export function BaseNode({
       {(hasSourceEdge || (isEditing && hasSourceEdge !== false)) && (
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={sourcePosition}
           className={handleClass}
         />
       )}

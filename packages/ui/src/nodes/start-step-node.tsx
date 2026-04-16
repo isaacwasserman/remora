@@ -11,6 +11,7 @@ export function StartStepNode({ data, selected }: NodeProps) {
     executionSummary,
     inputSchema,
     paused,
+    layoutDirection,
   } = data as unknown as StepNodeData;
   if (step.type !== "start") return null;
 
@@ -36,6 +37,7 @@ export function StartStepNode({ data, selected }: NodeProps) {
       hasTargetEdge={false}
       executionSummary={executionSummary}
       paused={paused}
+      layoutDirection={layoutDirection}
     >
       {properties.length > 0 && (
         <div className="space-y-0.5">

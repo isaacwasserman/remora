@@ -16,6 +16,9 @@ import {
   isGroupStep,
 } from "./utils/group-refs";
 
+/** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). */
+export type LayoutDirection = "vertical" | "horizontal";
+
 export interface StepNodeData {
   step: WorkflowStep;
   diagnostics: Diagnostic[];
@@ -26,6 +29,8 @@ export interface StepNodeData {
   executionSummary?: StepExecutionSummary;
   /** Whether the workflow execution is currently paused. */
   paused?: boolean;
+  /** Layout direction so node components can orient their handles. */
+  layoutDirection?: LayoutDirection;
 }
 
 const NODE_WIDTH = 300;
@@ -35,6 +40,18 @@ const GROUP_HEADER_WIDTH = 280;
 const GROUP_HEADER_HEIGHT = 80;
 export const GROUP_PADDING = 30;
 export const GROUP_HEADER = 40;
+
+const RANK_SEP = 60;
+const NODE_SEP = 40;
+
+function dagreGraphOptions(direction: LayoutDirection) {
+  return {
+    rankdir: direction === "horizontal" ? "LR" : "TB",
+    ranksep: RANK_SEP,
+    nodesep: NODE_SEP,
+    rankalign: direction === "horizontal" ? "top" : "center",
+  };
+}
 
 const START_NODE_ID = "__start__";
 
@@ -245,6 +262,7 @@ export function buildLayout(
   executionState?: ExecutionState,
   nodeDimensions?: Map<string, { width: number; height: number }>,
   paused?: boolean,
+  direction: LayoutDirection = "vertical",
 ): { nodes: Node[]; edges: Edge[] } {
   if (!workflow || workflow.steps.length === 0) {
     return { nodes: [], edges: [] };
@@ -298,7 +316,7 @@ export function buildLayout(
     }
 
     const subG = new dagre.graphlib.Graph();
-    subG.setGraph({ rankdir: "TB", ranksep: 60, nodesep: 40 });
+    subG.setGraph(dagreGraphOptions(direction));
     subG.setDefaultEdgeLabel(() => ({}));
 
     // Add a synthetic header node for this group
@@ -404,7 +422,7 @@ export function buildLayout(
 
   // --- Step 4: Top-level dagre layout ---
   const topG = new dagre.graphlib.Graph();
-  topG.setGraph({ rankdir: "TB", ranksep: 60, nodesep: 40 });
+  topG.setGraph(dagreGraphOptions(direction));
   topG.setDefaultEdgeLabel(() => ({}));
 
   // Start node — skip pseudo-node when initialStepId is a "start" step
@@ -478,6 +496,18 @@ export function buildLayout(
     });
   }
 
+  // In horizontal mode, top-align all top-level nodes so they share the
+  // same y coordinate regardless of height differences.
+  if (direction === "horizontal") {
+    let minY = Number.POSITIVE_INFINITY;
+    for (const pos of topLevelPositions.values()) {
+      if (pos.y < minY) minY = pos.y;
+    }
+    for (const [id, pos] of topLevelPositions) {
+      topLevelPositions.set(id, { x: pos.x, y: minY });
+    }
+  }
+
   // --- Step 5: Build React Flow nodes ---
   const nodes: Node[] = [];
 
@@ -488,7 +518,7 @@ export function buildLayout(
       id: START_NODE_ID,
       type: "start",
       position: startNodePos,
-      data: {},
+      data: { layoutDirection: direction },
       selectable: false,
       measured: { width: START_NODE_SIZE, height: START_NODE_SIZE },
     });
@@ -526,6 +556,7 @@ export function buildLayout(
           ...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
           executionSummary: stepSummaries?.get(id),
           paused,
+          layoutDirection: direction,
         },
         style: { width: size.w, height: size.h },
         ...(parentId ? { parentId, extent: "parent" as const } : {}),
@@ -561,6 +592,7 @@ export function buildLayout(
             resolvedExpression: resolvedInputs?.switchOn,
             step,
             diagnostics: diagnosticsByStep.get(gid) ?? [],
+            layoutDirection: direction,
           },
           ...(parentId ? { parentId, extent: "parent" as const } : {}),
         });
@@ -577,6 +609,7 @@ export function buildLayout(
             itemName: step.params.itemName,
             step,
             diagnostics: diagnosticsByStep.get(gid) ?? [],
+            layoutDirection: direction,
           },
           ...(parentId ? { parentId, extent: "parent" as const } : {}),
         });
@@ -589,6 +622,7 @@ export function buildLayout(
             variant: "condition",
             description: step.description,
             condition: renderExpression(step.params.condition),
+            layoutDirection: direction,
           },
           ...(parentId ? { parentId, extent: "parent" as const } : {}),
         });
@@ -604,6 +638,7 @@ export function buildLayout(
         diagnostics: diagnosticsByStep.get(id) ?? [],
         ...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
         executionSummary: stepSummaries?.get(id),
+        layoutDirection: direction,
       };
       if (step.type === "start" && workflow?.inputSchema) {
         nodeData.inputSchema = workflow.inputSchema;
@@ -766,12 +801,15 @@ export function buildEditableLayout(
   positionOverrides?: Map<string, { x: number; y: number }>,
   dimensionOverrides?: Map<string, { width: number; height: number }>,
   nodeDimensions?: Map<string, { width: number; height: number }>,
+  direction: LayoutDirection = "vertical",
 ): { nodes: Node[]; edges: Edge[] } {
   const result = buildLayout(
     workflow,
     diagnostics,
     executionState,
     nodeDimensions,
+    undefined,
+    direction,
   );
 
   // Filter out the pseudo __start__ node in edit mode — users create explicit start/end steps instead.
