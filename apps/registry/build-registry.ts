@@ -17,9 +17,17 @@ const VIEWER_FILES: FileEntry[] = [
   { relPath: "graph-layout.ts", type: "registry:component" },
   { relPath: "theme.tsx", type: "registry:component" },
   { relPath: "edit-context.tsx", type: "registry:component" },
+  { relPath: "execution-state.ts", type: "registry:component" },
+  // hooks
   { relPath: "hooks/use-editable-workflow.ts", type: "registry:component" },
+  { relPath: "hooks/use-context-menu.ts", type: "registry:component" },
+  { relPath: "hooks/use-selection-state.ts", type: "registry:component" },
+  // utils
   { relPath: "utils/step-defaults.ts", type: "registry:component" },
+  { relPath: "utils/group-refs.ts", type: "registry:component" },
+  // edges
   { relPath: "edges/workflow-edge.tsx", type: "registry:component" },
+  // nodes
   { relPath: "nodes/base-node.tsx", type: "registry:component" },
   { relPath: "nodes/tool-call-node.tsx", type: "registry:component" },
   { relPath: "nodes/llm-prompt-node.tsx", type: "registry:component" },
@@ -33,18 +41,63 @@ const VIEWER_FILES: FileEntry[] = [
   { relPath: "nodes/sleep-node.tsx", type: "registry:component" },
   { relPath: "nodes/wait-for-condition-node.tsx", type: "registry:component" },
   { relPath: "nodes/agent-loop-node.tsx", type: "registry:component" },
+  // components
   { relPath: "components/step-palette.tsx", type: "registry:component" },
   {
     relPath: "components/canvas-context-menu.tsx",
     type: "registry:component",
   },
+  {
+    relPath: "components/workflow-json-dialog.tsx",
+    type: "registry:component",
+  },
+  // editors
+  { relPath: "editors/codemirror-theme.ts", type: "registry:component" },
+  { relPath: "editors/json-code-editor.tsx", type: "registry:component" },
+  { relPath: "editors/json-viewer.tsx", type: "registry:component" },
+  { relPath: "editors/shared-editors.tsx", type: "registry:component" },
   { relPath: "editors/expression-editor.tsx", type: "registry:component" },
+  // param editors
+  { relPath: "editors/params/types.ts", type: "registry:component" },
+  {
+    relPath: "editors/params/agent-loop-params.tsx",
+    type: "registry:component",
+  },
+  { relPath: "editors/params/end-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/extract-data-params.tsx",
+    type: "registry:component",
+  },
+  { relPath: "editors/params/for-each-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/llm-prompt-params.tsx",
+    type: "registry:component",
+  },
+  { relPath: "editors/params/sleep-params.tsx", type: "registry:component" },
+  { relPath: "editors/params/start-params.tsx", type: "registry:component" },
+  {
+    relPath: "editors/params/switch-case-params.tsx",
+    type: "registry:component",
+  },
+  {
+    relPath: "editors/params/tool-call-params.tsx",
+    type: "registry:component",
+  },
+  {
+    relPath: "editors/params/wait-for-condition-params.tsx",
+    type: "registry:component",
+  },
+  // panels
   { relPath: "panels/shared.tsx", type: "registry:component" },
   { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
   { relPath: "panels/step-editor-panel.tsx", type: "registry:component" },
 ];
 
 const PANEL_FILES: FileEntry[] = [
+  { relPath: "execution-state.ts", type: "registry:component" },
+  { relPath: "editors/codemirror-theme.ts", type: "registry:component" },
+  { relPath: "editors/json-viewer.tsx", type: "registry:component" },
+  { relPath: "panels/shared.tsx", type: "registry:component" },
   { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
 ];
 
@@ -119,8 +172,28 @@ async function main() {
     title: "Workflow Viewer",
     description:
       "Interactive DAG visualization for Remora workflow definitions, built with React Flow. Requires Tailwind CSS and @xyflow/react/dist/style.css to be imported in your app.",
-    dependencies: ["@remoraflow/core", "@xyflow/react", "@dagrejs/dagre"],
-    registryDependencies: ["button", "input", "select", "textarea", "label"],
+    dependencies: [
+      "@remoraflow/core",
+      "@xyflow/react",
+      "@dagrejs/dagre",
+      "@codemirror/autocomplete",
+      "@codemirror/commands",
+      "@codemirror/lang-json",
+      "@codemirror/language",
+      "@codemirror/lint",
+      "@codemirror/state",
+      "@codemirror/view",
+      "@lezer/highlight",
+      "lucide-react",
+    ],
+    registryDependencies: [
+      "button",
+      "input",
+      "select",
+      "textarea",
+      "label",
+      "tabs",
+    ],
     files: viewerFiles,
   };
 
@@ -131,7 +204,14 @@ async function main() {
     title: "Workflow Step Detail Panel",
     description:
       "Detail panel that displays step parameters and diagnostics for a selected workflow step. Pair with WorkflowViewer for a complete workflow visualization experience.",
-    dependencies: ["@remoraflow/core"],
+    dependencies: [
+      "@remoraflow/core",
+      "@codemirror/lang-json",
+      "@codemirror/language",
+      "@codemirror/state",
+      "@codemirror/view",
+      "@lezer/highlight",
+    ],
     registryDependencies: [],
     files: panelFiles,
   };
