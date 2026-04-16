@@ -1,5 +1,20 @@
 # @remoraflow/core
 
+## 0.10.0
+
+### Minor Changes
+
+- cb0af5e: Preserve JSON Schema `default` values from tool input schemas. `extractToolSchemas` now prefers the validator library's native `toJsonSchema` / `toJSONSchema` method (e.g. arktype, zod v4) when available, so extensions like `default`, `examples`, and `title` are no longer stripped by the AI SDK's `asSchema` wrapper.
+
+  The workflow viewer surfaces defaults in the tool-call editor:
+
+  - Shown as placeholder text in string, number, JSON, and enum inputs.
+  - Rendered next to the "+ key" chip for absent optional inputs.
+  - Displayed as a subtle `default: …` label next to present optional inputs.
+  - When the user clicks the chip to add an optional input, the input is seeded with the schema's default value (if set) instead of an empty literal.
+
+- ea69942: Add optional `displayName` to `ToolSchemaDefinition`. The workflow viewer now uses it as the human-friendly label for tools in the tool picker, agent-loop tool list, node canvas, and detail/editor panels. Compiled workflows continue to reference tools by their actual keys. The tool picker dropdown also renders each tool's description underneath its name.
+
 ## 0.9.0
 
 ## 0.8.0
