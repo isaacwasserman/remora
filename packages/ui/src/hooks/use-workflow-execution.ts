@@ -116,7 +116,7 @@ export function useWorkflowExecution(
         }
       } catch (err) {
         if (!ac.signal.aborted) {
-          console.error("Workflow execution rf:error:", err);
+          console.error("Workflow execution error:", err);
         }
       } finally {
         if (!ac.signal.aborted) {

@@ -36,9 +36,9 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="Extract Data"
-      typeLabelColor="rf:text-purple-500"
+      typeLabelColor="text-purple-500"
       accent="#a855f7"
-      icon={<FileOutput className="rf:w-3.5 rf:h-3.5" />}
+      icon={<FileOutput className="w-3.5 h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -46,10 +46,10 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
       executionSummary={executionSummary}
       paused={paused}
     >
-      <div className="rf:flex rf:gap-1.5 rf:text-[11px]">
-        <span className="rf:text-muted-foreground rf:shrink-0">source:</span>
+      <div className="flex gap-1.5 text-[11px]">
+        <span className="text-muted-foreground shrink-0">source:</span>
         <span
-          className={`rf:font-mono rf:truncate ${hasSourceResolved ? "rf:text-emerald-700 rf:dark:text-emerald-400" : "rf:text-muted-foreground"}`}
+          className={`font-mono truncate ${hasSourceResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
           title={
             hasSourceResolved ? renderExpr(step.params.sourceData) : undefined
           }
@@ -62,9 +62,9 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
         </span>
       </div>
       {outputKeys.length > 0 && (
-        <div className="rf:mt-1 rf:flex rf:gap-1.5 rf:text-[11px]">
-          <span className="rf:text-muted-foreground rf:shrink-0">output:</span>
-          <span className="rf:font-mono rf:text-muted-foreground">
+        <div className="mt-1 flex gap-1.5 text-[11px]">
+          <span className="text-muted-foreground shrink-0">output:</span>
+          <span className="font-mono text-muted-foreground">
             {outputKeys.join(", ")}
           </span>
         </div>

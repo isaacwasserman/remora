@@ -40,7 +40,7 @@ const START_NODE_ID = "__start__";
 
 function getOrThrow<K, V>(map: Map<K, V>, key: K): V {
   const val = map.get(key);
-  if (val === undefined) throw new Error(`Missing map rf:key: ${String(key)}`);
+  if (val === undefined) throw new Error(`Missing map key: ${String(key)}`);
   return val;
 }
 

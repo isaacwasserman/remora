@@ -24,9 +24,9 @@ export function SleepNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="Sleep"
-      typeLabelColor="rf:text-amber-500"
+      typeLabelColor="text-amber-500"
       accent="#f59e0b"
-      icon={<Moon className="rf:w-3.5 rf:h-3.5" />}
+      icon={<Moon className="w-3.5 h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -34,9 +34,9 @@ export function SleepNode({ data, selected }: NodeProps) {
       executionSummary={executionSummary}
       paused={paused}
     >
-      <div className="rf:flex rf:gap-1.5 rf:text-[11px]">
-        <span className="rf:text-muted-foreground rf:shrink-0">duration:</span>
-        <span className="rf:font-mono rf:text-muted-foreground rf:truncate">
+      <div className="flex gap-1.5 text-[11px]">
+        <span className="text-muted-foreground shrink-0">duration:</span>
+        <span className="font-mono text-muted-foreground truncate">
           {renderExpr(step.params.durationMs)}ms
         </span>
       </div>

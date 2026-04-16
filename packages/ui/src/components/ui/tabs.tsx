@@ -10,7 +10,7 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      className={cn("rf:flex rf:flex-col rf:gap-2", className)}
+      className={cn("flex flex-col gap-2", className)}
       {...props}
     />
   );
@@ -22,9 +22,9 @@ function TabsList({
 }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
-      data-slot="rf:tabs-list"
+      data-slot="tabs-list"
       className={cn(
-        "rf:inline-flex rf:w-fit rf:items-center rf:justify-center rf:rounded-lg rf:bg-muted/50 rf:p-0.5 rf:text-muted-foreground",
+        "inline-flex w-fit items-center justify-center rounded-lg bg-muted/50 p-0.5 text-muted-foreground",
         className,
       )}
       {...props}
@@ -38,9 +38,9 @@ function TabsTrigger({
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
     <TabsPrimitive.Trigger
-      data-slot="rf:tabs-trigger"
+      data-slot="tabs-trigger"
       className={cn(
-        "rf:inline-flex rf:items-center rf:justify-center rf:whitespace-nowrap rf:rounded-md rf:px-2.5 rf:py-1 rf:text-[11px] rf:font-medium rf:transition-all rf:disabled:pointer-events-none rf:disabled:opacity-50 rf:data-[state=active]:bg-foreground rf:data-[state=active]:text-background rf:data-[state=active]:shadow-sm",
+        "inline-flex items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition-all disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm",
         className,
       )}
       {...props}
@@ -54,8 +54,8 @@ function TabsContent({
 }: React.ComponentProps<typeof TabsPrimitive.Content>) {
   return (
     <TabsPrimitive.Content
-      data-slot="rf:tabs-content"
-      className={cn("rf:flex-1 rf:outline-none", className)}
+      data-slot="tabs-content"
+      className={cn("flex-1 outline-none", className)}
       {...props}
     />
   );

@@ -40,35 +40,35 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
       !hasErrors && diagnostics.some((d) => d.severity === "warning");
 
     let ringClass = "";
-    let borderColor = "rf:border-amber-300 rf:dark:border-amber-700";
+    let borderColor = "border-amber-300 dark:border-amber-700";
     if (executionSummary) {
       switch (executionSummary.status) {
         case "running":
           ringClass = paused
-            ? "rf:ring-2 rf:ring-amber-400"
-            : "rf:ring-2 rf:ring-blue-400 rf:animate-pulse";
+            ? "ring-2 ring-amber-400"
+            : "ring-2 ring-blue-400 animate-pulse";
           borderColor = paused
-            ? "rf:border-amber-300 rf:dark:border-amber-700"
-            : "rf:border-blue-300 rf:dark:border-blue-700";
+            ? "border-amber-300 dark:border-amber-700"
+            : "border-blue-300 dark:border-blue-700";
           break;
         case "completed":
-          ringClass = "rf:ring-2 rf:ring-green-400";
-          borderColor = "rf:border-green-400 rf:dark:border-green-600";
+          ringClass = "ring-2 ring-green-400";
+          borderColor = "border-green-400 dark:border-green-600";
           break;
         case "failed":
-          ringClass = "rf:ring-2 rf:ring-red-500";
-          borderColor = "rf:border-red-300 rf:dark:border-red-700";
+          ringClass = "ring-2 ring-red-500";
+          borderColor = "border-red-300 dark:border-red-700";
           break;
       }
     } else {
-      if (hasErrors) ringClass = "rf:ring-2 rf:ring-red-500";
-      else if (hasWarnings) ringClass = "rf:ring-2 rf:ring-amber-400";
-      else if (selected) ringClass = "rf:ring-2 rf:ring-amber-400";
+      if (hasErrors) ringClass = "ring-2 ring-red-500";
+      else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
+      else if (selected) ringClass = "ring-2 ring-amber-400";
     }
 
     return (
       <div
-        className={`rf:rounded-xl rf:border-2 rf:border-dashed rf:transition-colors rf:duration-150 ${borderColor} rf:bg-amber-50/30 rf:hover:bg-amber-50/60 rf:hover:border-amber-500 rf:dark:bg-amber-950/30 rf:dark:hover:bg-amber-950/50 rf:dark:hover:border-amber-500 ${ringClass} ${isEditing ? "rf:group" : ""} rf:relative`}
+        className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${borderColor} bg-amber-50/30 hover:bg-amber-50/60 hover:border-amber-500 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 dark:hover:border-amber-500 ${ringClass} ${isEditing ? "group" : ""} relative`}
         style={{ width: groupWidth, height: groupHeight }}
       >
         {isEditing && (
@@ -78,7 +78,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
               e.stopPropagation();
               onDeleteStep(step.id);
             }}
-            className="rf:absolute rf:-top-2 rf:-right-2 rf:z-10 rf:w-5 rf:h-5 rf:rounded-full rf:bg-muted-foreground/70 rf:text-white rf:text-xs rf:flex rf:items-center rf:justify-center rf:hover:bg-muted-foreground rf:shadow-sm rf:transition-opacity rf:opacity-0 rf:group-hover:opacity-100"
+            className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
             title="Delete step"
           >
             &times;
@@ -89,16 +89,16 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
           position={Position.Top}
           className={
             isEditing
-              ? "rf:!w-3 rf:!h-3 rf:!bg-blue-400 rf:hover:!bg-blue-500 rf:!border-2 rf:!border-background"
-              : "rf:!bg-amber-500 rf:!w-2.5 rf:!h-2.5"
+              ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+              : "!bg-amber-500 !w-2.5 !h-2.5"
           }
         />
-        <div className="rf:px-3 rf:py-2 rf:flex rf:items-center rf:gap-2">
-          <GitBranch className="rf:w-3.5 rf:h-3.5 rf:text-amber-500 rf:shrink-0" />
-          <span className="rf:text-[10px] rf:font-semibold rf:uppercase rf:tracking-wide rf:text-amber-500">
+        <div className="px-3 py-2 flex items-center gap-2">
+          <GitBranch className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-500">
             Branch
           </span>
-          <span className="rf:text-sm rf:font-medium rf:truncate rf:text-foreground">
+          <span className="text-sm font-medium truncate text-foreground">
             {step.name}
           </span>
         </div>
@@ -108,8 +108,8 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
             position={Position.Bottom}
             className={
               isEditing
-                ? "rf:!w-3 rf:!h-3 rf:!bg-blue-400 rf:hover:!bg-blue-500 rf:!border-2 rf:!border-background"
-                : "rf:!bg-amber-500 rf:!w-2.5 rf:!h-2.5"
+                ? "!w-3 !h-3 !bg-blue-400 hover:!bg-blue-500 !border-2 !border-background"
+                : "!bg-amber-500 !w-2.5 !h-2.5"
             }
           />
         )}
@@ -128,9 +128,9 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
       id={step.id}
       name={step.name}
       typeLabel="Switch Case"
-      typeLabelColor="rf:text-amber-500"
+      typeLabelColor="text-amber-500"
       accent="#f59e0b"
-      icon={<GitBranch className="rf:w-3.5 rf:h-3.5" />}
+      icon={<GitBranch className="w-3.5 h-3.5" />}
       description={step.description}
       diagnostics={diagnostics}
       selected={selected}
@@ -138,10 +138,10 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
       executionSummary={executionSummary}
       paused={paused}
     >
-      <div className="rf:flex rf:gap-1.5 rf:text-[11px]">
-        <span className="rf:text-muted-foreground rf:shrink-0">on:</span>
+      <div className="flex gap-1.5 text-[11px]">
+        <span className="text-muted-foreground shrink-0">on:</span>
         <span
-          className={`rf:font-mono rf:truncate ${hasSwitchResolved ? "rf:text-emerald-700 rf:dark:text-emerald-400" : "rf:text-muted-foreground"}`}
+          className={`font-mono truncate ${hasSwitchResolved ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
           title={
             hasSwitchResolved ? renderExpr(step.params.switchOn) : undefined
           }
@@ -151,17 +151,17 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
             : renderExpr(step.params.switchOn)}
         </span>
       </div>
-      <div className="rf:mt-1.5 rf:space-y-0.5">
+      <div className="mt-1.5 space-y-0.5">
         {step.params.cases.map((c) => (
           <div
             key={c.branchBodyStepId}
-            className="rf:flex rf:items-center rf:gap-1.5 rf:text-[11px]"
+            className="flex items-center gap-1.5 text-[11px]"
           >
-            <span className="rf:font-mono rf:text-muted-foreground">
+            <span className="font-mono text-muted-foreground">
               {c.value.type === "default" ? "default" : renderExpr(c.value)}
             </span>
-            <span className="rf:text-muted-foreground/50">&rarr;</span>
-            <span className="rf:font-mono rf:text-muted-foreground">
+            <span className="text-muted-foreground/50">&rarr;</span>
+            <span className="font-mono text-muted-foreground">
               {c.branchBodyStepId}
             </span>
           </div>

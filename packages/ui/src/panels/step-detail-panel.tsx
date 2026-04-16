@@ -35,17 +35,15 @@ function renderExpression(
 
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
   const colors: Record<string, string> = {
-    pending: "rf:bg-muted rf:text-muted-foreground border rf:border-border",
-    running: "rf:bg-blue-500/10 rf:text-blue-600 border rf:border-blue-500/20",
-    completed:
-      "rf:bg-green-500/10 rf:text-green-600 border rf:border-green-500/20",
-    failed:
-      "rf:bg-destructive/10 rf:text-destructive border rf:border-destructive/20",
-    skipped: "rf:bg-muted rf:text-muted-foreground border rf:border-border",
+    pending: "bg-muted text-muted-foreground border border-border",
+    running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+    completed: "bg-green-500/10 text-green-600 border border-green-500/20",
+    failed: "bg-destructive/10 text-destructive border border-destructive/20",
+    skipped: "bg-muted text-muted-foreground border border-border",
   };
   return (
     <span
-      className={`rf:text-[11px] rf:font-semibold rf:px-2.5 rf:py-0.5 rf:rounded-full ${colors[summary.status]}`}
+      className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${colors[summary.status]}`}
     >
       {summary.status}
     </span>
@@ -63,7 +61,7 @@ function ResolvedCode({
   if (typeof value === "string") {
     return (
       <pre
-        className="rf:text-xs rf:text-emerald-600 rf:bg-emerald-500/10 rf:rounded-md rf:p-2.5 rf:whitespace-pre-wrap rf:font-mono rf:overflow-auto rf:max-h-[200px] rf:cursor-default border rf:border-emerald-500/20"
+        className="text-xs text-emerald-600 bg-emerald-500/10 rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] cursor-default border border-emerald-500/20"
         title={expression}
       >
         {display}
@@ -85,31 +83,31 @@ function StepParams({
   switch (step.type) {
     case "tool-call":
       return (
-        <div className="rf:space-y-3">
+        <div className="space-y-3">
           <div>
             <Label>Tool</Label>
-            <div className="rf:text-xs rf:font-mono rf:font-medium rf:text-foreground rf:bg-muted/40 rounded rf:px-2 rf:py-1 rf:inline-block">
+            <div className="text-xs font-mono font-medium text-foreground bg-muted/40 rounded px-2 py-1 inline-block">
               {step.params.toolName}
             </div>
           </div>
           {Object.keys(step.params.toolInput).length > 0 && (
             <div>
               <Label>Inputs</Label>
-              <div className="rf:space-y-1.5">
+              <div className="space-y-1.5">
                 {Object.entries(step.params.toolInput).map(([key, val]) => {
                   const resolvedVal = resolved?.[key];
                   const hasResolved = resolvedVal !== undefined;
                   return (
                     <div
                       key={key}
-                      className="rf:flex rf:gap-2 rf:text-xs rf:items-baseline"
+                      className="flex gap-2 text-xs items-baseline"
                     >
-                      <span className="rf:font-mono rf:font-medium rf:text-muted-foreground rf:shrink-0">
+                      <span className="font-mono font-medium text-muted-foreground shrink-0">
                         {key}
                       </span>
-                      <span className="rf:text-muted-foreground/40">=</span>
+                      <span className="text-muted-foreground/40">=</span>
                       <span
-                        className={`rf:font-mono ${hasResolved ? "rf:text-emerald-600" : "rf:text-foreground"}`}
+                        className={`font-mono ${hasResolved ? "text-emerald-600" : "text-foreground"}`}
                         title={hasResolved ? renderExpression(val) : undefined}
                       >
                         {hasResolved
@@ -129,7 +127,7 @@ function StepParams({
 
     case "llm-prompt":
       return (
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           <div>
             <Label>Prompt</Label>
             {resolved?.prompt ? (
@@ -138,7 +136,7 @@ function StepParams({
                 expression={step.params.prompt}
               />
             ) : (
-              <pre className="rf:text-xs rounded rf:p-2 rf:whitespace-pre-wrap rf:font-mono rf:text-foreground rf:bg-muted">
+              <pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
                 {step.params.prompt}
               </pre>
             )}
@@ -154,7 +152,7 @@ function StepParams({
 
     case "extract-data":
       return (
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           <div>
             <Label>Source</Label>
             {resolved?.sourceData !== undefined ? (
@@ -177,7 +175,7 @@ function StepParams({
 
     case "switch-case":
       return (
-        <div className="rf:space-y-3">
+        <div className="space-y-3">
           <div>
             <Label>Switch On</Label>
             {resolved?.switchOn !== undefined ? (
@@ -191,19 +189,19 @@ function StepParams({
           </div>
           <div>
             <Label>Cases</Label>
-            <div className="rf:space-y-1.5">
+            <div className="space-y-1.5">
               {step.params.cases.map((c) => (
                 <div
                   key={c.branchBodyStepId}
-                  className="rf:text-xs rf:flex rf:items-center rf:gap-2 rf:bg-muted/30 rf:rounded-md rf:px-2.5 rf:py-1.5"
+                  className="text-xs flex items-center gap-2 bg-muted/30 rounded-md px-2.5 py-1.5"
                 >
-                  <span className="rf:font-mono rf:font-medium rf:text-muted-foreground">
+                  <span className="font-mono font-medium text-muted-foreground">
                     {c.value.type === "default"
                       ? "default"
                       : renderExpression(c.value)}
                   </span>
-                  <span className="rf:text-muted-foreground/40">&rarr;</span>
-                  <span className="rf:font-mono rf:font-medium rf:text-foreground">
+                  <span className="text-muted-foreground/40">&rarr;</span>
+                  <span className="font-mono font-medium text-foreground">
                     {c.branchBodyStepId}
                   </span>
                 </div>
@@ -215,7 +213,7 @@ function StepParams({
 
     case "for-each":
       return (
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           <div>
             <Label>Target</Label>
             {resolved?.target !== undefined ? (
@@ -240,7 +238,7 @@ function StepParams({
 
     case "sleep":
       return (
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           <div>
             <Label>Duration</Label>
             {resolved?.durationMs !== undefined ? (
@@ -257,7 +255,7 @@ function StepParams({
 
     case "wait-for-condition":
       return (
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           <div>
             <Label>Condition</Label>
             {resolved?.condition !== undefined ? (
@@ -296,10 +294,10 @@ function StepParams({
 
     case "agent-loop":
       return (
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           <div>
             <Label>Instructions</Label>
-            <pre className="rf:text-xs rounded rf:p-2 rf:whitespace-pre-wrap rf:font-mono rf:text-foreground rf:bg-muted">
+            <pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
               {step.params.instructions}
             </pre>
           </div>
@@ -330,7 +328,7 @@ function StepParams({
     case "end":
       if (step.params?.output) {
         return (
-          <div className="rf:space-y-2">
+          <div className="space-y-2">
             <div>
               <Label>Output</Label>
               {resolved?.output !== undefined ? (
@@ -351,7 +349,7 @@ function StepParams({
 
 function Code({ children }: { children: React.ReactNode }) {
   return (
-    <pre className="rf:text-xs rf:rounded-md rf:p-2.5 rf:whitespace-pre-wrap rf:font-mono rf:overflow-auto rf:max-h-[200px] rf:text-foreground rf:bg-muted/60 border rf:border-border/50">
+    <pre className="text-xs rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] text-foreground bg-muted/60 border border-border/50">
       {children}
     </pre>
   );
@@ -374,24 +372,22 @@ function formatValue(value: unknown): string {
 }
 
 const recordStatusColors: Record<string, string> = {
-  pending: "rf:bg-muted rf:text-muted-foreground border rf:border-border",
-  running: "rf:bg-blue-500/10 rf:text-blue-600 border rf:border-blue-500/20",
-  completed:
-    "rf:bg-green-500/10 rf:text-green-600 border rf:border-green-500/20",
-  failed:
-    "rf:bg-destructive/10 rf:text-destructive border rf:border-destructive/20",
-  skipped: "rf:bg-muted rf:text-muted-foreground border rf:border-border",
+  pending: "bg-muted text-muted-foreground border border-border",
+  running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+  completed: "bg-green-500/10 text-green-600 border border-green-500/20",
+  failed: "bg-destructive/10 text-destructive border border-destructive/20",
+  skipped: "bg-muted text-muted-foreground border border-border",
 };
 
 function TraceSection({ trace }: { trace: TraceEntry[] }) {
   if (trace.length === 0) return null;
 
   return (
-    <details className="rf:text-xs rf:group">
-      <summary className="rf:text-[11px] rf:font-medium rf:text-muted-foreground rf:cursor-pointer rf:select-none rf:hover:text-foreground rf:transition-colors rf:py-0.5">
+    <details className="text-xs group">
+      <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
         Agent Trace ({trace.length} {trace.length === 1 ? "entry" : "entries"})
       </summary>
-      <div className="rf:mt-1.5">
+      <div className="mt-1.5">
         <JsonViewer value={JSON.stringify(trace, null, 2)} />
       </div>
     </details>
@@ -405,46 +401,46 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
       : null;
 
   return (
-    <div className="border rf:border-border rf:rounded-lg rf:p-3 rf:space-y-2 rf:bg-card">
+    <div className="border border-border rounded-lg p-3 space-y-2 bg-card">
       {pathLabel && (
-        <div className="rf:text-[11px] rf:font-medium rf:text-muted-foreground">
+        <div className="text-[11px] font-medium text-muted-foreground">
           {pathLabel}
         </div>
       )}
-      <div className="rf:flex rf:items-center rf:gap-2">
+      <div className="flex items-center gap-2">
         <span
-          className={`rf:text-[11px] rf:font-semibold rf:px-2.5 rf:py-0.5 rf:rounded-full ${recordStatusColors[record.status]}`}
+          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${recordStatusColors[record.status]}`}
         >
           {record.status}
         </span>
         {record.durationMs !== undefined && (
-          <span className="rf:text-[11px] rf:text-muted-foreground rf:tabular-nums">
+          <span className="text-[11px] text-muted-foreground tabular-nums">
             {record.durationMs}ms
           </span>
         )}
         {record.retries.length > 0 && (
-          <span className="rf:text-[11px] rf:font-medium rf:text-amber-600">
+          <span className="text-[11px] font-medium text-amber-600">
             {record.retries.length}{" "}
             {record.retries.length === 1 ? "retry" : "retries"}
           </span>
         )}
       </div>
       {record.resolvedInputs !== undefined && (
-        <details className="rf:text-xs rf:group">
-          <summary className="rf:text-[11px] rf:font-medium rf:text-muted-foreground rf:cursor-pointer rf:select-none rf:hover:text-foreground rf:transition-colors rf:py-0.5">
+        <details className="text-xs group">
+          <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
             Resolved Inputs
           </summary>
-          <div className="rf:mt-1.5">
+          <div className="mt-1.5">
             <ResolvedCode value={record.resolvedInputs} />
           </div>
         </details>
       )}
       {record.output !== undefined && (
-        <details className="rf:text-xs rf:group">
-          <summary className="rf:text-[11px] rf:font-medium rf:text-muted-foreground rf:cursor-pointer rf:select-none rf:hover:text-foreground rf:transition-colors rf:py-0.5">
+        <details className="text-xs group">
+          <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
             Output
           </summary>
-          <div className="rf:mt-1.5">
+          <div className="mt-1.5">
             <JsonViewer value={jsonString(record.output)} />
           </div>
         </details>
@@ -453,13 +449,9 @@ function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
         <TraceSection trace={record.trace} />
       )}
       {record.error && (
-        <div className="rf:text-xs rf:p-2.5 rf:rounded-md rf:bg-destructive/10 rf:text-destructive border rf:border-destructive/20">
-          <div className="rf:font-semibold rf:font-mono">
-            {record.error.code}
-          </div>
-          <div className="rf:mt-1 rf:leading-relaxed">
-            {record.error.message}
-          </div>
+        <div className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
+          <div className="font-semibold font-mono">{record.error.code}</div>
+          <div className="mt-1 leading-relaxed">{record.error.message}</div>
         </div>
       )}
     </div>
@@ -474,42 +466,42 @@ export function StepDetailPanel({
   onClose,
 }: StepDetailPanelProps) {
   return (
-    <div className="rf:w-[360px] rf:border-l rf:h-full rf:min-h-0 rf:overflow-y-auto rf:bg-card rf:border-border">
-      <div className="rf:sticky rf:top-0 rf:z-10 rf:border-b rf:px-4 rf:py-3 rf:flex rf:items-center rf:justify-between rf:bg-card/95 rf:backdrop-blur-sm rf:border-border">
+    <div className="w-[360px] border-l h-full min-h-0 overflow-y-auto bg-card border-border">
+      <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
         <TypeBadge type={step.type} />
         <button
           type="button"
           onClick={onClose}
-          className="rf:text-lg rf:leading-none rf:text-muted-foreground rf:hover:text-foreground rf:shrink-0 rf:rounded-md rf:w-7 rf:h-7 rf:flex rf:items-center rf:justify-center rf:hover:bg-muted rf:transition-colors"
+          className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0 rounded-md w-7 h-7 flex items-center justify-center hover:bg-muted transition-colors"
         >
           &times;
         </button>
       </div>
 
-      <div className="rf:px-4 rf:py-4 rf:space-y-4">
-        <div className="rf:space-y-3">
+      <div className="px-4 py-4 space-y-4">
+        <div className="space-y-3">
           <div>
-            <div className="rf:font-medium rf:text-sm rf:text-foreground">
+            <div className="font-medium text-sm text-foreground">
               {step.name}
             </div>
             {step.description && (
-              <div className="rf:text-xs rf:text-muted-foreground rf:leading-relaxed rf:mt-1">
+              <div className="text-xs text-muted-foreground leading-relaxed mt-1">
                 {step.description}
               </div>
             )}
           </div>
 
-          <div className="rf:grid rf:grid-cols-2 rf:gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Step ID</Label>
-              <div className="rf:text-xs rf:font-mono rf:text-muted-foreground rf:bg-muted/40 rounded rf:px-2 rf:py-1.5 rf:truncate">
+              <div className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1.5 truncate">
                 {step.id}
               </div>
             </div>
             {step.nextStepId && (
               <div>
                 <Label>Next Step</Label>
-                <div className="rf:text-xs rf:font-mono rf:text-muted-foreground rf:bg-muted/40 rounded rf:px-2 rf:py-1.5 rf:truncate">
+                <div className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1.5 truncate">
                   {step.nextStepId}
                 </div>
               </div>
@@ -517,9 +509,9 @@ export function StepDetailPanel({
           </div>
         </div>
 
-        <div className="rf:border-t rf:pt-4 rf:border-border">
+        <div className="border-t pt-4 border-border">
           <SectionHeader>Parameters</SectionHeader>
-          <div className="rf:mt-2">
+          <div className="mt-2">
             <StepParams
               step={step}
               resolvedInputs={
@@ -533,18 +525,18 @@ export function StepDetailPanel({
         </div>
 
         {executionSummary && (
-          <div className="rf:border-t rf:border-border rf:pt-4">
+          <div className="border-t border-border pt-4">
             <SectionHeader>Execution</SectionHeader>
-            <div className="rf:mt-2 rf:space-y-3">
-              <div className="rf:flex rf:items-center rf:gap-2 rf:flex-wrap">
+            <div className="mt-2 space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
                 <StatusBadge summary={executionSummary} />
                 {executionSummary.latestDurationMs !== undefined && (
-                  <span className="rf:text-[11px] rf:text-muted-foreground rf:tabular-nums">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
                     {executionSummary.latestDurationMs}ms
                   </span>
                 )}
                 {executionSummary.executionCount > 1 && (
-                  <span className="rf:text-[11px] rf:text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground">
                     ({executionSummary.completedCount}/
                     {executionSummary.executionCount} iterations)
                   </span>
@@ -568,18 +560,18 @@ export function StepDetailPanel({
                 )}
 
               {executionSummary.latestError && (
-                <div className="rf:text-xs rf:p-2.5 rf:rounded-md rf:bg-destructive/10 rf:text-destructive border rf:border-destructive/20">
-                  <div className="rf:font-semibold rf:font-mono">
+                <div className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
+                  <div className="font-semibold font-mono">
                     {executionSummary.latestError.code}
                   </div>
-                  <div className="rf:mt-1 rf:leading-relaxed">
+                  <div className="mt-1 leading-relaxed">
                     {executionSummary.latestError.message}
                   </div>
                 </div>
               )}
 
               {executionSummary.totalRetries > 0 && (
-                <div className="rf:text-[11px] rf:font-medium rf:text-amber-600">
+                <div className="text-[11px] font-medium text-amber-600">
                   {executionSummary.totalRetries}{" "}
                   {executionSummary.totalRetries === 1 ? "retry" : "retries"}{" "}
                   attempted
@@ -590,9 +582,9 @@ export function StepDetailPanel({
         )}
 
         {executionRecords && executionRecords.length > 0 && (
-          <div className="rf:border-t rf:border-border rf:pt-4">
+          <div className="border-t border-border pt-4">
             <SectionHeader>Execution History</SectionHeader>
-            <div className="rf:space-y-2 rf:mt-2">
+            <div className="space-y-2 mt-2">
               {executionRecords.map((record, i) => (
                 <ExecutionRecordCard
                   key={`${record.stepId}-${i}`}
@@ -604,20 +596,20 @@ export function StepDetailPanel({
         )}
 
         {diagnostics.length > 0 && (
-          <div className="rf:border-t rf:pt-4 rf:border-border">
+          <div className="border-t pt-4 border-border">
             <SectionHeader>Diagnostics</SectionHeader>
-            <div className="rf:space-y-2 rf:mt-2">
+            <div className="space-y-2 mt-2">
               {diagnostics.map((d) => (
                 <div
                   key={`${d.code}-${d.message}`}
-                  className={`rf:text-xs rf:p-2.5 rf:rounded-md ${
+                  className={`text-xs p-2.5 rounded-md ${
                     d.severity === "error"
-                      ? "rf:bg-destructive/10 rf:text-destructive border rf:border-destructive/20"
-                      : "rf:bg-amber-500/10 rf:text-amber-600 border rf:border-amber-500/20"
+                      ? "bg-destructive/10 text-destructive border border-destructive/20"
+                      : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
                   }`}
                 >
-                  <div className="rf:font-semibold rf:font-mono">{d.code}</div>
-                  <div className="rf:mt-1 rf:leading-relaxed">{d.message}</div>
+                  <div className="font-semibold font-mono">{d.code}</div>
+                  <div className="mt-1 leading-relaxed">{d.message}</div>
                 </div>
               ))}
             </div>

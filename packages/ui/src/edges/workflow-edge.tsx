@@ -70,11 +70,11 @@ export function WorkflowEdge({
           <div
             style={{
               position: "absolute",
-              transform: `rf:translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
               zIndex: 10,
             }}
-            className="rf:px-1.5 rf:py-0.5 rounded rf:text-[10px] rf:font-medium rf:border-2 shadow rf:whitespace-nowrap rf:transition-colors rf:duration-150 rf:bg-card rf:text-foreground rf:border-border rf:hover:border-foreground"
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium border-2 shadow whitespace-nowrap transition-colors duration-150 bg-card text-foreground border-border hover:border-foreground"
           >
             {label}
           </div>
@@ -85,11 +85,11 @@ export function WorkflowEdge({
             onClick={() => onDisconnectStep(source)}
             style={{
               position: "absolute",
-              transform: `rf:translate(-50%, -50%) translate(${labelX}px,${labelY + (label ? 16 : 0)}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + (label ? 16 : 0)}px)`,
               pointerEvents: "all",
               zIndex: 10,
             }}
-            className="rf:w-4 rf:h-4 rf:rounded-full rf:bg-red-500 rf:text-white rf:text-[10px] rf:flex rf:items-center rf:justify-center rf:hover:bg-red-600 rf:shadow-sm rf:opacity-0 rf:hover:opacity-100 rf:transition-opacity"
+            className="w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center hover:bg-red-600 shadow-sm opacity-0 hover:opacity-100 transition-opacity"
             title="Remove connection"
           >
             &times;

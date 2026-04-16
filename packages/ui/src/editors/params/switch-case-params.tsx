@@ -15,7 +15,7 @@ export function SwitchCaseParams({
   allStepIds: string[];
 }) {
   return (
-    <div className="rf:space-y-3">
+    <div className="space-y-3">
       <ExpressionEditor
         label="Switch On"
         value={step.params.switchOn as Expression}
@@ -25,20 +25,20 @@ export function SwitchCaseParams({
       />
       <div>
         <Label>Cases</Label>
-        <div className="rf:space-y-2">
+        <div className="space-y-2">
           {step.params.cases.map((c, i) => (
             <div
-              key={`rf:case-${c.branchBodyStepId || "empty"}-${i}`}
-              className="border rf:border-border/70 rf:rounded-lg rf:p-3 rf:space-y-2 rf:bg-muted/20"
+              key={`case-${c.branchBodyStepId || "empty"}-${i}`}
+              className="border border-border/70 rounded-lg p-3 space-y-2 bg-muted/20"
             >
-              <div className="rf:flex rf:items-center rf:justify-between">
-                <span className="rf:text-xs rf:font-semibold rf:text-foreground">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">
                   Case {i + 1}
                 </span>
                 <Button
                   variant="ghost"
                   size="xs"
-                  className="rf:text-red-500 rf:hover:text-red-700"
+                  className="text-red-500 hover:text-red-700"
                   onClick={() => {
                     const cases = step.params.cases.filter((_, j) => j !== i);
                     onChange({
@@ -50,7 +50,7 @@ export function SwitchCaseParams({
                 </Button>
               </div>
               {c.value.type === "default" ? (
-                <div className="rf:text-xs rf:text-muted-foreground rf:italic">
+                <div className="text-xs text-muted-foreground italic">
                   default case
                 </div>
               ) : (
@@ -84,7 +84,7 @@ export function SwitchCaseParams({
               />
             </div>
           ))}
-          <div className="rf:flex rf:gap-1">
+          <div className="flex gap-1">
             <Button
               variant="secondary"
               size="sm"
