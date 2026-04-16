@@ -268,8 +268,6 @@ export function buildLayout(
     return { nodes: [], edges: [] };
   }
 
-  const _rankdir = direction === "horizontal" ? "LR" : "TB";
-
   // --- Step 1: Build maps ---
   const stepSummaries = executionState
     ? deriveStepSummaries(executionState)
