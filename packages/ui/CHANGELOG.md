@@ -1,5 +1,29 @@
 # @remoraflow/ui
 
+## 0.11.0
+
+### Minor Changes
+
+- 586e13a: Rewrite the `Combobox` component on top of Radix Popover + `cmdk`, matching the
+  rest of the shadcn primitives in the registry and dropping the `@base-ui/react`
+  dependency. Also ships standard shadcn `Popover`, `Command`, and `Dialog`
+  primitives so the combobox composes cleanly.
+
+  **Breaking**: the combobox now uses a trigger + popover + command-list
+  composition (matching the shadcn docs example). The `items` / `value` /
+  `onValueChange` render-prop API, chip primitives (`ComboboxChips`,
+  `ComboboxChip`, `ComboboxChipsInput`), and the `useComboboxAnchor` helper are
+  removed. Use `<ComboboxTrigger>` to display the selected value, wrap
+  `ComboboxItem`s in a `ComboboxGroup`, and handle selection with `onSelect` on
+  each item.
+
+- d626857: Revert `select.tsx` to the standard shadcn version and introduce a new `Combobox` component. The combobox is built on `@base-ui/react` following the shadcn Combobox guide and supports items with values, labels, and descriptions (`ComboboxItemTitle`, `ComboboxItemDescription`). The tool-call step editor now uses the combobox for tool selection. The combobox ships as part of the `workflow-viewer` registry item.
+
+### Patch Changes
+
+- 9828c50: Fix React Flow controls (zoom in/out/fit-view) not respecting dark mode when the host app toggles `dark` on `<html>`. The workflow viewer now forwards its detected color mode to React Flow via the `colorMode` prop so the built-in controls styling picks up the correct dark palette.
+  - @remoraflow/core@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes
