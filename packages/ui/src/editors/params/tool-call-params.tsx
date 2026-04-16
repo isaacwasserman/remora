@@ -1,17 +1,26 @@
 import type { ToolDefinitionMap, WorkflowStep } from "@remoraflow/core";
 import { Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Input } from "../../components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemDescription,
+  ComboboxItemTitle,
+  ComboboxList,
+} from "../../components/ui/combobox";
+import { Input } from "../../components/ui/input";
 import { Label } from "../../panels/shared";
 import { ExpressionEditor } from "../expression-editor";
 import type { Expression, StepOnChange } from "./types";
+
+type ToolOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
 
 type PropSchema = {
   description?: string;
@@ -119,37 +128,54 @@ export function ToolCallParams({
     setInput(key, { type: "literal", value: seed });
   }
 
+  const toolOptions: ToolOption[] = availableToolNames.map((name) => {
+    const toolSchema = toolSchemas?.[name];
+    return {
+      value: name,
+      label: toolSchema?.displayName ?? name,
+      description: toolSchema?.description,
+    };
+  });
+  const selectedOption =
+    toolOptions.find((opt) => opt.value === step.params.toolName) ?? null;
+
   return (
     <div className="space-y-3">
       <div>
         <Label>Tool Name</Label>
         {availableToolNames.length > 0 ? (
-          <Select
-            value={step.params.toolName}
-            onValueChange={(val) =>
+          <Combobox
+            items={toolOptions}
+            value={selectedOption}
+            onValueChange={(val) => {
+              if (!val) return;
               onChange({
-                params: { ...step.params, toolName: val },
-              })
-            }
+                params: { ...step.params, toolName: val.value },
+              });
+            }}
           >
-            <SelectTrigger className="h-8 text-xs font-mono w-full">
-              <SelectValue placeholder="-- select tool --" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableToolNames.map((name) => {
-                const toolSchema = toolSchemas?.[name];
-                return (
-                  <SelectItem
-                    key={name}
-                    value={name}
-                    description={toolSchema?.description}
-                  >
-                    {toolSchema?.displayName ?? name}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+            <ComboboxInput
+              placeholder="-- select tool --"
+              className="h-8 text-xs font-mono"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No tools found.</ComboboxEmpty>
+              <ComboboxList>
+                {(item: ToolOption) => (
+                  <ComboboxItem key={item.value} value={item}>
+                    <ComboboxItemTitle className="font-mono text-xs">
+                      {item.label}
+                    </ComboboxItemTitle>
+                    {item.description && (
+                      <ComboboxItemDescription>
+                        {item.description}
+                      </ComboboxItemDescription>
+                    )}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         ) : (
           <Input
             value={step.params.toolName}

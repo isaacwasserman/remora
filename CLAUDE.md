@@ -108,6 +108,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 ## Code Conventions
 
 - Don't hardcode default values in JSDoc or comments. Instead, use `@see {@link CONSTANT_NAME}` to reference the source-of-truth constant. This prevents docs from drifting out of sync with actual defaults.
+- **Never modify shadcn primitives in `packages/ui/src/components/ui/*`** (select, input, button, dropdown-menu, combobox, etc.) to add project-specific props or behavior. These files must stay 1:1 with their upstream shadcn source so the registry stays composable with other shadcn apps. If you need extra behavior (e.g., an item with a description, a searchable dropdown), build a higher-level component on top of the standard primitives, or add a new primitive that follows the shadcn registry pattern.
 
 ## Pre-push Checks
 
