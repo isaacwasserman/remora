@@ -14,6 +14,27 @@ export {
   CollapsibleTrigger,
 } from "./components/ui/collapsible";
 export {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxClear,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemDescription,
+  ComboboxItemTitle,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxSeparator,
+  ComboboxTrigger,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "./components/ui/combobox";
+export {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
