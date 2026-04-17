@@ -700,6 +700,7 @@ export function buildLayout(
       if (step.type === "switch-case") {
         // Switch cases get labeled branch edges
         for (const c of step.params.cases) {
+          if (c.branchBodyStepId === "") continue;
           const label =
             c.value.type === "default" ? "default" : renderExpression(c.value);
           edges.push({
