@@ -16,6 +16,7 @@ import {
 } from "../../components/ui/workflow-combobox";
 import { Label } from "../../panels/shared";
 import { ExpressionEditor } from "../expression-editor";
+import { JsonViewer } from "../json-viewer";
 import type { Expression, StepOnChange } from "./types";
 
 type ToolOption = {
@@ -38,6 +39,92 @@ function formatDefaultSummary(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function summarizeSchemaType(
+  schema: Record<string, unknown> | undefined,
+): string {
+  if (!schema || typeof schema !== "object") return "unknown";
+  if (Array.isArray(schema.enum)) {
+    const values = schema.enum.map((v) => JSON.stringify(v)).join(" | ");
+    return values || "enum";
+  }
+  const type = schema.type;
+  if (type === "array") {
+    const items = schema.items as Record<string, unknown> | undefined;
+    return `array<${summarizeSchemaType(items)}>`;
+  }
+  if (type === "object") return "object";
+  if (Array.isArray(type)) return type.join(" | ");
+  if (typeof type === "string") return type;
+  if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf))
+    return "union";
+  return "unknown";
+}
+
+function OutputSchemaView({ schema }: { schema: Record<string, unknown> }) {
+  const properties =
+    schema.type === "object" &&
+    schema.properties &&
+    typeof schema.properties === "object"
+      ? (schema.properties as Record<string, Record<string, unknown>>)
+      : null;
+  const required = new Set<string>(
+    Array.isArray(schema.required) ? (schema.required as string[]) : [],
+  );
+  const rawJson = JSON.stringify(schema, null, 2);
+
+  return (
+    <div>
+      <Label>Output</Label>
+      {properties ? (
+        <div className="space-y-1.5">
+          {Object.entries(properties).map(([key, prop]) => {
+            const description =
+              typeof prop?.description === "string"
+                ? prop.description
+                : undefined;
+            const isOptional = !required.has(key);
+            return (
+              <div
+                key={key}
+                className="border border-border/70 rounded-lg p-2.5 bg-muted/20"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono font-medium text-foreground">
+                    {key}
+                    {isOptional && (
+                      <span className="text-muted-foreground">?</span>
+                    )}
+                  </span>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {summarizeSchemaType(prop)}
+                  </span>
+                </div>
+                {description && (
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                    {description}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-[11px] font-mono text-muted-foreground bg-muted/30 rounded-md px-2 py-1.5">
+          returns {summarizeSchemaType(schema)}
+        </div>
+      )}
+      <details className="mt-1.5 text-xs group">
+        <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
+          JSON Schema
+        </summary>
+        <div className="mt-1.5">
+          <JsonViewer value={rawJson} />
+        </div>
+      </details>
+    </div>
+  );
 }
 
 export function ToolCallParams({
@@ -301,6 +388,9 @@ export function ToolCallParams({
             })}
           </div>
         </div>
+      )}
+      {schema?.outputSchema && (
+        <OutputSchemaView schema={schema.outputSchema} />
       )}
     </div>
   );
