@@ -1977,6 +1977,263 @@ describe("self-reference and predecessor correctness", () => {
     expect(diag.message).toContain("branch_only");
   });
 
+  test("step after wait-for-condition can reference body chain step", async () => {
+    const workflow: WorkflowDefinition = {
+      initialStepId: "wait_done",
+      steps: [
+        {
+          id: "wait_done",
+          name: "Wait",
+          description: "Poll until done",
+          type: "wait-for-condition",
+          params: {
+            conditionStepId: "poll_status",
+            condition: {
+              type: "jmespath",
+              expression: "poll_status.status == 'done'",
+            },
+          },
+          nextStepId: "branch_status",
+        },
+        {
+          id: "poll_status",
+          name: "Poll",
+          description: "Body chain terminator (no nextStepId)",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+        },
+        {
+          id: "branch_status",
+          name: "Branch",
+          description: "References body chain output of wait_done",
+          type: "switch-case",
+          params: {
+            switchOn: { type: "jmespath", expression: "poll_status.status" },
+            cases: [
+              {
+                value: { type: "literal", value: "done" },
+                branchBodyStepId: "done",
+              },
+            ],
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+        },
+      ],
+    } as WorkflowDefinition;
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+    ).toBe(false);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+    ).toBe(false);
+  });
+
+  test("step after wait-for-condition can reference multi-step body chain", async () => {
+    const workflow: WorkflowDefinition = {
+      initialStepId: "wait_done",
+      steps: [
+        {
+          id: "wait_done",
+          name: "Wait",
+          description: "Poll with two-step body",
+          type: "wait-for-condition",
+          params: {
+            conditionStepId: "fetch_status",
+            condition: {
+              type: "jmespath",
+              expression: "parse_status.ready",
+            },
+          },
+          nextStepId: "after_wait",
+        },
+        {
+          id: "fetch_status",
+          name: "Fetch",
+          description: "First body step",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+          nextStepId: "parse_status",
+        },
+        {
+          id: "parse_status",
+          name: "Parse",
+          description: "Second body step (linear)",
+          type: "tool-call",
+          params: {
+            toolName: "do-thing",
+            toolInput: {
+              raw: { type: "jmespath", expression: "fetch_status.body" },
+            },
+          },
+        },
+        {
+          id: "after_wait",
+          name: "After",
+          description: "References both body steps",
+          type: "tool-call",
+          params: {
+            toolName: "do-thing",
+            toolInput: {
+              raw: { type: "jmespath", expression: "fetch_status.body" },
+              parsed: { type: "jmespath", expression: "parse_status.value" },
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+        },
+      ],
+    } as WorkflowDefinition;
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+    ).toBe(false);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+    ).toBe(false);
+  });
+
+  test("step after nested wait-for-condition can reference inner body step", async () => {
+    const workflow: WorkflowDefinition = {
+      initialStepId: "outer_wait",
+      steps: [
+        {
+          id: "outer_wait",
+          name: "Outer Wait",
+          description: "Outer poll",
+          type: "wait-for-condition",
+          params: {
+            conditionStepId: "inner_wait",
+            condition: {
+              type: "jmespath",
+              expression: "poll.done",
+            },
+          },
+          nextStepId: "after_outer",
+        },
+        {
+          id: "inner_wait",
+          name: "Inner Wait",
+          description: "Inner poll, body of outer_wait",
+          type: "wait-for-condition",
+          params: {
+            conditionStepId: "poll",
+            condition: {
+              type: "jmespath",
+              expression: "poll.ready",
+            },
+          },
+        },
+        {
+          id: "poll",
+          name: "Poll",
+          description: "Innermost body step",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+        },
+        {
+          id: "after_outer",
+          name: "After Outer",
+          description: "References innermost body step",
+          type: "tool-call",
+          params: {
+            toolName: "do-thing",
+            toolInput: {
+              val: { type: "jmespath", expression: "poll.value" },
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+        },
+      ],
+    } as WorkflowDefinition;
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+    ).toBe(false);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_INVALID_ROOT_REFERENCE"),
+    ).toBe(false);
+  });
+
+  test("step before wait-for-condition still cannot reference body chain step", async () => {
+    const workflow: WorkflowDefinition = {
+      initialStepId: "before_wait",
+      steps: [
+        {
+          id: "before_wait",
+          name: "Before",
+          description: "Runs before the wait — body has not executed yet",
+          type: "tool-call",
+          params: {
+            toolName: "do-thing",
+            toolInput: {
+              val: { type: "jmespath", expression: "poll_status.value" },
+            },
+          },
+          nextStepId: "wait_done",
+        },
+        {
+          id: "wait_done",
+          name: "Wait",
+          description: "Poll",
+          type: "wait-for-condition",
+          params: {
+            conditionStepId: "poll_status",
+            condition: {
+              type: "jmespath",
+              expression: "poll_status.done",
+            },
+          },
+          nextStepId: "done",
+        },
+        {
+          id: "poll_status",
+          name: "Poll",
+          description: "Body step",
+          type: "tool-call",
+          params: { toolName: "do-thing", toolInput: {} },
+        },
+        {
+          id: "done",
+          name: "Done",
+          description: "End",
+          type: "end",
+        },
+      ],
+    } as WorkflowDefinition;
+
+    const result = await compileWorkflow(workflow);
+    expect(
+      hasDiagnostic(result.diagnostics, "JMESPATH_FORWARD_REFERENCE"),
+    ).toBe(true);
+    const diag = getFirstDiagnostic(
+      result.diagnostics,
+      "JMESPATH_FORWARD_REFERENCE",
+    );
+    expect(diag.location.stepId).toBe("before_wait");
+    expect(diag.message).toContain("poll_status");
+  });
+
   test("multiple roots in one expression: mixed valid and invalid", async () => {
     const workflow: WorkflowDefinition = {
       initialStepId: "a",

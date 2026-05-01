@@ -128,7 +128,11 @@ export function buildGraph(workflow: WorkflowDefinition): {
   }
 
   // Compute predecessors
-  const predecessors = computePredecessors(topologicalOrder, successors);
+  const predecessors = computePredecessors(
+    topologicalOrder,
+    successors,
+    stepIndex,
+  );
 
   // Compute loop variable scopes and body ownership
   const { loopVariablesInScope, bodyOwnership } = computeLoopScopesAndOwnership(
