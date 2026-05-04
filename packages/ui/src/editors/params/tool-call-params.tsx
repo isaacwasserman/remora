@@ -16,6 +16,7 @@ import {
 } from "../../components/ui/workflow-combobox";
 import { Label } from "../../panels/shared";
 import { ExpressionEditor } from "../expression-editor";
+import { JsonViewer } from "../json-viewer";
 import type { Expression, StepOnChange } from "./types";
 
 type ToolOption = {
@@ -300,6 +301,12 @@ export function ToolCallParams({
               );
             })}
           </div>
+        </div>
+      )}
+      {schema?.outputSchema && (
+        <div>
+          <Label>Output Schema</Label>
+          <JsonViewer value={JSON.stringify(schema.outputSchema, null, 2)} />
         </div>
       )}
     </div>
