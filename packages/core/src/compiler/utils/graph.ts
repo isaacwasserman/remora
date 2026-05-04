@@ -139,10 +139,16 @@ export function detectCycles(
  *
  * This uses topological order: for each step, its predecessors are the
  * union of all steps that can reach it via successor edges.
+ *
+ * When a step index is supplied, wait-for-condition body chains are also
+ * treated as predecessors of every step downstream of the wait-for-condition.
+ * The body chain is guaranteed to run at least once before control proceeds
+ * past the wait-for-condition, so its outputs are visible to subsequent steps.
  */
 export function computePredecessors(
   topologicalOrder: string[],
   successors: Map<string, Set<string>>,
+  stepIndex?: Map<string, WorkflowStep>,
 ): Map<string, Set<string>> {
   const predecessors = new Map<string, Set<string>>();
 
@@ -169,7 +175,63 @@ export function computePredecessors(
     }
   }
 
+  if (stepIndex) {
+    for (const id of topologicalOrder) {
+      const step = stepIndex.get(id);
+      if (step?.type !== "wait-for-condition") continue;
+
+      const bodySteps = collectGuaranteedWaitBodySteps(
+        step.params.conditionStepId,
+        stepIndex,
+      );
+      if (bodySteps.size === 0) continue;
+
+      for (const [otherId, otherPreds] of predecessors) {
+        if (otherId === id) continue;
+        if (bodySteps.has(otherId)) continue;
+        if (!otherPreds.has(id)) continue;
+
+        for (const b of bodySteps) {
+          otherPreds.add(b);
+        }
+      }
+    }
+  }
+
   return predecessors;
+}
+
+/**
+ * Collect steps in a wait-for-condition body chain that are guaranteed to
+ * execute on each polling iteration: the linear nextStepId chain rooted at
+ * the conditionStepId, plus the same recursively for any nested
+ * wait-for-condition encountered along the chain. Switch-case branches and
+ * for-each bodies are skipped because they are not guaranteed to run.
+ */
+function collectGuaranteedWaitBodySteps(
+  startId: string,
+  stepIndex: Map<string, WorkflowStep>,
+): Set<string> {
+  const result = new Set<string>();
+  const stack: string[] = [startId];
+
+  while (stack.length > 0) {
+    const currentId = stack.pop();
+    if (currentId === undefined) break;
+    if (result.has(currentId)) continue;
+
+    const step = stepIndex.get(currentId);
+    if (!step) continue;
+
+    result.add(currentId);
+
+    if (step.nextStepId) stack.push(step.nextStepId);
+    if (step.type === "wait-for-condition") {
+      stack.push(step.params.conditionStepId);
+    }
+  }
+
+  return result;
 }
 
 /**
