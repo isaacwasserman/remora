@@ -13,8 +13,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "../components/ui/tabs";
-import { Textarea } from "../components/ui/textarea";
+import { ExpressionInput } from "./expression-input";
+import { useExpressionScope } from "./expression-scope-context";
 import { JsonCodeEditor } from "./json-code-editor";
+import { TemplateExpressionInput } from "./template-expression-input";
 
 type Expression =
   | { type: "literal"; value: unknown }
@@ -98,6 +100,9 @@ export function ExpressionEditor({
   label,
   schemaHint,
 }: ExpressionEditorProps) {
+  const scopeContext = useExpressionScope();
+  const suggestions = scopeContext?.suggestions ?? null;
+
   const hintedLiteralType = schemaTypeToLiteralType(schemaHint?.type);
   const hasEnum = schemaHint?.enum && schemaHint.enum.length > 0;
   const allowTemplate = !schemaHint?.type || schemaHint.type === "string";
@@ -346,31 +351,24 @@ export function ExpressionEditor({
             </TabsContent>
 
             <TabsContent value="jmespath">
-              <Input
+              <ExpressionInput
                 value={value.type === "jmespath" ? value.expression : ""}
-                onChange={(e) =>
-                  onChange({
-                    type: "jmespath",
-                    expression: e.target.value,
-                  })
+                onChange={(expression) =>
+                  onChange({ type: "jmespath", expression })
                 }
-                className="h-8 text-xs font-mono"
+                suggestions={suggestions}
                 placeholder="stepId.outputKey"
               />
             </TabsContent>
 
             {allowTemplate && (
               <TabsContent value="template">
-                <Textarea
+                <TemplateExpressionInput
                   value={value.type === "template" ? value.template : ""}
-                  onChange={(e) =>
-                    onChange({
-                      type: "template",
-                      template: e.target.value,
-                    })
+                  onChange={(template) =>
+                    onChange({ type: "template", template })
                   }
-                  rows={3}
-                  className="text-xs font-mono resize-y"
+                  suggestions={suggestions}
                   placeholder="Hello ${stepId.name}, your total is ${order.total}"
                 />
               </TabsContent>

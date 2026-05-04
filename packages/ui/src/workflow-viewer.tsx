@@ -1,8 +1,10 @@
 import {
   compileWorkflow,
   type Diagnostic,
+  type ExecutionGraph,
   type ExecutionState,
   extractToolSchemas,
+  getExpressionScope,
   type ToolDefinitionMap,
   type WorkflowDefinition,
   type WorkflowStep,
@@ -235,15 +237,21 @@ export function WorkflowViewer({
 
   // --- Live diagnostics ---
   const [editDiagnostics, setEditDiagnostics] = useState<Diagnostic[]>([]);
+  // Latest compiled graph from edit-mode compilation, used to power
+  // expression autocomplete in the step editor panel.
+  const [editGraph, setEditGraph] = useState<ExecutionGraph | null>(null);
   useEffect(() => {
     if (!isEditing || !activeWorkflow) {
       setEditDiagnostics([]);
+      setEditGraph(null);
       return;
     }
     let cancelled = false;
     const timer = setTimeout(() => {
       compileWorkflow(activeWorkflow, { tools }).then((result) => {
-        if (!cancelled) setEditDiagnostics(result.diagnostics);
+        if (cancelled) return;
+        setEditDiagnostics(result.diagnostics);
+        setEditGraph(result.graph);
       });
     }, 300);
     return () => {
@@ -959,6 +967,16 @@ export function WorkflowViewer({
                 }
                 workflowOutputSchema={
                   activeWorkflow?.outputSchema as object | undefined
+                }
+                expressionScope={
+                  activeWorkflow && editGraph
+                    ? getExpressionScope(
+                        activeWorkflow,
+                        editGraph,
+                        toolSchemas ?? null,
+                        selectedStep.id,
+                      )
+                    : undefined
                 }
                 onChange={(updates) => updateStep(selectedStep.id, updates)}
                 onWorkflowMetaChange={updateWorkflowMeta}
