@@ -8,11 +8,19 @@ export type {
   DiagnosticCode,
   DiagnosticLocation,
   DiagnosticSeverity,
+  EnumerateSuggestionsOptions,
   ExecutionGraph,
+  ExpressionSuggestion,
+  ScopeEntry,
   ToolDefinitionMap,
   ToolSchemaDefinition,
 } from "./compiler";
-export { compileWorkflow, extractToolSchemas } from "./compiler";
+export {
+  compileWorkflow,
+  enumerateSuggestions,
+  extractToolSchemas,
+  getExpressionScope,
+} from "./compiler";
 export type {
   ExecuteWorkflowOptions,
   ExecutionResult,

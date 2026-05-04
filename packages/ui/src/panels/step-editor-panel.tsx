@@ -1,10 +1,12 @@
 import type {
   Diagnostic,
+  ScopeEntry,
   ToolDefinitionMap,
   WorkflowStep,
 } from "@remoraflow/core";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import { ExpressionScopeProvider } from "../editors/expression-scope-context";
 import { AgentLoopParams } from "../editors/params/agent-loop-params";
 import { EndParams } from "../editors/params/end-params";
 import { ExtractDataParams } from "../editors/params/extract-data-params";
@@ -26,6 +28,8 @@ export interface StepEditorPanelProps {
   diagnostics?: Diagnostic[];
   workflowInputSchema?: object;
   workflowOutputSchema?: object;
+  /** In-scope root identifiers and their schemas, used to power expression autocomplete. */
+  expressionScope?: ScopeEntry[];
   onChange: (updates: Record<string, unknown>) => void;
   onWorkflowMetaChange?: (updates: Record<string, unknown>) => void;
   onClose: () => void;
@@ -159,63 +163,66 @@ export function StepEditorPanel({
   diagnostics = [],
   workflowInputSchema,
   workflowOutputSchema,
+  expressionScope,
   onChange,
   onWorkflowMetaChange,
   onClose,
 }: StepEditorPanelProps) {
   return (
-    <div className="w-[360px] border-l h-full min-h-0 overflow-y-auto bg-card border-border">
-      <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
-        <TypeBadge type={step.type} />
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0 rounded-md w-7 h-7 flex items-center justify-center hover:bg-muted transition-colors"
-        >
-          &times;
-        </button>
+    <ExpressionScopeProvider scope={expressionScope}>
+      <div className="w-[360px] border-l h-full min-h-0 overflow-y-auto bg-card border-border">
+        <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
+          <TypeBadge type={step.type} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0 rounded-md w-7 h-7 flex items-center justify-center hover:bg-muted transition-colors"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="px-4 py-4 space-y-5">
+          <DiagnosticsSection diagnostics={diagnostics} />
+
+          <div>
+            <Label>Name</Label>
+            <Input
+              value={step.name}
+              onChange={(e) => onChange({ name: e.target.value })}
+              className="h-9 text-sm"
+              placeholder="Step name"
+            />
+          </div>
+
+          <StepIdInput value={step.id} onChange={(id) => onChange({ id })} />
+
+          <div>
+            <Label>Description</Label>
+            <Textarea
+              value={step.description}
+              onChange={(e) => onChange({ description: e.target.value })}
+              rows={2}
+              className="text-xs resize-y"
+              placeholder="What does this step do?"
+            />
+          </div>
+
+          <div className="border-t pt-4 border-border">
+            <SectionHeader>Parameters</SectionHeader>
+            <StepParamsEditor
+              step={step}
+              onChange={onChange}
+              availableToolNames={availableToolNames}
+              allStepIds={allStepIds}
+              toolSchemas={toolSchemas}
+              workflowInputSchema={workflowInputSchema}
+              workflowOutputSchema={workflowOutputSchema}
+              onWorkflowMetaChange={onWorkflowMetaChange}
+            />
+          </div>
+        </div>
       </div>
-
-      <div className="px-4 py-4 space-y-5">
-        <DiagnosticsSection diagnostics={diagnostics} />
-
-        <div>
-          <Label>Name</Label>
-          <Input
-            value={step.name}
-            onChange={(e) => onChange({ name: e.target.value })}
-            className="h-9 text-sm"
-            placeholder="Step name"
-          />
-        </div>
-
-        <StepIdInput value={step.id} onChange={(id) => onChange({ id })} />
-
-        <div>
-          <Label>Description</Label>
-          <Textarea
-            value={step.description}
-            onChange={(e) => onChange({ description: e.target.value })}
-            rows={2}
-            className="text-xs resize-y"
-            placeholder="What does this step do?"
-          />
-        </div>
-
-        <div className="border-t pt-4 border-border">
-          <SectionHeader>Parameters</SectionHeader>
-          <StepParamsEditor
-            step={step}
-            onChange={onChange}
-            availableToolNames={availableToolNames}
-            allStepIds={allStepIds}
-            toolSchemas={toolSchemas}
-            workflowInputSchema={workflowInputSchema}
-            workflowOutputSchema={workflowOutputSchema}
-            onWorkflowMetaChange={onWorkflowMetaChange}
-          />
-        </div>
-      </div>
-    </div>
+    </ExpressionScopeProvider>
   );
 }

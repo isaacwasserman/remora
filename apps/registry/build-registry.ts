@@ -62,6 +62,15 @@ const VIEWER_FILES: FileEntry[] = [
   { relPath: "editors/json-viewer.tsx", type: "registry:component" },
   { relPath: "editors/shared-editors.tsx", type: "registry:component" },
   { relPath: "editors/expression-editor.tsx", type: "registry:component" },
+  { relPath: "editors/expression-input.tsx", type: "registry:component" },
+  {
+    relPath: "editors/expression-scope-context.tsx",
+    type: "registry:component",
+  },
+  {
+    relPath: "editors/template-expression-input.tsx",
+    type: "registry:component",
+  },
   // param editors
   { relPath: "editors/params/types.ts", type: "registry:component" },
   {

@@ -186,3 +186,9 @@ export type {
   ToolDefinitionMap,
   ToolSchemaDefinition,
 } from "./types";
+export type {
+  EnumerateSuggestionsOptions,
+  ExpressionSuggestion,
+  ScopeEntry,
+} from "./utils/scope";
+export { enumerateSuggestions, getExpressionScope } from "./utils/scope";
