@@ -1,5 +1,31 @@
 # @remoraflow/ui
 
+## 0.12.0
+
+### Minor Changes
+
+- 3b663c3: Add expression autocomplete to the workflow editor. The JMESPath and template inputs in `StepEditorPanel` now surface in-scope paths via a Command-based suggestion popover, including `[*].field` projections for arrays of objects. Custom expressions can still be typed freely.
+
+  `@remoraflow/core` exports two new utilities for building the scope tree: `getExpressionScope(workflow, graph, tools, stepId)` returns the root identifiers in scope at a step (workflow input, predecessor step outputs, enclosing for-each loop variables) along with their JSON Schemas, and `enumerateSuggestions(scope)` flattens that into a list of suggested paths. Types `ScopeEntry` and `ExpressionSuggestion` are also exported.
+
+  `@remoraflow/ui`'s `StepEditorPanel` accepts a new `expressionScope` prop that is provided to descendant `ExpressionEditor`s via context. `WorkflowViewer` wires this up automatically using the latest compiled graph.
+
+- 731af18: Show a tool's output schema in the workflow editor. When editing a `tool-call` step, the params panel now displays the tool's declared `outputSchema` as JSON Schema below the inputs, so users can see what data will be available to downstream steps after the tool runs.
+
+### Patch Changes
+
+- 93ccb6d: Fix three shadcn component registry bugs that broke installs:
+
+  - The registry import-rewriter kept relative paths (e.g. `../../components/ui/combobox`) for any file shipped by the registry, including `registry:ui` files. shadcn relocates `registry:ui` files to the consumer's ui alias, so those sibling-relative imports failed to resolve after install. Imports that resolve under `components/ui/` or `lib/` are now always rewritten to the `@/` alias.
+  - Renamed the custom `combobox.tsx` ui primitive to `workflow-combobox.tsx` so it no longer overwrites the consumer's existing `ui/combobox.tsx` (shadcn's public registry has no combobox, so every consumer's combobox is a roll-your-own at that path). The exported `Combobox*` names from `@remoraflow/ui` are unchanged.
+  - The `workflow-step-detail-panel` registry item duplicated six files already shipped by `workflow-viewer`, so installing both produced two copies of every shared file. The panel item now declares `workflow-viewer` as a `registryDependencies` entry and ships no files of its own.
+
+- de7f094: Fix switch-case edges with empty `branchBodyStepId` targets in the graph layout. When a case's `branchBodyStepId` is `""` (e.g. from a newly-added case/default or after `clearChildRef`), the layout no longer emits an edge pointing at the non-existent node id `""`.
+- Updated dependencies [3b663c3]
+- Updated dependencies [8c844da]
+- Updated dependencies [1e8a513]
+  - @remoraflow/core@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes
