@@ -1,5 +1,20 @@
 # @remoraflow/core
 
+## 0.12.0
+
+### Minor Changes
+
+- 3b663c3: Add expression autocomplete to the workflow editor. The JMESPath and template inputs in `StepEditorPanel` now surface in-scope paths via a Command-based suggestion popover, including `[*].field` projections for arrays of objects. Custom expressions can still be typed freely.
+
+  `@remoraflow/core` exports two new utilities for building the scope tree: `getExpressionScope(workflow, graph, tools, stepId)` returns the root identifiers in scope at a step (workflow input, predecessor step outputs, enclosing for-each loop variables) along with their JSON Schemas, and `enumerateSuggestions(scope)` flattens that into a list of suggested paths. Types `ScopeEntry` and `ExpressionSuggestion` are also exported.
+
+  `@remoraflow/ui`'s `StepEditorPanel` accepts a new `expressionScope` prop that is provided to descendant `ExpressionEditor`s via context. `WorkflowViewer` wires this up automatically using the latest compiled graph.
+
+### Patch Changes
+
+- 8c844da: Remove `bun` conditional export entries that pointed to source files (`./src/lib.ts`, `./src/executor/adapters/aws-lambda.ts`) not included in the published tarball. Under the bun runtime, Node-style conditional export resolution picked the `bun` condition first, causing `Cannot find module '@remoraflow/core'` errors for consumers installing from npm. The `import` condition (`./dist/...`) is now used for all runtimes.
+- 1e8a513: Fix false `JMESPATH_FORWARD_REFERENCE` warning when a step downstream of a `wait-for-condition` references a step in its `conditionStepId` body chain. The static analyzer now models the fact that the body chain runs at least once before control proceeds past the wait-for-condition, so its outputs are visible to subsequent steps.
+
 ## 0.11.0
 
 ## 0.10.1
