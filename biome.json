@@ -1,61 +1,67 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "files": {
-    "ignoreUnknown": false,
-    "includes": [
-      "**",
-      "!apps/demo/**/*.css",
-      "!apps/demo/index.html",
-      "!**/styles.css"
-    ]
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space"
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "a11y": {
-        "noLabelWithoutControl": {
-          "level": "error",
-          "options": {
-            "inputComponents": ["Input", "Textarea", "Select", "Switch"]
-          }
-        }
-      },
-      "style": {
-        "noNonNullAssertion": "error"
-      },
-      "suspicious": {
-        "noTemplateCurlyInString": "off",
-        "noExplicitAny": "error",
-        "noEvolvingTypes": "error"
-      }
-    }
-  },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  },
-  "javascript": {
+    "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "files": {
+        "ignoreUnknown": false,
+        "includes": [
+            "**",
+            "!apps/demo/**/*.css",
+            "!apps/demo/index.html",
+            "!**/styles.css"
+        ]
+    },
     "formatter": {
-      "quoteStyle": "double"
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "recommended": true,
+            "a11y": {
+                "noLabelWithoutControl": {
+                    "level": "error",
+                    "options": {
+                        "inputComponents": [
+                            "Input",
+                            "Textarea",
+                            "Select",
+                            "Switch"
+                        ]
+                    }
+                }
+            },
+            "style": {
+                "noNonNullAssertion": "error"
+            },
+            "suspicious": {
+                "noTemplateCurlyInString": "off",
+                "noExplicitAny": "error",
+                "noEvolvingTypes": "error"
+            }
+        }
+    },
+    "css": {
+        "parser": {
+            "tailwindDirectives": true
+        }
+    },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "double"
+        }
+    },
+    "assist": {
+        "enabled": true,
+        "actions": {
+            "source": {
+                "organizeImports": "on"
+            }
+        }
     }
-  },
-  "assist": {
-    "enabled": true,
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  }
 }

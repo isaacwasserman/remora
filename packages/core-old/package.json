@@ -1,0 +1,61 @@
+{
+    "name": "@remoraflow/core-old",
+    "version": "0.11.0",
+    "description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
+    "publishConfig": {
+        "access": "public"
+    },
+    "homepage": "https://remoraflow.com/",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/isaacwasserman/remora",
+        "directory": "packages/core-old"
+    },
+    "license": "GPL-3.0",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": "./dist/lib.js",
+            "types": "./dist/lib.d.ts"
+        },
+        "./adapters/aws-lambda": {
+            "import": "./dist/executor/adapters/aws-lambda.js",
+            "types": "./dist/executor/adapters/aws-lambda.d.ts"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "bun scripts/build.ts",
+        "prepublishOnly": "bun run build",
+        "test": "bun test",
+        "test:e2e": "bun test src/e2e.ts"
+    },
+    "dependencies": {
+        "@jmespath-community/jmespath": "^1.3.0",
+        "arktype": "^2.1.29",
+        "tokenx": "^1.3.0"
+    },
+    "peerDependencies": {
+        "ai": "^6.0.0",
+        "@ai-sdk/provider-utils": "^4.0.0"
+    },
+    "peerDependenciesMeta": {
+        "ai": {
+            "optional": true
+        },
+        "@ai-sdk/provider-utils": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@ai-sdk/anthropic": "^3.0.50",
+        "@ai-sdk/openai": "^3.0.37",
+        "@aws/durable-execution-sdk-js": "^1.1.0",
+        "@aws/durable-execution-sdk-js-testing": "^1.1.1",
+        "ai": "^6.0.105"
+    }
+}

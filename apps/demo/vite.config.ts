@@ -5,37 +5,37 @@ import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/demo/",
-  server: {
-    port: 3000,
-    strictPort: true,
-  },
-  resolve: {
-    conditions: ["bun"],
-    alias: {
-      "@remoraflow/core": path.resolve(
-        __dirname,
-        "../../packages/core/src/lib.ts",
-      ),
-      "@remoraflow/ui": path.resolve(
-        __dirname,
-        "../../packages/ui/src/index.ts",
-      ),
+    base: "/demo/",
+    server: {
+        port: 3000,
+        strictPort: true,
     },
-  },
-  plugins: [
-    react(),
-    tailwindcss(),
-    nitro({
-      routes: {
-        "/rpc/**": "./routes/rpc.ts",
-      },
-      vercel: {
-        functions: {
-          runtime: "bun1.x",
+    resolve: {
+        conditions: ["bun"],
+        alias: {
+            "@remoraflow/core": path.resolve(
+                __dirname,
+                "../../packages/core/src/lib.ts",
+            ),
+            "@remoraflow/ui": path.resolve(
+                __dirname,
+                "../../packages/ui/src/index.ts",
+            ),
         },
-      },
-      plugins: ["./plugins/bot-id.ts"],
-    }),
-  ],
+    },
+    plugins: [
+        react(),
+        tailwindcss(),
+        nitro({
+            routes: {
+                "/rpc/**": "./routes/rpc.ts",
+            },
+            vercel: {
+                functions: {
+                    runtime: "bun1.x",
+                },
+            },
+            plugins: ["./plugins/bot-id.ts"],
+        }),
+    ],
 });

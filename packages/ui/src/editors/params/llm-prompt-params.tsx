@@ -5,35 +5,35 @@ import { JsonEditor } from "../shared-editors";
 import type { StepOnChange } from "./types";
 
 export function LlmPromptParams({
-  step,
-  onChange,
+    step,
+    onChange,
 }: {
-  step: WorkflowStep & { type: "llm-prompt" };
-  onChange: StepOnChange;
+    step: WorkflowStep & { type: "llm-prompt" };
+    onChange: StepOnChange;
 }) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <Label>Prompt</Label>
-        <Textarea
-          value={step.params.prompt}
-          onChange={(e) =>
-            onChange({
-              params: { ...step.params, prompt: e.target.value },
-            })
-          }
-          rows={4}
-          className="text-xs font-mono resize-y"
-          placeholder="Write your prompt here. Use ${stepId.field} for interpolation."
-        />
-      </div>
-      <JsonEditor
-        label="Output Format (JSON Schema)"
-        value={step.params.outputFormat}
-        onChange={(val) =>
-          onChange({ params: { ...step.params, outputFormat: val } })
-        }
-      />
-    </div>
-  );
+    return (
+        <div className="space-y-3">
+            <div>
+                <Label>Prompt</Label>
+                <Textarea
+                    value={step.params.prompt}
+                    onChange={(e) =>
+                        onChange({
+                            params: { ...step.params, prompt: e.target.value },
+                        })
+                    }
+                    rows={4}
+                    className="text-xs font-mono resize-y"
+                    placeholder="Write your prompt here. Use ${stepId.field} for interpolation."
+                />
+            </div>
+            <JsonEditor
+                label="Output Format (JSON Schema)"
+                value={step.params.outputFormat}
+                onChange={(val) =>
+                    onChange({ params: { ...step.params, outputFormat: val } })
+                }
+            />
+        </div>
+    );
 }
