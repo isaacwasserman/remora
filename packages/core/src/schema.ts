@@ -1,8 +1,8 @@
 import { jsonSchemaToType } from "@ark/json-schema";
-import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { type } from "arktype";
+import { type Type, type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
-import type { StandardSchemaTypeInfer } from "./type-utils";
+import type { StandardSchemaTypeInfer } from "./schemistry";
+import type { ResolvedRemoraflowOptions } from "./types";
 
 const jsonSchemaArktypeSchema = type("object")
     .narrow((schema, ctx) => {
@@ -32,6 +32,19 @@ const expressionSchema = type({
     .describe(
         "a value that must always be wrapped as an expression object — use { type: 'literal', value: ... } for any static value (strings, numbers, booleans, etc.), { type: 'jmespath', expression: '...' } for dynamic data extracted from previous steps' outputs (via their step ids, e.g. `stepId.someKey`) or loop variables (e.g. `itemName.someKey` within a for-each loop body), or { type: 'template', template: '...' } for string interpolation with embedded JMESPath expressions using ${...} syntax (e.g. 'Hello ${user.name}, order ${order.id}') — template expressions always resolve to a string",
     );
+
+function assertLiteralExpressionConstraint(
+    expression: Expression,
+    schema: Type,
+): boolean {
+    if (expression.type === "literal") {
+        const result = schema(expression.value);
+        if (result instanceof type.errors) {
+            return false;
+        }
+    }
+    return true;
+}
 
 export type Expression = typeof expressionSchema.inferOut;
 
@@ -124,101 +137,183 @@ const extractDataParamsSchema = type({
     "a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format",
 );
 
-const sleepParamsSchema = type({
-    type: "'sleep'",
-    params: {
-        durationMs: expressionSchema,
-    },
-}).describe(
-    "a step that pauses workflow execution for a specified duration in milliseconds; the durationMs parameter must evaluate to a non-negative number",
-);
+export function createWorkflowDefinitionSchema(
+    options: ResolvedRemoraflowOptions,
+) {
+    const maxSleepDurationMs =
+        1000 *
+        Math.min(
+            options?.durationPolicy.maxSleepSeconds,
+            options?.durationPolicy.maxWaitSeconds,
+        );
+    const sleepParamsSchema = type({
+        type: "'sleep'",
+        params: {
+            durationMs: type([
+                expressionSchema,
+                "@",
+                `must be less than or equal to ${maxSleepDurationMs}`,
+            ]).narrow((expression) =>
+                assertLiteralExpressionConstraint(
+                    expression,
+                    type(`number <= ${maxSleepDurationMs}`),
+                ),
+            ),
+        },
+    }).describe(
+        "a step that pauses workflow execution for a specified duration in milliseconds; the durationMs parameter must evaluate to a non-negative number",
+    );
 
-const waitForConditionParamsSchema = type({
-    type: "'wait-for-condition'",
-    params: {
-        conditionStepId: [
-            "string",
-            "@",
-            "the id of the first step in the condition-check chain that will be executed on each polling attempt; this chain runs until a step with no nextStepId, then the condition expression is evaluated",
-        ],
-        condition: [
-            expressionSchema,
-            "@",
-            "an expression evaluated after each execution of the condition-check chain; if it evaluates to a truthy value, the wait completes with that value as its output; all step outputs from the condition chain are available in scope for this expression",
-        ],
-        "maxAttempts?": [
-            expressionSchema,
-            "@",
-            "maximum number of polling attempts before giving up (default: 10)",
-        ],
-        "intervalMs?": [
-            expressionSchema,
-            "@",
-            "milliseconds to wait between polling attempts (default: 1000)",
-        ],
-        "backoffMultiplier?": [
-            expressionSchema,
-            "@",
-            "multiply the interval by this factor after each attempt (default: 1, i.e. no backoff; use 2 for exponential backoff)",
-        ],
-        "timeoutMs?": [
-            expressionSchema,
-            "@",
-            "hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts",
-        ],
-    },
-}).describe(
-    "a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression",
-);
+    const waitForConditionParamsSchema = type({
+        type: "'wait-for-condition'",
+        params: {
+            conditionStepId: [
+                "string",
+                "@",
+                "the id of the first step in the condition-check chain that will be executed on each polling attempt; this chain runs until a step with no nextStepId, then the condition expression is evaluated",
+            ],
+            condition: [
+                expressionSchema,
+                "@",
+                "an expression evaluated after each execution of the condition-check chain; if it evaluates to a truthy value, the wait completes with that value as its output; all step outputs from the condition chain are available in scope for this expression",
+            ],
+            "maxAttempts?": [
+                expressionSchema,
+                "@",
+                "maximum number of polling attempts before giving up (default: 10)",
+            ],
+            intervalMs: [
+                expressionSchema.narrow((expression) =>
+                    assertLiteralExpressionConstraint(
+                        expression,
+                        type(
+                            `number >= ${options.durationPolicy.minPollIntervalSeconds * 1000}`,
+                        ),
+                    ),
+                ),
+                "@",
+                `milliseconds to wait between polling attempts (default: 1000, must be greater than ${options.durationPolicy.minPollIntervalSeconds * 1000})`,
+            ],
+            "backoffMultiplier?": [
+                expressionSchema,
+                "@",
+                "multiply the interval by this factor after each attempt",
+            ],
+            "timeoutMs?": [
+                expressionSchema.narrow((expression) =>
+                    assertLiteralExpressionConstraint(
+                        expression,
+                        type(
+                            `number <= ${options.durationPolicy.maxWaitSeconds * 1000}`,
+                        ),
+                    ),
+                ),
+                "@",
+                `hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts; must be less than ${options.durationPolicy.maxWaitSeconds * 1000}`,
+            ],
+        },
+    }).describe(
+        "a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression",
+    );
 
-const agentLoopParamsSchema = type({
-    type: "'agent-loop'",
-    params: {
-        instructions: [
-            "string",
-            "@",
-            "a template string with task instructions for the agent; JMESPath expressions can be embedded using ${...} syntax (e.g. 'Research ${input.topic} and summarize findings'). All data from previous steps is available via their step ids, and loop variables are available within for-each loop bodies",
-        ],
-        tools: [
-            ["string", "[]"],
-            "@",
-            "names of tools from the workflow's tool set that the agent is allowed to use",
-        ],
-        outputFormat: jsonSchemaArktypeSchema.describe(
-            "JSON schema specifying the structured output format expected from the agent",
-        ),
-        "maxSteps?": [
-            expressionSchema,
-            "@",
-            "maximum number of tool-calling steps the agent may take (default: 10)",
-        ],
-    },
-}).describe(
-    "a step that delegates work to an autonomous agent with its own tool-calling loop; USE SPARINGLY — this sacrifices the determinism that is the core value of the workflow DSL. Prefer explicit tool-call, llm-prompt, and control flow steps whenever the task can be decomposed into predictable operations",
-);
+    const agentLoopParamsSchema = type({
+        type: "'agent-loop'",
+        params: {
+            instructions: [
+                "string",
+                "@",
+                "a template string with task instructions for the agent; JMESPath expressions can be embedded using ${...} syntax (e.g. 'Research ${input.topic} and summarize findings'). All data from previous steps is available via their step ids, and loop variables are available within for-each loop bodies",
+            ],
+            tools: type([
+                ["string", "[]"],
+                "@",
+                "names of tools from the workflow's tool set that the agent is allowed to use",
+            ]),
+            "inputConstraints?": [
+                {
+                    "[string]": jsonSchemaArktypeSchema,
+                },
+                "@",
+                "mapping from tool name to JSON schema where the schema validates only a subset of inputs to the tool. Use this to contrain exactly what the agent can do with these tools at run time for security and predictability purposes.",
+            ],
+            outputFormat: jsonSchemaArktypeSchema.describe(
+                "JSON schema specifying the structured output format expected from the agent",
+            ),
+            "maxSteps?": [
+                expressionSchema.narrow((expression) =>
+                    assertLiteralExpressionConstraint(
+                        expression,
+                        type(
+                            `number <= ${options.tokenBudgetPolicy.maxAgentSteps}`,
+                        ),
+                    ),
+                ),
+                "@",
+                `maximum number of tool-calling steps the agent may take; must be less than or equal to ${options.tokenBudgetPolicy.maxAgentSteps}`,
+            ],
+        },
+    }).describe(
+        "a step that delegates work to an autonomous agent with its own tool-calling loop; USE SPARINGLY — this sacrifices the determinism that is the core value of the workflow DSL. Prefer explicit tool-call, llm-prompt, and control flow steps whenever the task can be decomposed into predictable operations",
+    );
 
-const startParamsSchema = type({
-    type: "'start'",
-}).describe(
-    "a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
-);
+    const requestInterventionParamsSchema = type({
+        type: "'request-intervention'",
+        params: {
+            type: "'multiple-choice'",
+            question: [
+                expressionSchema,
+                "@",
+                "an expression resolving to a string representing the question",
+            ],
+            choices: [
+                expressionSchema,
+                "@",
+                "an expression resolving to an array of strings representing the choices given to the user",
+            ],
+            allowFreeResponse: [
+                "boolean",
+                "@",
+                "whether to include a free response option in addition to the choices given",
+            ],
+        },
+    })
+        .narrow((step, ctx) => {
+            // A question with no choices and no free response is unanswerable. Only
+            // a literal is checkable here; a dynamic expression is caught at
+            // execution time, where its value is known.
+            const { choices, allowFreeResponse } = step.params;
+            const literallyEmpty =
+                choices.type === "literal" &&
+                Array.isArray(choices.value) &&
+                choices.value.length === 0;
+            if (allowFreeResponse || !literallyEmpty) {
+                return true;
+            }
+            return ctx.reject({
+                expected:
+                    "answerable: give at least one choice, or set allowFreeResponse to true",
+            });
+        })
+        .describe(
+            "a step that pauses execution to ask the supervising user how to proceed",
+        );
 
-const endSchema = type({
-    type: "'end'",
-    "params?": {
-        output: expressionSchema,
-    },
-}).describe(
-    "a step that indicates the end of a branch; optionally specify an output expression whose evaluated value becomes the workflow's output",
-);
+    const startParamsSchema = type({
+        type: "'start'",
+    }).describe(
+        "a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
+    );
 
-const workflowStepArktypeSchema = type({
-    id: /^[a-zA-Z_][a-zA-Z0-9_]+$/,
-    name: "string",
-    description: "string",
-    "nextStepId?": "string",
-}).and(
-    toolCallParamsSchema
+    const endSchema = type({
+        type: "'end'",
+        "params?": {
+            output: expressionSchema,
+        },
+    }).describe(
+        "a step that indicates the end of a branch; optionally specify an output expression whose evaluated value becomes the workflow's output",
+    );
+
+    let stepParamsSchema = toolCallParamsSchema
         .or(llmPromptSchema)
         .or(extractDataParamsSchema)
         .or(switchCaseParamsSchema)
@@ -226,53 +321,65 @@ const workflowStepArktypeSchema = type({
         .or(sleepParamsSchema)
         .or(waitForConditionParamsSchema)
         .or(agentLoopParamsSchema)
+        .or(requestInterventionParamsSchema)
         .or(startParamsSchema)
-        .or(endSchema),
-);
+        .or(endSchema);
 
-/**
- * Schema for validating workflow definitions. Use this to validate
- * workflow JSON before passing it to {@link compileWorkflow}.
- */
-const workflowDefinitionArktypeSchema = type({
-    initialStepId: "string",
-    "inputSchema?": [
-        "object",
-        "@",
-        "an optional JSON Schema object defining the inputs required to run the workflow; the executor validates provided inputs against this schema, and the validated inputs become available in JMESPath scope via the root identifier 'input' (e.g. input.fieldName)",
-    ],
-    "outputSchema?": [
-        "object",
-        "@",
-        "an optional JSON Schema object declaring the shape of the workflow's output; when present, the value produced by the end step's output expression will be validated against this schema",
-    ],
-    steps: [
-        [workflowStepArktypeSchema, "[]"],
-        "@",
-        "a list of steps to execute in the workflow; these should be in no particular order as execution flow is determined by the nextStepId fields and branching logic within the steps",
-    ],
-});
+    if (!options.allowAgentLoops) {
+        stepParamsSchema = stepParamsSchema.exclude(agentLoopParamsSchema);
+    }
+    if (!options.allowUserIntervention) {
+        stepParamsSchema = stepParamsSchema.exclude(
+            requestInterventionParamsSchema,
+        );
+    }
 
-export const workflowStepSchema: StandardSchemaV1<
-    typeof workflowStepArktypeSchema.inferIn,
-    typeof workflowStepArktypeSchema.inferOut
-> = workflowStepArktypeSchema;
+    const workflowStepArktypeSchema = type({
+        id: /^[a-zA-Z_][a-zA-Z0-9_]+$/,
+        name: "string",
+        description: "string",
+        "nextStepId?": "string",
+    }).and(stepParamsSchema);
 
-export const workflowDefinitionSchema: StandardSchemaV1<
-    typeof workflowDefinitionArktypeSchema.inferIn,
-    typeof workflowDefinitionArktypeSchema.inferOut
-> = workflowDefinitionArktypeSchema;
+    /** Schema for validating workflow definitions. */
+    const workflowDefinitionArktypeSchema = type({
+        initialStepId: "string",
+        "inputSchema?": [
+            jsonSchemaArktypeSchema,
+            "@",
+            "an optional JSON Schema object defining the inputs required to run the workflow; the executor validates provided inputs against this schema, and the validated inputs become available in JMESPath scope via the root identifier 'input' (e.g. input.fieldName)",
+        ],
+        "outputSchema?": [
+            jsonSchemaArktypeSchema,
+            "@",
+            "an optional JSON Schema object declaring the shape of the workflow's output; when present, the value produced by the end step's output expression will be validated against this schema",
+        ],
+        steps: [
+            [workflowStepArktypeSchema, "[]"],
+            "@",
+            "a list of steps to execute in the workflow; these should be in no particular order as execution flow is determined by the nextStepId fields and branching logic within the steps",
+        ],
+    });
+
+    return { workflowStepArktypeSchema, workflowDefinitionArktypeSchema };
+}
+
+type WorkflowStepArktypeSchema = ReturnType<
+    typeof createWorkflowDefinitionSchema
+>["workflowStepArktypeSchema"];
+type WorkflowDefinitionArktypeSchema = ReturnType<
+    typeof createWorkflowDefinitionSchema
+>["workflowDefinitionArktypeSchema"];
 
 /**
  * A single step in a workflow.
  */
-export type WorkflowStep = StandardSchemaTypeInfer<typeof workflowStepSchema>;
+export type WorkflowStep = StandardSchemaTypeInfer<WorkflowStepArktypeSchema>;
 
 /**
  * A complete workflow definition. Contains an initial step ID and an ordered list of steps.
  * Execution flow is determined by each step's `nextStepId` and branching/looping logic,
  * not by the order of steps in the array.
  */
-export type WorkflowDefinition = StandardSchemaTypeInfer<
-    typeof workflowDefinitionSchema
->;
+export type WorkflowDefinition =
+    StandardSchemaTypeInfer<WorkflowDefinitionArktypeSchema>;

@@ -9,7 +9,7 @@ const result = await Bun.build({
     target: "browser",
     external: [
         "arktype",
-        "@jmespath-community/jmespath",
+        "jmespath",
         "ai",
         "@ai-sdk/provider-utils",
         "@aws/durable-execution-sdk-js",

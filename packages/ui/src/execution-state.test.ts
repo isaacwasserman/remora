@@ -151,7 +151,7 @@ describe("deriveStepSummaries", () => {
         expect(result.get("branch_b")?.status).toBe("completed");
     });
 
-    test("retries are aggregated across executions", () => {
+    test("counts, retries and worst status are aggregated across executions", () => {
         const result = deriveStepSummaries(
             makeState({
                 stepRecords: [
@@ -180,12 +180,39 @@ describe("deriveStepSummaries", () => {
                         ],
                         path: [],
                     },
+                    {
+                        stepId: "s1",
+                        status: "failed",
+                        startedAt: "t3",
+                        completedAt: "t4",
+                        durationMs: 70,
+                        error: { code: "BOOM", message: "second run failed" },
+                        retries: [
+                            {
+                                attempt: 1,
+                                startedAt: "t3",
+                                failedAt: "t3.5",
+                                errorCode: "ERR",
+                                errorMessage: "fail3",
+                            },
+                        ],
+                        path: [],
+                    },
                 ],
             }),
         );
 
         const s = result.get("s1");
-        expect(s?.totalRetries).toBe(2);
+        expect(s?.executionCount).toBe(2);
+        expect(s?.completedCount).toBe(1);
+        expect(s?.failedCount).toBe(1);
+        expect(s?.totalRetries).toBe(3);
+        expect(s?.status).toBe("failed");
+        expect(s?.latestError).toEqual({
+            code: "BOOM",
+            message: "second run failed",
+        });
+        expect(s?.latestDurationMs).toBe(70);
     });
 
     test("latest iteration shows running while previous is filtered out", () => {
