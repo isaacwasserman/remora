@@ -933,3 +933,75 @@ describe("request-intervention answerability", () => {
         ).toBe(true);
     });
 });
+
+describe("reserved step ids", () => {
+    // The runtime keys its own checkpoints under a `__remoraflow` path segment
+    // (see `execution-engine/step-path.ts`). That namespace is only safe
+    // because an author cannot produce a step id that collides with it.
+    test.each([
+        ["__remoraflow"],
+        ["__anything"],
+        ["__"],
+    ])("rejects the id %s", (id) => {
+        const { isValid } = validateWorkflowDefinition(
+            untrusted({
+                initialStepId: id,
+                steps: [
+                    {
+                        id,
+                        name: "n",
+                        description: "",
+                        type: "start",
+                        nextStepId: "fin",
+                    },
+                    { id: "fin", name: "f", description: "", type: "end" },
+                ],
+            }),
+            ctx(),
+        );
+        expect(isValid).toBe(false);
+    });
+
+    test("still accepts a single leading underscore", () => {
+        const { isValid } = validateWorkflowDefinition(
+            workflow(
+                step("_start", { type: "start", nextStepId: "fin" }),
+                step("fin", { type: "end" }),
+            ),
+            ctx(),
+        );
+        expect(isValid).toBe(true);
+    });
+});
+
+describe("the poll interval floor at author time", () => {
+    const withInterval = (intervalMs: number) =>
+        workflow(
+            step("wait", {
+                type: "wait-for-condition",
+                nextStepId: "fin",
+                params: {
+                    conditionStepId: "fin",
+                    condition: { type: "literal", value: true },
+                    intervalMs: { type: "literal", value: intervalMs },
+                },
+            }),
+            step("fin", { type: "end" }),
+        );
+
+    test("rejects a literal interval below minPollIntervalSeconds", () => {
+        const { isValid } = validateWorkflowDefinition(
+            withInterval(1_000),
+            ctx(tools, { durationPolicy: { minPollIntervalSeconds: 60 } }),
+        );
+        expect(isValid).toBe(false);
+    });
+
+    test("accepts one at the floor", () => {
+        const { diagnostics } = validateWorkflowDefinition(
+            withInterval(60_000),
+            ctx(tools, { durationPolicy: { minPollIntervalSeconds: 60 } }),
+        );
+        expect(errorsIn(diagnostics)).toEqual([]);
+    });
+});

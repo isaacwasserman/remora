@@ -1,4 +1,4 @@
-import { rethrowIfUnrecoverable } from "./errors";
+import { rethrowIfUnrecoverable, StepTimeoutError } from "./errors";
 import type { StepOptions } from "./types";
 
 export function delaySeconds(seconds: number): Promise<void> {
@@ -24,7 +24,7 @@ async function runWithTimeout<T>(
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(
-            () => reject(new Error(`Step timed out after ${timeoutSeconds}s`)),
+            () => reject(new StepTimeoutError(timeoutSeconds)),
             timeoutSeconds * 1000,
         );
     });

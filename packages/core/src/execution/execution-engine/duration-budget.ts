@@ -13,11 +13,19 @@ export type DurationBudget = {
     /** Seconds of step-body time left before `maxExecutionSeconds` is spent. */
     remainingExecution: () => number;
     /**
-     * Charges a step's measured time to the execution clock, recording it under
-     * the step so a resumed run recharges what the original attempt spent
-     * instead of restarting the clock at zero.
+     * Charges a completed step's measured time to the execution clock,
+     * recording it under the step so a resumed run recharges what the original
+     * attempt spent instead of restarting the clock at zero.
      */
     chargeExecution: (stepPath: StepPath, seconds: number) => Promise<void>;
+    /**
+     * Charges time this process spent without recording it. For a step that
+     * failed: its result was never checkpointed, so a resumed run re-executes
+     * it, and a recorded charge would be replayed in place of what the new
+     * attempt actually spends — freezing the clock at the first attempt's cost
+     * however many times the step is retried.
+     */
+    chargeUnrecordedExecution: (seconds: number) => void;
     /** Throws {@link DurationLimitExceededError} if either clock is spent. */
     assertRemaining: () => Promise<void>;
 };
@@ -56,6 +64,9 @@ export function createDurationBudget(
                 reservedStepPath(stepPath, "elapsedSeconds"),
                 async () => seconds,
             );
+        },
+        chargeUnrecordedExecution: (seconds) => {
+            chargedExecutionSeconds += seconds;
         },
         assertRemaining: async () => {
             if (remainingExecution() <= 0) {

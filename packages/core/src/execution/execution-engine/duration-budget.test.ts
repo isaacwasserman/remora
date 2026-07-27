@@ -24,6 +24,14 @@ function budgetWith(overrides: Record<string, number> = {}) {
     return createDurationBudget(run, limits(overrides));
 }
 
+function resumableBudget(
+    store: DurableExecutionAdapter,
+    overrides: Record<string, number> = {},
+) {
+    const run = createDurableExecutionEngine(store).createRun("p", "r");
+    return createDurationBudget(run, limits(overrides));
+}
+
 afterEach(() => {
     setSystemTime();
 });
@@ -92,14 +100,6 @@ describe("wall clock", () => {
 });
 
 describe("wall clock across a resume", () => {
-    function resumableBudget(
-        store: DurableExecutionAdapter,
-        overrides: Record<string, number> = {},
-    ) {
-        const run = createDurableExecutionEngine(store).createRun("p", "r");
-        return createDurationBudget(run, limits(overrides));
-    }
-
     test("a resumed run inherits the original start rather than a fresh budget", async () => {
         // Time the host spent down still counts against the run. Re-anchoring
         // on resume would let a crash-looping run extend itself forever.
@@ -144,5 +144,22 @@ describe("wall clock across a resume", () => {
 
         setSystemTime(new Date("2026-01-01T00:01:00Z"));
         expect(await budget.remainingDuration()).toBe(540);
+    });
+});
+
+describe("charging a failed step", () => {
+    test("is not recorded, so a retry is charged its own cost", async () => {
+        // A failed step's result is never checkpointed, so a resumed run
+        // re-executes it. Recording the first attempt's cost would make every
+        // later attempt replay that number instead of its own, and a run
+        // crash-looping on one expensive step could never exhaust the budget.
+        const store = createInMemoryCheckpointAdapter();
+        const first = resumableBudget(store, { maxExecutionSeconds: 500 });
+        first.chargeUnrecordedExecution(100);
+        expect(first.remainingExecution()).toBe(400);
+
+        const resumed = resumableBudget(store, { maxExecutionSeconds: 500 });
+        await resumed.chargeExecution(["slowStep"], 100);
+        expect(resumed.remainingExecution()).toBe(400);
     });
 });

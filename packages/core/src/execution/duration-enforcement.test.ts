@@ -423,3 +423,89 @@ describe("a step bound beyond the timer range", () => {
         expect(result.status).toBe("success");
     });
 });
+
+describe("a run budget that cuts a step short", () => {
+    /** A tool that hangs, so only a timeout can end the step. */
+    const hangingTools = {
+        hang: tool({
+            description: "never settles in time",
+            inputSchema: type({}),
+            outputSchema: type("number"),
+            execute: async () => {
+                await Bun.sleep(5_000);
+                return 1;
+            },
+        }),
+    } satisfies ToolSet;
+
+    const callHang = workflow(
+        step("call", {
+            type: "tool-call",
+            nextStepId: "fin",
+            params: { toolName: "hang", toolInput: {} },
+        }),
+        step("fin", { type: "end" }),
+    );
+
+    test("is reported as DURATION_LIMIT_EXCEEDED, not as a tool failure", async () => {
+        // The executor wraps anything the step throws as TOOL_ERROR. A run that
+        // ran out of budget must not be disguised as a broken tool.
+        const { result } = await runWith(
+            callHang,
+            {
+                durationPolicy: {
+                    maxExecutionSeconds: 0.05,
+                    maxStepExecutionSeconds: 3_600,
+                },
+            },
+            hangingTools,
+        );
+        expect(result.error?.code).toBe("DURATION_LIMIT_EXCEEDED");
+        expect(result.error?.message).toContain("maxExecutionSeconds");
+    });
+
+    test("a step that outlives its own bound is still a step failure", async () => {
+        // The mirror case: when the step's own limit is what binds, the run has
+        // budget left and the executor's own error code is the right one.
+        const { result } = await runWith(
+            callHang,
+            {
+                durationPolicy: {
+                    maxExecutionSeconds: 3_600,
+                    maxStepExecutionSeconds: 0.05,
+                },
+            },
+            hangingTools,
+        );
+        expect(result.error?.code).toBe("TOOL_ERROR");
+        expect(result.error?.message).toContain("timed out");
+    });
+});
+
+describe("an unrelated failure", () => {
+    test("is not relabelled as a duration limit", async () => {
+        const { result } = await runWith(
+            workflow(
+                step("call", {
+                    type: "tool-call",
+                    nextStepId: "fin",
+                    params: { toolName: "boom", toolInput: {} },
+                }),
+                step("fin", { type: "end" }),
+            ),
+            {},
+            {
+                boom: tool({
+                    description: "throws",
+                    inputSchema: type({}),
+                    outputSchema: type("number"),
+                    execute: async () => {
+                        throw new Error("kaboom");
+                    },
+                }),
+            } satisfies ToolSet,
+        );
+        expect(result.error?.code).toBe("TOOL_ERROR");
+        expect(result.error?.message).toContain("kaboom");
+    });
+});

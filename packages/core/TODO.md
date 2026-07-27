@@ -11,6 +11,9 @@
       retry half is still unused, so every step runs `maxAttempts: 1`.
         - maxAttempts: number
         - retryDelaySeconds: number
+    - Recording each step's charge costs a second checkpoint round-trip per
+      step. Worth folding into the result record if a network-backed adapter
+      makes the write amplification matter.
     - LLM budgets, currently hardcoded in `step-executors.ts`
         - maxDataTokens: number (extract-data data-comprehension budget)
         - maxAgentSteps: number (agent-loop / extract-data step budget)

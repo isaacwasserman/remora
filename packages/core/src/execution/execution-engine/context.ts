@@ -6,6 +6,7 @@ import {
 } from "../../duration-policy";
 import { createAsyncQueue } from "./async-queue";
 import { createDurationBudget } from "./duration-budget";
+import { DurationLimitExceededError, StepTimeoutError } from "./errors";
 import { joinStepPath, reservedStepPath } from "./step-path";
 import type {
     ExecutionContext,
@@ -47,6 +48,30 @@ export function createExecutionContext(
     let stepDepth = 0;
 
     /**
+     * Bills a finished step. Runs from a `finally`, so it must not throw: the
+     * step's own result or error is the caller's answer, and a checkpoint store
+     * that rejects while recording the charge would otherwise replace it.
+     */
+    const chargeSpent = async (
+        stepPath: StepPath,
+        seconds: number,
+        succeeded: boolean,
+    ): Promise<void> => {
+        if (!succeeded) {
+            budget.chargeUnrecordedExecution(seconds);
+            return;
+        }
+        try {
+            await budget.chargeExecution(stepPath, seconds);
+        } catch (error) {
+            budget.chargeUnrecordedExecution(seconds);
+            console.warn(
+                `Could not record the execution charge for step "${joinStepPath(stepPath)}"; it is counted for this process only: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
+    };
+
+    /**
      * Runs one step under the policy: the budget gate is checked before
      * `run.step`, so it throws outside the retry loop and no retry can swallow
      * it, and the elapsed time is charged to the execution clock. A replayed
@@ -59,26 +84,60 @@ export function createExecutionContext(
         options?: StepOptions,
     ): Promise<TStepOutput> => {
         await budget.assertRemaining();
-        const timeoutSeconds = Math.min(
+
+        // The step's own bound, taken from the raw policy rather than from
+        // `limits`: the composed value already folds in `maxExecutionSeconds`,
+        // which would make a run overrun indistinguishable from a step overrun.
+        // The effective timeout is unchanged, since the remaining execution
+        // budget is one of the terms below.
+        const stepBoundSeconds = Math.min(
             options?.timeoutSeconds ?? Number.POSITIVE_INFINITY,
-            limits.maxStepExecutionSeconds,
-            budget.remainingExecution(),
-            await budget.remainingDuration(),
+            policy.maxStepExecutionSeconds,
         );
+        const remainingExecutionSeconds = budget.remainingExecution();
+        const remainingDurationSeconds = await budget.remainingDuration();
+        const timeoutSeconds = Math.min(
+            stepBoundSeconds,
+            remainingExecutionSeconds,
+            remainingDurationSeconds,
+        );
+        // Which limit the timeout came from. When a run budget is what cuts the
+        // step short, the run is over — reporting that as a step failure would
+        // let an executor relabel it as a tool or model error and hide the real
+        // cause.
+        const bindingRunLimit =
+            timeoutSeconds >= stepBoundSeconds
+                ? undefined
+                : remainingExecutionSeconds <= remainingDurationSeconds
+                  ? ("maxExecutionSeconds" as const)
+                  : ("maxDurationSeconds" as const);
+
         const isOutermost = stepDepth === 0;
         stepDepth++;
         const startedAtMs = Date.now();
+        let succeeded = false;
         try {
-            return await run.step(joinStepPath(stepPath), stepFn, {
+            const output = await run.step(joinStepPath(stepPath), stepFn, {
                 ...options,
                 timeoutSeconds,
             });
+            succeeded = true;
+            return output;
+        } catch (error) {
+            if (error instanceof StepTimeoutError && bindingRunLimit) {
+                throw new DurationLimitExceededError(
+                    bindingRunLimit,
+                    limits[bindingRunLimit],
+                );
+            }
+            throw error;
         } finally {
             stepDepth--;
             if (isOutermost) {
-                await budget.chargeExecution(
+                await chargeSpent(
                     stepPath,
                     (Date.now() - startedAtMs) / 1000,
+                    succeeded,
                 );
             }
         }
@@ -115,8 +174,10 @@ export function createExecutionContext(
         }
     };
 
+    // Deliberately not spreading `run`: that would put the unpoliced `step` and
+    // `sleep` on this object, leaving the policed ones to win on property order
+    // alone. Reordering these keys would then disable enforcement silently.
     return {
-        ...run,
         procedureId,
         runId,
         assertWithinBudget: budget.assertRemaining,
