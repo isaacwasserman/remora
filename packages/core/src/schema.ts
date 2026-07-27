@@ -1,6 +1,7 @@
 import { jsonSchemaToType } from "@ark/json-schema";
 import { type Type, type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
+import { resolveDurationLimits } from "./duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
 import type { ResolvedRemoraflowOptions } from "./types";
 
@@ -140,12 +141,8 @@ const extractDataParamsSchema = type({
 export function createWorkflowDefinitionSchema(
     options: ResolvedRemoraflowOptions,
 ) {
-    const maxSleepDurationMs =
-        1000 *
-        Math.min(
-            options?.durationPolicy.maxSleepSeconds,
-            options?.durationPolicy.maxWaitSeconds,
-        );
+    const limits = resolveDurationLimits(options.durationPolicy);
+    const maxSleepDurationMs = 1000 * limits.maxSleepSeconds;
     const sleepParamsSchema = type({
         type: "'sleep'",
         params: {
@@ -187,12 +184,12 @@ export function createWorkflowDefinitionSchema(
                     assertLiteralExpressionConstraint(
                         expression,
                         type(
-                            `number >= ${options.durationPolicy.minPollIntervalSeconds * 1000}`,
+                            `number >= ${limits.minPollIntervalSeconds * 1000}`,
                         ),
                     ),
                 ),
                 "@",
-                `milliseconds to wait between polling attempts (default: 1000, must be greater than ${options.durationPolicy.minPollIntervalSeconds * 1000})`,
+                `milliseconds to wait between polling attempts; must be at least ${limits.minPollIntervalSeconds * 1000}, which is also the interval a smaller one is raised to at execution time`,
             ],
             "backoffMultiplier?": [
                 expressionSchema,
@@ -203,13 +200,11 @@ export function createWorkflowDefinitionSchema(
                 expressionSchema.narrow((expression) =>
                     assertLiteralExpressionConstraint(
                         expression,
-                        type(
-                            `number <= ${options.durationPolicy.maxWaitSeconds * 1000}`,
-                        ),
+                        type(`number <= ${limits.maxWaitSeconds * 1000}`),
                     ),
                 ),
                 "@",
-                `hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts; must be less than ${options.durationPolicy.maxWaitSeconds * 1000}`,
+                `hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts; must be less than ${limits.maxWaitSeconds * 1000}`,
             ],
         },
     }).describe(
@@ -335,7 +330,8 @@ export function createWorkflowDefinitionSchema(
     }
 
     const workflowStepArktypeSchema = type({
-        id: /^[a-zA-Z_][a-zA-Z0-9_]+$/,
+        // A leading `__` is reserved for the runtime's own checkpoint keys.
+        id: /^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/,
         name: "string",
         description: "string",
         "nextStepId?": "string",

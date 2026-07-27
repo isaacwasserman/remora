@@ -4,6 +4,8 @@ import type { WorkflowDefinition, WorkflowStep } from "../../schema";
 import type { AgentConfig, AnyTool, ToolSet } from "../../types";
 import { createDataPresentationResources } from "../data-comprehension";
 import { _executeWorkflow } from "../execute-workflow";
+import { rethrowIfUnrecoverable } from "../execution-engine/errors";
+import { RESERVED_SEGMENT } from "../execution-engine/step-path";
 import { evaluateExpressionAgainstScope } from "../expressions/expression";
 import { runLanguageModel } from "../llm";
 import type {
@@ -81,6 +83,7 @@ export const stepExecutors: StepExecutorMap = {
                     error: null,
                 };
             } catch (e) {
+                rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
                 yield {
                     scope: null,
@@ -173,12 +176,12 @@ export const stepExecutors: StepExecutorMap = {
                 // Produced inside a step so it replays: a resumed run must ask
                 // about the same question id, not mint a new one.
                 const questionId = await executionContext.step(
-                    [...uniqueStepIdPath, "question-id"],
+                    [...uniqueStepIdPath, RESERVED_SEGMENT, "questionId"],
                     async () => crypto.randomUUID(),
                 );
 
                 await executionContext.step(
-                    [...uniqueStepIdPath, "request"],
+                    [...uniqueStepIdPath, RESERVED_SEGMENT, "request"],
                     async () => {
                         const requested =
                             await userInterventionContext.requestIntervention({
@@ -227,6 +230,7 @@ export const stepExecutors: StepExecutorMap = {
                     error: null,
                 };
             } catch (e) {
+                rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
                 yield {
                     scope: null,
@@ -305,6 +309,7 @@ export const stepExecutors: StepExecutorMap = {
                     error: null,
                 };
             } catch (e) {
+                rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
                 yield {
                     scope: null,
@@ -408,6 +413,7 @@ export const stepExecutors: StepExecutorMap = {
                     error: null,
                 };
             } catch (e) {
+                rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
                 yield {
                     scope: null,
@@ -428,17 +434,12 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             executionContext,
-            options,
         }) {
             const durationMs = Number(
                 evaluateExpressionAgainstScope(step.params.durationMs, scope),
             );
-            const seconds = Math.min(
-                durationMs / 1000,
-                options.maxSleepSeconds,
-            );
             yield { scope, output: null, error: null, status: "sleeping" };
-            await executionContext.sleep(uniqueStepIdPath, seconds);
+            await executionContext.sleep(uniqueStepIdPath, durationMs / 1000);
             yield { scope, output: null, error: null };
         },
     },
@@ -580,6 +581,7 @@ export const stepExecutors: StepExecutorMap = {
                     error: null,
                 };
             } catch (e) {
+                rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
                 yield {
                     scope: null,
@@ -687,6 +689,7 @@ export const stepExecutors: StepExecutorMap = {
                     error: null,
                 };
             } catch (e) {
+                rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
                 yield {
                     scope: null,

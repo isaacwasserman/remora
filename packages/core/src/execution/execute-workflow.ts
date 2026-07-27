@@ -1,9 +1,10 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
-import type { AgentConfig } from "../types";
+import { type AgentConfig, remoraflowOptionsSchema } from "../types";
 import { buildStepIndex } from "../utils";
 import { validateWorkflowDefinition } from "../validation";
 import type { ValidatorError } from "../validation/types";
 import { createExecutionContext } from "./execution-engine/context";
+import { DurationLimitExceededError } from "./execution-engine/errors";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import type { ExecutionContext, StepPath } from "./execution-engine/types";
 import { withLogCapture } from "./logger";
@@ -46,6 +47,7 @@ export async function* _executeWorkflow({
     let scope: ExecutionScope = initialScope;
 
     while (currentStepId) {
+        await executionContext.assertWithinBudget();
         const currentStep = stepsById.get(currentStepId) as WorkflowStep;
         const stepExecutor = stepExecutors[currentStep.type] as StepExecutor;
         let lastUpdate: StepExecutionUpdate | undefined;
@@ -95,9 +97,14 @@ export async function* executeWorkflowStream({
 }): AsyncGenerator<ExecutionState> {
     // TODO: Ensure workflow input is valid if applicable
     // TODO: Ensure workflow output is valid if applicable
+    const policy = remoraflowOptionsSchema.assert(
+        executionOptions?.policy ?? {},
+    );
+
     const { isValid, diagnostics: validationDiagnostics } =
         validateWorkflowDefinition(workflowDefinition, {
             tools: agentConfig.tools,
+            options: policy,
         });
 
     if (!isValid) {
@@ -121,19 +128,19 @@ export async function* executeWorkflowStream({
     // Spreading `executionOptions` directly would let an explicitly-passed
     // `undefined` (a natural shape for an optional field) erase the default.
     const resolvedExecutionOptions = {
+        policy,
         silenceLogs: executionOptions?.silenceLogs ?? false,
-        maxSleepSeconds: executionOptions?.maxSleepSeconds ?? 3600,
         executionEngine:
             executionOptions?.executionEngine ??
             createInMemoryExecutionEngine(),
         userInterventionAdapter:
             executionOptions?.userInterventionAdapter ??
             defaultUserInterventionAdapter,
-        maxLLMPromptTokens: executionOptions?.maxLLMPromptTokens ?? 128_000,
     };
 
     const executionContext = createExecutionContext(
         resolvedExecutionOptions.executionEngine.createRun(procedureId, runId),
+        policy.durationPolicy,
     );
 
     const userInterventionContext = createUserInverventionContext(
@@ -143,41 +150,61 @@ export async function* executeWorkflowStream({
     let latestUpdate: StepExecutionUpdate | null = null;
     let latestLogs: LogLine[] = [];
 
-    for await (const captured of withLogCapture(
-        () =>
-            _executeWorkflow({
-                workflowDefinition,
-                agentConfig,
-                executionOptions: resolvedExecutionOptions,
-                initialScope: {},
-                executionContext,
-                userInterventionContext,
-                uniqueStepIdPath: [],
-            }),
-        {
-            silence: resolvedExecutionOptions.silenceLogs,
-        },
-    )) {
-        latestUpdate = captured.objective;
-        latestLogs = captured.logs;
-        if (latestUpdate.error) {
-            yield {
-                status: "error",
-                output: null,
-                error: latestUpdate.error,
-                logs: latestLogs,
-                scope: latestUpdate.scope ?? {},
-            };
-            return;
-        }
+    try {
+        for await (const captured of withLogCapture(
+            () =>
+                _executeWorkflow({
+                    workflowDefinition,
+                    agentConfig,
+                    executionOptions: resolvedExecutionOptions,
+                    initialScope: {},
+                    executionContext,
+                    userInterventionContext,
+                    uniqueStepIdPath: [],
+                }),
+            {
+                silence: resolvedExecutionOptions.silenceLogs,
+            },
+        )) {
+            latestUpdate = captured.objective;
+            latestLogs = captured.logs;
+            if (latestUpdate.error) {
+                yield {
+                    status: "error",
+                    output: null,
+                    error: latestUpdate.error,
+                    logs: latestLogs,
+                    scope: latestUpdate.scope ?? {},
+                };
+                return;
+            }
 
+            yield {
+                status: latestUpdate.status ?? "in-progress",
+                output: latestUpdate.output,
+                error: null,
+                logs: latestLogs,
+                scope: latestUpdate.scope,
+            };
+        }
+    } catch (error) {
+        if (!(error instanceof DurationLimitExceededError)) {
+            throw error;
+        }
+        // Raised from inside the context rather than returned as a step
+        // update, so it arrives here as a throw and has to be turned back
+        // into a terminal state.
         yield {
-            status: latestUpdate.status ?? "in-progress",
-            output: latestUpdate.output,
-            error: null,
+            status: "error",
+            output: null,
+            error: {
+                code: "DURATION_LIMIT_EXCEEDED",
+                message: error.message,
+            },
             logs: latestLogs,
-            scope: latestUpdate.scope,
+            scope: latestUpdate?.scope ?? {},
         };
+        return;
     }
     yield {
         status: "success",

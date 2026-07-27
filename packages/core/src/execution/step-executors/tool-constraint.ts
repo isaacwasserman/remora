@@ -5,17 +5,20 @@ function _constrainToolInput(
     _tool: Tool,
     _inputConstraint: (WorkflowStep & {
         type: "agent-loop";
-    })["params"]["inputConstrains"],
+    })["params"]["inputConstraints"],
 ) {
     throw new Error("NOT IMPLEMENTED");
 }
 
 export function constrainToolSetInputs(
-    _tools: ToolSet,
-    _inputConstraints: (WorkflowStep & {
+    tools: ToolSet,
+    inputConstraints: (WorkflowStep & {
         type: "agent-loop";
     })["params"]["inputConstraints"],
 ): ToolSet {
+    if (!inputConstraints || Object.keys(inputConstraints).length === 0) {
+        return tools;
+    }
     // TODO: Implement this
     throw new Error("NOT IMPLEMENTED");
 }

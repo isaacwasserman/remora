@@ -507,6 +507,7 @@ describe("executeWorkflow option defaulting", () => {
             ),
             agentConfig,
             executionOptions: {
+                policy: { allowUserIntervention: true },
                 silenceLogs: true,
                 executionEngine: createInMemoryExecutionEngine(),
                 userInterventionAdapter: undefined,

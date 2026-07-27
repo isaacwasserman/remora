@@ -52,6 +52,14 @@ export type ExecutionContext = {
     procedureId: string;
     runId: string;
 
+    /**
+     * Throws if either run-level duration budget is spent. The timed operations
+     * below gate on this themselves; the workflow loop calls it between steps so
+     * that a run made up of steps which never reach the context — `start`,
+     * `end`, a `switch-case` that only branches — still cannot overrun.
+     */
+    assertWithinBudget: () => Promise<void>;
+
     step: <TStepOutput>(
         stepPath: StepPath,
         stepFn: () => Promise<TStepOutput>,

@@ -1,21 +1,21 @@
+import {
+    clampSeconds,
+    type DurationPolicy,
+    floorSeconds,
+    resolveDurationLimits,
+} from "../../duration-policy";
 import { createAsyncQueue } from "./async-queue";
+import { createDurationBudget } from "./duration-budget";
+import { joinStepPath, reservedStepPath } from "./step-path";
 import type {
     ExecutionContext,
     ExecutionRun,
+    StepOptions,
     StepPath,
     WaitForOptions,
 } from "./types";
 
-/**
- * Separator for {@link StepPath} segments. Step ids cannot contain it (see the
- * id pattern in `schema.ts`) and the executor's other segments are digits or
- * fixed literals, so a joined path is an unambiguous encoding of its segments.
- */
-const STEP_PATH_SEPARATOR = ".";
-
-export function joinStepPath(stepPath: StepPath): string {
-    return stepPath.join(STEP_PATH_SEPARATOR);
-}
+export { joinStepPath };
 
 function isAsyncGenerator<TUpdate, TValue>(
     polled: Promise<TValue> | AsyncGenerator<TUpdate, TValue>,
@@ -23,21 +23,78 @@ function isAsyncGenerator<TUpdate, TValue>(
     return Symbol.asyncIterator in polled;
 }
 
-export function createExecutionContext(run: ExecutionRun): ExecutionContext {
+/**
+ * The layer that enforces the duration policy. It is the narrowest waist that
+ * sees every timed operation and the only one that structurally separates wait
+ * time (`run.sleep`) from execution time (`run.step`) — the
+ * `maxDurationSeconds` / `maxExecutionSeconds` split. Step executors stay
+ * policy-ignorant: they evaluate their authored durations and call in here.
+ */
+export function createExecutionContext(
+    run: ExecutionRun,
+    policy: DurationPolicy,
+): ExecutionContext {
     const { procedureId, runId } = run.getExecutionInfo();
+    const limits = resolveDurationLimits(policy);
+    const budget = createDurationBudget(run, limits);
+
+    /**
+     * Runs one step under the policy: the budget gate is checked before
+     * `run.step`, so it throws outside the retry loop and no retry can swallow
+     * it, and the elapsed time is charged to the execution clock. A replayed
+     * step measures ~0, but the charge is itself recorded, so replay recharges
+     * what the original attempt spent.
+     */
+    const policedStep = async <TStepOutput>(
+        stepPath: StepPath,
+        stepFn: () => Promise<TStepOutput>,
+        options?: StepOptions,
+    ): Promise<TStepOutput> => {
+        await budget.assertRemaining();
+        const timeoutSeconds = Math.min(
+            options?.timeoutSeconds ?? Number.POSITIVE_INFINITY,
+            limits.maxStepExecutionSeconds,
+            budget.remainingExecution(),
+            await budget.remainingDuration(),
+        );
+        const startedAtMs = Date.now();
+        try {
+            return await run.step(joinStepPath(stepPath), stepFn, {
+                ...options,
+                timeoutSeconds,
+            });
+        } finally {
+            await budget.chargeExecution(
+                stepPath,
+                (Date.now() - startedAtMs) / 1000,
+            );
+        }
+    };
 
     /**
      * The deadline is produced inside a `step` so a checkpointing engine
      * replays it; the comparison against it must read the real clock, not the
-     * recorded one.
+     * recorded one. Bookkeeping like this goes through the raw `run.step`, so
+     * it is neither charged as execution time nor subject to the per-step
+     * timeout.
      */
     const sleepStep = async (
         stepPath: StepPath,
         seconds: number,
     ): Promise<void> => {
+        await budget.assertRemaining();
         const wakeAtMs = await run.step(
-            joinStepPath([...stepPath, "wake-at"]),
-            async () => Date.now() + seconds * 1000,
+            reservedStepPath(stepPath, "wakeAt"),
+            async () =>
+                Date.now() +
+                clampSeconds(
+                    seconds,
+                    Math.min(
+                        limits.maxSleepSeconds,
+                        await budget.remainingDuration(),
+                    ),
+                ) *
+                    1000,
         );
         const remainingMs = wakeAtMs - Date.now();
         if (remainingMs > 0) {
@@ -49,8 +106,8 @@ export function createExecutionContext(run: ExecutionRun): ExecutionContext {
         ...run,
         procedureId,
         runId,
-        step: (stepPath, stepFn, options) =>
-            run.step(joinStepPath(stepPath), stepFn, options),
+        assertWithinBudget: budget.assertRemaining,
+        step: policedStep,
         sleep: sleepStep,
         waitFor: async function* <TValue, TUpdate = never>(
             stepPath: StepPath,
@@ -61,42 +118,48 @@ export function createExecutionContext(run: ExecutionRun): ExecutionContext {
         ): AsyncGenerator<TUpdate, NonNullable<TValue>> {
             const backoffMultiplier = options?.backoffMultiplier ?? 1;
             const maxAttempts = options?.maxAttempts;
+            // Capped by the policy, and present even when the caller passes
+            // none — an unbounded wait is not expressible.
+            const maxWaitSeconds = clampSeconds(
+                options?.maxWaitSeconds ?? Number.POSITIVE_INFINITY,
+                Math.min(
+                    limits.maxWaitSeconds,
+                    await budget.remainingDuration(),
+                ),
+            );
             // Produced inside a `step`, so on a checkpointing engine the budget
             // covers time the host spent down rather than restarting from zero
             // on every resume.
-            const deadline =
-                options?.maxWaitSeconds !== undefined
-                    ? await run.step(
-                          joinStepPath([...stepPath, "deadline"]),
-                          async () =>
-                              Date.now() +
-                              (options.maxWaitSeconds as number) * 1000,
-                      )
-                    : undefined;
+            const deadline = await run.step(
+                reservedStepPath(stepPath, "deadline"),
+                async () => Date.now() + maxWaitSeconds * 1000,
+            );
 
-            let interval = options?.pollIntervalSeconds ?? 1;
+            let interval = floorSeconds(
+                options?.pollIntervalSeconds ?? limits.minPollIntervalSeconds,
+                limits.minPollIntervalSeconds,
+            );
             let attempt = 0;
             while (true) {
                 // Each attempt goes through `run.step`, which hands back a
                 // promise rather than a stream, so a generator poll's updates
                 // are buffered past that boundary and re-yielded here.
                 const updates = createAsyncQueue<TUpdate>();
-                const settled = run
-                    .step(
-                        joinStepPath([...stepPath, "attempt", String(attempt)]),
-                        async () => {
-                            const polled = poll(attempt);
-                            if (!isAsyncGenerator(polled)) {
-                                return await polled;
-                            }
-                            let produced = await polled.next();
-                            while (!produced.done) {
-                                updates.push(produced.value);
-                                produced = await polled.next();
-                            }
-                            return produced.value;
-                        },
-                    )
+                const settled = policedStep(
+                    [...stepPath, "attempt", String(attempt)],
+                    async () => {
+                        const polled = poll(attempt);
+                        if (!isAsyncGenerator(polled)) {
+                            return await polled;
+                        }
+                        let produced = await polled.next();
+                        while (!produced.done) {
+                            updates.push(produced.value);
+                            produced = await polled.next();
+                        }
+                        return produced.value;
+                    },
+                )
                     // Mapped to a value before `finally` so a rejection is never
                     // unhandled while updates are still being forwarded.
                     .then(
@@ -125,15 +188,17 @@ export function createExecutionContext(run: ExecutionRun): ExecutionContext {
                         `waitFor condition not met after ${maxAttempts} attempts`,
                     );
                 }
-                if (deadline !== undefined && Date.now() >= deadline) {
+                if (Date.now() >= deadline) {
                     throw new Error(
-                        `waitFor condition not met within ${options?.maxWaitSeconds}s`,
+                        `waitFor condition not met within ${maxWaitSeconds}s`,
                     );
                 }
 
                 await sleepStep(
                     [...stepPath, "attempt", String(attempt)],
-                    interval,
+                    // Overshooting the deadline would sleep past a wait that is
+                    // already lost.
+                    Math.min(interval, (deadline - Date.now()) / 1000),
                 );
                 interval *= backoffMultiplier;
             }

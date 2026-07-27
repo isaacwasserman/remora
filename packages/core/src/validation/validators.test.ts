@@ -3,7 +3,11 @@ import { tool } from "ai";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import type { Expression, WorkflowDefinition, WorkflowStep } from "../schema";
-import type { ToolSet } from "../types";
+import {
+    type RemoraflowOptions,
+    remoraflowOptionsSchema,
+    type ToolSet,
+} from "../types";
 import { step, workflow } from "../workflow-fixtures";
 import { validateWorkflowDefinition } from ".";
 import { controlFlowValidator } from "./control-flow-validation";
@@ -11,12 +15,25 @@ import { syntaxValidator } from "./syntax-validation";
 import { createToolDefinitionValidator } from "./tool-definition-validation";
 import { toolInputValidator } from "./tool-input-validation";
 import { toolReferenceValidator } from "./tool-reference-validation";
-import type { ValidatorDiagnostic } from "./types";
+import type { ValidationContext, ValidatorDiagnostic } from "./types";
 import { variableReferenceValidator } from "./variable-reference-validation";
 
 const tools: ToolSet = {
     known: tool({ inputSchema: type({}), execute: async () => 1 }),
 };
+
+const defaultOptions = remoraflowOptionsSchema.assert({});
+
+const ctx = (
+    toolSet: ToolSet = tools,
+    optionOverrides: RemoraflowOptions = {},
+): ValidationContext => ({
+    tools: toolSet,
+    options: remoraflowOptionsSchema.assert(optionOverrides),
+});
+
+/** Context for the step types the default options switch off. */
+const permissiveCtx = () => ctx(tools, { allowUserIntervention: true });
 
 /**
  * Input the type system would reject, standing in for the untrusted (typically
@@ -41,9 +58,9 @@ describe("toolReferenceValidator", () => {
                 params: { toolName: "known", toolInput: {} },
             }),
         );
-        expect(
-            toolReferenceValidator.validate(wf, { tools }).diagnostics,
-        ).toEqual([]);
+        expect(toolReferenceValidator.validate(wf, ctx()).diagnostics).toEqual(
+            [],
+        );
     });
 
     test("flags a tool-call referencing an unknown tool", () => {
@@ -53,7 +70,7 @@ describe("toolReferenceValidator", () => {
                 params: { toolName: "ghost", toolInput: {} },
             }),
         );
-        const { diagnostics } = toolReferenceValidator.validate(wf, { tools });
+        const { diagnostics } = toolReferenceValidator.validate(wf, ctx());
         expect(hasError(diagnostics)).toBe(true);
         expect(diagnostics[0]?.message).toContain("ghost");
     });
@@ -69,7 +86,7 @@ describe("toolReferenceValidator", () => {
                 },
             }),
         );
-        const { diagnostics } = toolReferenceValidator.validate(wf, { tools });
+        const { diagnostics } = toolReferenceValidator.validate(wf, ctx());
         expect(hasError(diagnostics)).toBe(true);
         expect(diagnostics[0]?.message).toContain("ghost");
     });
@@ -81,9 +98,9 @@ describe("controlFlowValidator", () => {
             step("start", { type: "start", nextStepId: "end" }),
             step("end", { type: "end" }),
         );
-        expect(
-            controlFlowValidator.validate(wf, { tools }).diagnostics,
-        ).toEqual([]);
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual(
+            [],
+        );
     });
 
     test("flags an unreachable (orphan) step", () => {
@@ -92,7 +109,7 @@ describe("controlFlowValidator", () => {
             step("end", { type: "end" }),
             step("orphan", { type: "end" }),
         );
-        const { diagnostics } = controlFlowValidator.validate(wf, { tools });
+        const { diagnostics } = controlFlowValidator.validate(wf, ctx());
         expect(diagnostics).toEqual([
             {
                 severity: "error",
@@ -107,9 +124,7 @@ describe("controlFlowValidator", () => {
         const wf = workflow(
             step("start", { type: "start", nextStepId: "nowhere" }),
         );
-        expect(
-            controlFlowValidator.validate(wf, { tools }).diagnostics,
-        ).toEqual([
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual([
             {
                 severity: "error",
                 path: ["steps", 0, "nextStepId"],
@@ -124,9 +139,7 @@ describe("controlFlowValidator", () => {
             step("first", { type: "start", nextStepId: "second" }),
             step("second", { type: "end", nextStepId: "first" }),
         );
-        expect(
-            controlFlowValidator.validate(wf, { tools }).diagnostics,
-        ).toEqual([
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual([
             {
                 severity: "error",
                 path: ["steps", 0],
@@ -154,7 +167,7 @@ describe("controlFlowValidator", () => {
             }),
             step("end", { type: "end" }),
         );
-        const { diagnostics } = controlFlowValidator.validate(wf, { tools });
+        const { diagnostics } = controlFlowValidator.validate(wf, ctx());
         expect(hasError(diagnostics)).toBe(false);
         expect(
             diagnostics.some(
@@ -173,7 +186,7 @@ describe("controlFlowValidator", () => {
                 params: { toolName: "known", toolInput: {} },
             }),
         );
-        const { diagnostics } = controlFlowValidator.validate(wf, { tools });
+        const { diagnostics } = controlFlowValidator.validate(wf, ctx());
         expect(hasError(diagnostics)).toBe(false);
         expect(
             diagnostics.some(
@@ -211,7 +224,7 @@ describe("controlFlowValidator", () => {
             step("branchB", { type: "end" }),
             step("end", { type: "end" }),
         );
-        const { diagnostics } = controlFlowValidator.validate(wf, { tools });
+        const { diagnostics } = controlFlowValidator.validate(wf, ctx());
         expect(hasError(diagnostics)).toBe(false);
         const branchWarnings = diagnostics.filter((d) =>
             d.message.includes("branch body"),
@@ -239,9 +252,9 @@ describe("controlFlowValidator", () => {
             }),
             step("end", { type: "end" }),
         );
-        expect(
-            controlFlowValidator.validate(wf, { tools }).diagnostics,
-        ).toEqual([]);
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual(
+            [],
+        );
     });
 });
 
@@ -262,7 +275,7 @@ describe("syntaxValidator", () => {
         };
         const { diagnostics, correctedDefinition } = syntaxValidator.validate(
             wf,
-            { tools },
+            ctx(),
         );
         expect(diagnostics).toEqual([]);
         expect(correctedDefinition).toEqual({
@@ -289,7 +302,7 @@ describe("syntaxValidator", () => {
                 initialStepId: "start",
                 steps: [{ id: "start", type: "nonsense" }],
             }),
-            { tools },
+            permissiveCtx(),
         );
         expect(diagnostics).toEqual([
             {
@@ -313,7 +326,7 @@ describe("toolDefinitionValidator", () => {
         const { diagnostics } = createToolDefinitionValidator({
             assertToolsHaveExecutionFunctions: true,
             assertToolsHaveOutputSchemas: false,
-        }).validate(anyWorkflow, { tools: brokenTools });
+        }).validate(anyWorkflow, ctx(brokenTools));
         expect(hasError(diagnostics)).toBe(true);
         expect(diagnostics[0]?.message).toContain("broken");
     });
@@ -322,7 +335,7 @@ describe("toolDefinitionValidator", () => {
         const { diagnostics } = createToolDefinitionValidator({
             assertToolsHaveExecutionFunctions: false,
             assertToolsHaveOutputSchemas: true,
-        }).validate(anyWorkflow, { tools });
+        }).validate(anyWorkflow, ctx());
         expect(hasError(diagnostics)).toBe(false);
         expect(
             diagnostics.some(
@@ -335,7 +348,7 @@ describe("toolDefinitionValidator", () => {
         const { diagnostics } = createToolDefinitionValidator({
             assertToolsHaveExecutionFunctions: false,
             assertToolsHaveOutputSchemas: false,
-        }).validate(anyWorkflow, { tools });
+        }).validate(anyWorkflow, ctx());
         expect(diagnostics).toEqual([]);
     });
 });
@@ -364,7 +377,7 @@ describe("variableReferenceValidator", () => {
         expect(
             variableReferenceValidator.validate(
                 workflowReferencing("think.answer"),
-                { tools },
+                ctx(),
             ).diagnostics,
         ).toEqual([]);
     });
@@ -373,7 +386,7 @@ describe("variableReferenceValidator", () => {
         expect(
             variableReferenceValidator.validate(
                 workflowReferencing("think.nope"),
-                { tools },
+                ctx(),
             ).diagnostics,
         ).toEqual([
             {
@@ -416,13 +429,13 @@ describe("variableReferenceValidator", () => {
         expect(
             variableReferenceValidator.validate(
                 workflowWithForEach("loop[0].n"),
-                { tools },
+                ctx(),
             ).diagnostics,
         ).toEqual([]);
         expect(
             variableReferenceValidator.validate(
                 workflowWithForEach("loop[0].nope"),
-                { tools },
+                ctx(),
             ).diagnostics,
         ).toEqual([
             {
@@ -437,7 +450,7 @@ describe("variableReferenceValidator", () => {
         expect(
             variableReferenceValidator.validate(
                 workflowWithForEach("loop.nope"),
-                { tools },
+                ctx(),
             ).diagnostics,
         ).toEqual([
             {
@@ -456,7 +469,7 @@ describe("validateWorkflowDefinition", () => {
                 initialStepId: "start",
                 steps: [{ id: "start", type: "nonsense" }],
             }),
-            { tools },
+            permissiveCtx(),
         );
         expect(isValid).toBe(false);
         // Every later pass would add something — the tool-definition pass alone
@@ -479,9 +492,7 @@ describe("validateWorkflowDefinition", () => {
             step("start", { type: "start", nextStepId: "end" }),
             step("end", { type: "end" }),
         );
-        const { isValid, diagnostics } = validateWorkflowDefinition(wf, {
-            tools,
-        });
+        const { isValid, diagnostics } = validateWorkflowDefinition(wf, ctx());
         expect(isValid).toBe(true);
         expect(diagnostics.some((d) => d.severity === "warning")).toBe(true);
     });
@@ -509,7 +520,7 @@ describe("toolInputValidator", () => {
 
     test("no diagnostics when a literal input matches the tool schema", () => {
         expect(
-            toolInputValidator.validate(callWith(42), { tools: typedTools })
+            toolInputValidator.validate(callWith(42), ctx(typedTools))
                 .diagnostics,
         ).toEqual([]);
     });
@@ -517,7 +528,7 @@ describe("toolInputValidator", () => {
     test("flags a wrong-typed literal input as an error", () => {
         const { diagnostics } = toolInputValidator.validate(
             callWith("not-a-number"),
-            { tools: typedTools },
+            ctx(typedTools),
         );
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0]?.severity).toBe("error");
@@ -549,9 +560,10 @@ describe("toolInputValidator", () => {
                 step("finish", { type: "end" }),
             ],
         };
-        const { diagnostics } = toolInputValidator.validate(wf, {
-            tools: typedTools,
-        });
+        const { diagnostics } = toolInputValidator.validate(
+            wf,
+            ctx(typedTools),
+        );
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0]?.severity).toBe("warning");
     });
@@ -570,7 +582,7 @@ describe("toolInputValidator", () => {
             step("finish", { type: "end" }),
         );
         expect(
-            toolInputValidator.validate(wf, { tools: typedTools }).diagnostics,
+            toolInputValidator.validate(wf, ctx(typedTools)).diagnostics,
         ).toEqual([]);
     });
 
@@ -595,9 +607,10 @@ describe("toolInputValidator", () => {
             }),
             step("finish", { type: "end" }),
         );
-        const { diagnostics } = toolInputValidator.validate(wf, {
-            tools: typedTools,
-        });
+        const { diagnostics } = toolInputValidator.validate(
+            wf,
+            ctx(typedTools),
+        );
         expect(
             diagnostics.map((d) => ({
                 severity: d.severity,
@@ -654,7 +667,7 @@ describe("block steps with nested chains", () => {
         // terminal step, so it stays reachable no matter how deeply it nests.
         expect(
             errorsIn(
-                validateWorkflowDefinition(nestedLoops("outer"), { tools })
+                validateWorkflowDefinition(nestedLoops("outer"), ctx())
                     .diagnostics,
             ),
         ).toEqual([]);
@@ -662,7 +675,7 @@ describe("block steps with nested chains", () => {
         // proves nothing on its own — `done` must also still be type-checked.
         expect(
             errorsIn(
-                validateWorkflowDefinition(nestedLoops("notBound"), { tools })
+                validateWorkflowDefinition(nestedLoops("notBound"), ctx())
                     .diagnostics,
             ),
         ).toEqual([invalidAccessAtDone]);
@@ -671,8 +684,7 @@ describe("block steps with nested chains", () => {
     test("a loop variable does not leak into the scope after the loop", () => {
         expect(
             errorsIn(
-                validateWorkflowDefinition(nestedLoops("i"), { tools })
-                    .diagnostics,
+                validateWorkflowDefinition(nestedLoops("i"), ctx()).diagnostics,
             ),
         ).toEqual([invalidAccessAtDone]);
     });
@@ -695,6 +707,12 @@ describe("block steps with nested chains", () => {
                         type: "jmespath",
                         expression: "check.ready",
                     },
+                    intervalMs: {
+                        type: "literal",
+                        value:
+                            defaultOptions.durationPolicy
+                                .minPollIntervalSeconds * 1000,
+                    },
                     ...overrides,
                 },
             }),
@@ -712,13 +730,13 @@ describe("block steps with nested chains", () => {
 
     test("a condition chain is reachable and its bindings resolve in `condition`", () => {
         const wf = waitWorkflow();
-        expect(
-            controlFlowValidator.validate(wf, { tools }).diagnostics,
-        ).toEqual([]);
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual(
+            [],
+        );
         // `condition` reads `check.ready`, which the condition chain binds —
         // nothing in scope at the wait step itself provides it.
         expect(
-            variableReferenceValidator.validate(wf, { tools }).diagnostics,
+            variableReferenceValidator.validate(wf, ctx()).diagnostics,
         ).toEqual([]);
     });
 
@@ -733,7 +751,7 @@ describe("block steps with nested chains", () => {
             },
         });
         expect(
-            variableReferenceValidator.validate(wf, { tools }).diagnostics,
+            variableReferenceValidator.validate(wf, ctx()).diagnostics,
         ).toEqual([
             {
                 severity: "error",
@@ -746,7 +764,7 @@ describe("block steps with nested chains", () => {
     test("flags a dangling conditionStepId instead of throwing", () => {
         const { diagnostics } = validateWorkflowDefinition(
             waitWorkflow({ conditionStepId: "ghost" }),
-            { tools },
+            ctx(),
         );
         expect(diagnostics.map((d) => d.message)).toEqual([
             expect.stringContaining(
@@ -762,6 +780,12 @@ describe("block steps with nested chains", () => {
                 params: {
                     conditionStepId: "check",
                     condition: { type: "literal", value: true },
+                    intervalMs: {
+                        type: "literal",
+                        value:
+                            defaultOptions.durationPolicy
+                                .minPollIntervalSeconds * 1000,
+                    },
                 },
             }),
             step("check", {
@@ -772,7 +796,7 @@ describe("block steps with nested chains", () => {
         );
         expect(
             controlFlowValidator
-                .validate(cyclic, { tools })
+                .validate(cyclic, ctx())
                 .diagnostics.map((d) => d.message),
         ).toEqual([expect.stringContaining("contains a cycle")]);
     });
@@ -819,7 +843,7 @@ describe("switch-case branch bindings", () => {
         // is the normal way to use a switch.
         const { isValid, diagnostics } = validateWorkflowDefinition(
             readingAfterSwitch("brA.n"),
-            { tools },
+            ctx(),
         );
         expect(isValid).toBe(true);
         expect(
@@ -839,7 +863,7 @@ describe("switch-case branch bindings", () => {
         // Nullability must not swallow genuine mistakes.
         const { isValid, diagnostics } = validateWorkflowDefinition(
             readingAfterSwitch("brA.nope"),
-            { tools },
+            ctx(),
         );
         expect(isValid).toBe(false);
         expect(errorsIn(diagnostics)).toEqual([
@@ -875,7 +899,7 @@ describe("request-intervention answerability", () => {
         // Nothing the supervisor could reply with, so the step would wait forever.
         const { isValid, diagnostics } = validateWorkflowDefinition(
             askStep({ type: "literal", value: [] }, false),
-            { tools },
+            permissiveCtx(),
         );
         expect(isValid).toBe(false);
         expect(diagnostics[0]?.message).toContain("answerable");
@@ -885,7 +909,7 @@ describe("request-intervention answerability", () => {
         expect(
             validateWorkflowDefinition(
                 askStep({ type: "literal", value: [] }, true),
-                { tools },
+                permissiveCtx(),
             ).isValid,
         ).toBe(true);
     });
@@ -894,7 +918,7 @@ describe("request-intervention answerability", () => {
         expect(
             validateWorkflowDefinition(
                 askStep({ type: "literal", value: ["yes", "no"] }, false),
-                { tools },
+                permissiveCtx(),
             ).isValid,
         ).toBe(true);
     });
@@ -904,7 +928,7 @@ describe("request-intervention answerability", () => {
         expect(
             validateWorkflowDefinition(
                 askStep({ type: "jmespath", expression: "ask" }, false),
-                { tools },
+                permissiveCtx(),
             ).isValid,
         ).toBe(true);
     });

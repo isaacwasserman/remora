@@ -1,5 +1,9 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
-import type { AgentConfig } from "../types";
+import type {
+    AgentConfig,
+    RemoraflowOptions,
+    ResolvedRemoraflowOptions,
+} from "../types";
 import type {
     ExecutionContext,
     ExecutionEngine,
@@ -22,6 +26,7 @@ export type ExecutionError = {
         | "DATA_EXTRACTION_RUN_FAILED"
         | "WAIT_FOR_CONDITION_FAILED"
         | "ASK_SUPERVISOR_ERROR"
+        | "DURATION_LIMIT_EXCEEDED"
         | "TYPE_ERROR"
         | "UNKNOWN";
     message: string;
@@ -33,15 +38,22 @@ export type LogLine = {
     text: string;
 };
 
+/**
+ * Host wiring plus the policy. Every limit lives in `policy` — there are no
+ * limit fields alongside it, so a bound cannot be set in two places and
+ * disagree with itself.
+ */
 export type ExecutionOptions = {
-    maxSleepSeconds?: number;
+    /** Resolved once by the executor and shared with the validation pass. */
+    policy?: RemoraflowOptions;
     executionEngine?: ExecutionEngine;
     userInterventionAdapter?: UserInterventionAdapter;
     silenceLogs?: boolean;
-    maxLLMPromptTokens?: number;
 };
 
-export type ResolvedExecutionOptions = Required<ExecutionOptions>;
+export type ResolvedExecutionOptions = Required<
+    Omit<ExecutionOptions, "policy">
+> & { policy: ResolvedRemoraflowOptions };
 
 /**
  * Non-terminal statuses. The run is still live in every case — the waiting ones

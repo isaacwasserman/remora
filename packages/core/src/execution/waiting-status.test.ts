@@ -46,6 +46,12 @@ async function statusesOf(
             model: createMockModel([]),
         },
         executionOptions: {
+            // These fixtures poll on millisecond intervals and ask a
+            // supervisor; the shipped defaults forbid both.
+            policy: {
+                allowUserIntervention: true,
+                durationPolicy: { minPollIntervalSeconds: 0 },
+            },
             silenceLogs: true,
             executionEngine: createInMemoryExecutionEngine(),
             // Spread conditionally: an explicit `undefined` would override the

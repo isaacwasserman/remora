@@ -1,20 +1,26 @@
-import { workflowDefinitionSchema } from "../../schema";
+import {
+    createWorkflowDefinitionSchema,
+    type WorkflowDefinition,
+} from "../../schema";
 import { validateAgainstStandardSchema } from "../../schemistry";
 import type { ValidationModule } from "../types";
 
 export const syntaxValidator: ValidationModule = {
     id: "syntax",
     failureMode: "block",
-    validate: (workflowDefinition) => {
+    validate: (workflowDefinition, { options }) => {
         const { value, issues } = validateAgainstStandardSchema(
             workflowDefinition,
-            workflowDefinitionSchema,
+            createWorkflowDefinitionSchema(options)
+                .workflowDefinitionArktypeSchema,
         );
-        if (value) {
-            return { correctedDefinition: value, diagnostics: [] };
+        if (!issues) {
+            return {
+                correctedDefinition: value as WorkflowDefinition,
+                diagnostics: [],
+            };
         }
         return {
-            correctedDefinition: value,
             diagnostics: issues.map((issue) => ({
                 severity: "error",
                 path: issue.path?.map((segment) =>

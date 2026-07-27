@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { testDurationPolicy } from "../test-support";
 import { createExecutionContext } from "./context";
 import { createDurableExecutionEngine } from "./durable-execution";
 import { createInMemoryCheckpointAdapter } from "./durable-execution/in-memory-adapter";
@@ -27,7 +28,10 @@ function countingRun(store: DurableExecutionAdapter) {
             sleeps.push(seconds);
         },
     };
-    return { context: createExecutionContext(counting), sleeps };
+    return {
+        context: createExecutionContext(counting, testDurationPolicy()),
+        sleeps,
+    };
 }
 
 describe("waitFor", () => {

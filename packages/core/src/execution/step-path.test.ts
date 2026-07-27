@@ -2,14 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { tool } from "ai";
 import { type } from "arktype";
 import type { WorkflowDefinition } from "../schema";
-import type { AgentConfig, ToolSet } from "../types";
+import {
+    type AgentConfig,
+    remoraflowOptionsSchema,
+    type ToolSet,
+} from "../types";
 import { step, workflow } from "../workflow-fixtures";
 import { _executeWorkflow } from "./execute-workflow";
 import { createExecutionContext } from "./execution-engine/context";
 import { createDurableExecutionEngine } from "./execution-engine/durable-execution";
 import { createInMemoryCheckpointAdapter } from "./execution-engine/durable-execution/in-memory-adapter";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
-import { createMockModel } from "./test-support";
+import { RESERVED_SEGMENT } from "./execution-engine/step-path";
+import { createMockModel, testDurationPolicy } from "./test-support";
 import type { ResolvedExecutionOptions, StepExecutionUpdate } from "./types";
 import { defaultUserInterventionAdapter } from "./user-intervention/default-adapter";
 import { createUserInverventionContext } from "./user-intervention/types";
@@ -49,8 +54,7 @@ function countingToolset(readyOn = 1) {
 function makeOptions(): ResolvedExecutionOptions {
     return {
         silenceLogs: true,
-        maxSleepSeconds: 0,
-        maxLLMPromptTokens: 128_000,
+        policy: remoraflowOptionsSchema.assert({}),
         executionEngine: createInMemoryExecutionEngine(),
         userInterventionAdapter: defaultUserInterventionAdapter,
     };
@@ -62,11 +66,19 @@ async function runCapturingStepKeys(
 ) {
     const backing = createInMemoryCheckpointAdapter();
     const stepKeys: string[] = [];
+    const reservedKeys: string[] = [];
     const store = {
         load: (runId: string, key: string) => backing.load(runId, key),
         save: (runId: string, key: string, value: unknown) => {
             if (key.endsWith(":result")) {
-                stepKeys.push(key.slice(0, -":result".length));
+                const stepKey = key.slice(0, -":result".length);
+                // The runtime's own keys are covered by their own test below;
+                // listing them in every expectation here would bury the step
+                // paths this file exists to pin.
+                (stepKey.includes(RESERVED_SEGMENT)
+                    ? reservedKeys
+                    : stepKeys
+                ).push(stepKey);
             }
             return backing.save(runId, key, value);
         },
@@ -81,6 +93,7 @@ async function runCapturingStepKeys(
         agentConfig,
         executionContext: createExecutionContext(
             createDurableExecutionEngine(store).createRun("p", "r"),
+            testDurationPolicy(),
         ),
         userInterventionContext: createUserInverventionContext(
             defaultUserInterventionAdapter,
@@ -91,7 +104,7 @@ async function runCapturingStepKeys(
         if (update.error) throw new Error(update.error.message);
         last = update;
     }
-    return { stepKeys, output: last?.output, scope: last?.scope };
+    return { stepKeys, reservedKeys, output: last?.output, scope: last?.scope };
 }
 
 describe("step paths", () => {
@@ -166,7 +179,6 @@ describe("step paths", () => {
         expect(stepKeys).toEqual([
             "wait1.attempt.0.checkA",
             "wait1.attempt.0",
-            "wait1.attempt.1.wake-at",
             "wait1.attempt.1.checkA",
             "wait1.attempt.1",
             "wait2.attempt.0.checkB",
@@ -207,10 +219,8 @@ describe("step paths", () => {
         expect(stepKeys).toEqual([
             "wait.attempt.0.check",
             "wait.attempt.0",
-            "wait.attempt.1.wake-at",
             "wait.attempt.1.check",
             "wait.attempt.1",
-            "wait.attempt.2.wake-at",
             "wait.attempt.2.check",
             "wait.attempt.2",
         ]);
@@ -315,7 +325,6 @@ describe("step paths", () => {
             "outer.0.route.0.waitBranch.attempt.0.innerLoop.1.innerBody",
             "outer.0.route.0.waitBranch.attempt.0.probeStep",
             "outer.0.route.0.waitBranch.attempt.0",
-            "outer.0.route.0.waitBranch.attempt.1.wake-at",
             "outer.0.route.0.waitBranch.attempt.1.innerLoop.0.innerBody",
             "outer.0.route.0.waitBranch.attempt.1.innerLoop.1.innerBody",
             "outer.0.route.0.waitBranch.attempt.1.probeStep",
@@ -383,5 +392,47 @@ describe("step paths", () => {
             "wait.attempt.0",
         ]);
         expect(waitKeys(afterLoop.stepKeys)).toEqual(waitKeys(alone.stepKeys));
+    });
+
+    test("the runtime keeps its own keys in a reserved namespace", async () => {
+        // Step ids cannot begin with `__`, so nothing an author writes can
+        // land on one of these.
+        const { tools } = countingToolset(2);
+        const { reservedKeys, stepKeys } = await runCapturingStepKeys(
+            workflow(
+                step("wait", {
+                    type: "wait-for-condition",
+                    params: {
+                        conditionStepId: "check",
+                        condition: {
+                            type: "jmespath",
+                            expression: "check.ready",
+                        },
+                        intervalMs: { type: "literal", value: 0 },
+                        maxAttempts: { type: "literal", value: 5 },
+                    },
+                }),
+                step("check", {
+                    type: "tool-call",
+                    params: { toolName: "probe", toolInput: {} },
+                }),
+            ),
+            tools,
+        );
+
+        expect(reservedKeys).toContain("__remoraflow.startedAt");
+        expect(reservedKeys).toContain("wait.__remoraflow.deadline");
+        expect(reservedKeys).toContain("wait.attempt.1.__remoraflow.wakeAt");
+        // Every step charges its elapsed time under its own reserved key, which
+        // is what lets a resumed run recharge the execution clock.
+        expect(reservedKeys).toContain(
+            "wait.attempt.0.check.__remoraflow.elapsedSeconds",
+        );
+        expect(
+            reservedKeys.every((key) =>
+                /^(?:[a-zA-Z0-9_.]*\.)?__remoraflow\.[a-z][a-zA-Z]*$/.test(key),
+            ),
+        ).toBe(true);
+        expect(stepKeys.some((key) => key.includes("__"))).toBe(false);
     });
 });

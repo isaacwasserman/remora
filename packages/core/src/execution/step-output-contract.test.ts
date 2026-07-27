@@ -5,7 +5,12 @@ import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import type { WorkflowStep } from "../schema";
 import { inferJsonSchema } from "../schemistry";
-import type { AgentConfig, LanguageModel, ToolSet } from "../types";
+import {
+    type AgentConfig,
+    type LanguageModel,
+    remoraflowOptionsSchema,
+    type ToolSet,
+} from "../types";
 import type { RemoraflowType } from "../validation/types";
 import {
     getStepOutputType,
@@ -15,7 +20,7 @@ import { step, workflow } from "../workflow-fixtures";
 import { createExecutionContext } from "./execution-engine/context";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import { stepExecutors } from "./step-executors";
-import { createMockModel } from "./test-support";
+import { createMockModel, testDurationPolicy } from "./test-support";
 import type { ExecutionScope, ResolvedExecutionOptions } from "./types";
 import type { UserInterventionAdapter } from "./user-intervention/types";
 import { createUserInverventionContext } from "./user-intervention/types";
@@ -293,8 +298,7 @@ function typeScopeFor(runtimeScope: ExecutionScope): TypeScope {
 function makeOptions(): ResolvedExecutionOptions {
     return {
         silenceLogs: true,
-        maxSleepSeconds: 0,
-        maxLLMPromptTokens: 128_000,
+        policy: remoraflowOptionsSchema.assert({}),
         executionEngine: createInMemoryExecutionEngine(),
         userInterventionAdapter: refusingIntervention(),
     };
@@ -322,6 +326,7 @@ async function runCase(contractCase: ContractCase): Promise<ExecutionScope> {
         agentConfig,
         executionContext: createExecutionContext(
             createInMemoryExecutionEngine().createRun("proc", "run"),
+            testDurationPolicy(),
         ),
         userInterventionContext: createUserInverventionContext(
             contractCase.userInterventionAdapter ?? refusingIntervention(),

@@ -1,30 +1,16 @@
-import {
-    createWorkflowDefinitionSchema,
-    type WorkflowDefinition,
-} from "../schema";
-import { validateAgainstStandardSchema } from "../schemistry";
-import type { ResolvedRemoraflowOptions, ToolSet } from "../types";
+import type { WorkflowDefinition } from "../schema";
+import { remoraflowOptionsSchema, type ToolSet } from "../types";
 import { controlFlowValidator } from "./control-flow-validation";
 import { syntaxValidator } from "./syntax-validation";
 import { createToolDefinitionValidator } from "./tool-definition-validation";
 import { toolInputValidator } from "./tool-input-validation";
 import { toolReferenceValidator } from "./tool-reference-validation";
 import type {
+    ValidationContext,
     ValidationModule,
     ValidatorDiagnostic,
-    ValidatorWarning,
 } from "./types";
 import { variableReferenceValidator } from "./variable-reference-validation";
-
-type SyntaxValidatorResult =
-    | {
-          validated: WorkflowDefinition;
-          diagnostics: undefined | ValidatorWarning[];
-      }
-    | {
-          validated: undefined;
-          diagnostics: ValidatorDiagnostic[];
-      };
 
 function hasValidatorErrors(diagnostics: ValidatorDiagnostic[]): boolean {
     return (
@@ -33,37 +19,13 @@ function hasValidatorErrors(diagnostics: ValidatorDiagnostic[]): boolean {
     );
 }
 
-function _validateWorkflowSyntax(
-    workflowDefinition: unknown,
-    options: ResolvedRemoraflowOptions,
-): SyntaxValidatorResult {
-    const { value, issues } = validateAgainstStandardSchema(
-        workflowDefinition,
-        createWorkflowDefinitionSchema(options).workflowDefinitionArktypeSchema,
-    );
-    if (value) {
-        return { validated: value, diagnostics: undefined };
-    }
-    return {
-        validated: undefined,
-        diagnostics: issues.map((issue) => ({
-            severity: "error",
-            path: issue.path?.map((segment) =>
-                typeof segment === "object" &&
-                segment !== null &&
-                "key" in segment
-                    ? segment.key
-                    : segment,
-            ),
-            message: `${issue.path ? `${JSON.stringify(issue.path)}: ` : ""}${issue.message}`,
-        })),
-    };
-}
-
 export function validateWorkflowDefinition(
     workflowDefinition: WorkflowDefinition,
-    { tools }: { tools: ToolSet },
-    options: {
+    {
+        tools,
+        options = remoraflowOptionsSchema.assert({}),
+    }: { tools: ToolSet; options?: ValidationContext["options"] },
+    toolAssertions: {
         assertToolsHaveExecutionFunctions: boolean;
         assertToolsHaveOutputSchemas: boolean;
     } = {
@@ -81,9 +43,10 @@ export function validateWorkflowDefinition(
         toolReferenceValidator,
         variableReferenceValidator,
         toolInputValidator,
-        createToolDefinitionValidator(options),
+        createToolDefinitionValidator(toolAssertions),
     ];
 
+    const context: ValidationContext = { tools, options };
     let workingDefinition = workflowDefinition;
     const diagnostics: ValidatorDiagnostic[] = [];
 
@@ -91,7 +54,7 @@ export function validateWorkflowDefinition(
         const {
             diagnostics: newDiagnostics,
             correctedDefinition: newCorrectedDefinition,
-        } = validationPass.validate(workingDefinition, { tools });
+        } = validationPass.validate(workingDefinition, context);
         diagnostics.push(...newDiagnostics);
         if (newCorrectedDefinition) {
             workingDefinition = newCorrectedDefinition;

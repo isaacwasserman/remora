@@ -2,12 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { tool } from "ai";
 import { type } from "arktype";
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
-import type { AgentConfig, ToolSet } from "../../types";
+import {
+    type AgentConfig,
+    remoraflowOptionsSchema,
+    type ToolSet,
+} from "../../types";
 import { step, workflow } from "../../workflow-fixtures";
 import { createExecutionContext } from "../execution-engine/context";
 import { createInMemoryExecutionEngine } from "../execution-engine/in-memory";
 import type { ExecutionContext, ExecutionRun } from "../execution-engine/types";
-import { createMockModel } from "../test-support";
+import { createMockModel, testDurationPolicy } from "../test-support";
 import type {
     ExecutionError,
     ExecutionScope,
@@ -22,7 +26,7 @@ import {
 import { stepExecutors } from ".";
 
 /** A context whose durable delays are recorded rather than actually served. */
-function makeContext() {
+function makeContext(policyOverrides: Record<string, number> = {}) {
     const sleeps: number[] = [];
     const adapter = createInMemoryExecutionEngine();
     const run = adapter.createRun("proc", "run");
@@ -33,14 +37,19 @@ function makeContext() {
             sleeps.push(seconds);
         },
     };
-    return { context: createExecutionContext(recording), sleeps };
+    return {
+        context: createExecutionContext(
+            recording,
+            testDurationPolicy(policyOverrides),
+        ),
+        sleeps,
+    };
 }
 
 function makeOptions(): ResolvedExecutionOptions {
     return {
+        policy: remoraflowOptionsSchema.assert({}),
         silenceLogs: true,
-        maxSleepSeconds: 0.02,
-        maxLLMPromptTokens: 128_000,
         executionEngine: createInMemoryExecutionEngine(),
         userInterventionAdapter: defaultUserInterventionAdapter,
     };
@@ -102,10 +111,12 @@ describe("step executors", () => {
         expect(result).toEqual({ scope: { value: 42, en: 42 }, error: null });
     });
 
-    test("sleep clamps to maxSleepSeconds and leaves scope untouched", async () => {
+    test("sleep passes its authored duration to the context and leaves scope untouched", async () => {
+        // The executor no longer clamps; it hands the authored duration to the
+        // context, which is the layer holding the policy.
         const sleep = step("zz", {
             type: "sleep",
-            params: { durationMs: { type: "literal", value: 10_000_000 } },
+            params: { durationMs: { type: "literal", value: 4_000 } },
         });
         const { context, sleeps } = makeContext();
         const result = await runStep(
@@ -113,8 +124,18 @@ describe("step executors", () => {
             { a: 1 },
             { executionContext: context },
         );
-        expect(sleeps).toEqual([makeOptions().maxSleepSeconds]);
+        expect(sleeps).toEqual([4]);
         expect(result).toEqual({ scope: { a: 1 }, error: null });
+    });
+
+    test("a sleep past the policy bound is clamped by the context", async () => {
+        const sleep = step("zz", {
+            type: "sleep",
+            params: { durationMs: { type: "literal", value: 10_000_000 } },
+        });
+        const { context, sleeps } = makeContext({ maxSleepSeconds: 30 });
+        await runStep(sleep, { a: 1 }, { executionContext: context });
+        expect(sleeps).toEqual([30]);
     });
 
     describe("tool-call", () => {

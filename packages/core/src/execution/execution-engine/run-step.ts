@@ -1,3 +1,4 @@
+import { rethrowIfUnrecoverable } from "./errors";
 import type { StepOptions } from "./types";
 
 export function delaySeconds(seconds: number): Promise<void> {
@@ -53,6 +54,10 @@ export async function runStep<T>(
         try {
             return await runWithTimeout(fn, options?.timeoutSeconds);
         } catch (error) {
+            // Ahead of the attempt bookkeeping: retrying one of these cannot
+            // help, and would spend budget the run has already been told it is
+            // out of.
+            rethrowIfUnrecoverable(error);
             const message =
                 error instanceof Error ? error.message : String(error);
             const outOfAttempts = attempt >= maxAttempts;
