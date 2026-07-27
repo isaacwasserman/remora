@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
+import { tool } from "ai";
+import { type } from "arktype";
 import type { WorkflowDefinition } from "../schema";
 import {
     type AgentConfig,
     type RemoraflowOptions,
     remoraflowOptionsSchema,
+    type ToolSet,
 } from "../types";
 import { validateWorkflowDefinition } from "../validation";
 import { step, workflow } from "../workflow-fixtures";
@@ -83,6 +86,25 @@ async function run(
     return { result, sleeps };
 }
 
+async function runWith(
+    workflowDefinition: WorkflowDefinition,
+    policy: RemoraflowOptions,
+    tools: ToolSet,
+) {
+    const { engine, sleeps } = fastForwardEngine();
+    const result = await executeWorkflow({
+        workflowDefinition,
+        agentConfig: { tools, model: createMockModel([]) },
+        executionOptions: {
+            policy,
+            silenceLogs: true,
+            executionEngine: engine,
+        },
+        procedureId: "duration",
+    });
+    return { result, sleeps };
+}
+
 afterEach(() => {
     setSystemTime();
 });
@@ -151,14 +173,43 @@ describe("run-level budgets", () => {
         expect(result.error?.message).toContain("maxDurationSeconds");
     });
 
-    test("a sleep is clamped to what is left of the run", async () => {
-        // Sleeping the full authored duration would overshoot a deadline the
-        // run has already lost.
+    test("a later sleep is clamped to what is left of the run", async () => {
+        // Two sleeps, so the second is bounded by the remaining wall clock
+        // rather than by `maxSleepSeconds`. A single sleep cannot show this:
+        // whichever bound is lower produces the same number, and the static one
+        // alone would satisfy the assertion.
         setSystemTime(new Date("2026-01-01T00:00:00Z"));
-        const { sleeps } = await run(sleepWorkflow(900_000, true), {
-            durationPolicy: { maxDurationSeconds: 120, maxSleepSeconds: 900 },
-        });
-        expect(sleeps).toEqual([120]);
+        const { sleeps } = await run(
+            workflow(
+                step("first", {
+                    type: "sleep",
+                    nextStepId: "second",
+                    params: {
+                        durationMs: { type: "jmespath", expression: "`80000`" },
+                    },
+                }),
+                step("second", {
+                    type: "sleep",
+                    nextStepId: "fin",
+                    params: {
+                        durationMs: {
+                            type: "jmespath",
+                            expression: "`150000`",
+                        },
+                    },
+                }),
+                step("fin", { type: "end" }),
+            ),
+            {
+                durationPolicy: {
+                    maxDurationSeconds: 200,
+                    maxSleepSeconds: 150,
+                },
+            },
+        );
+        // The second sleep is authored at 150s and allowed 150s by
+        // `maxSleepSeconds`, but only 120s of the run remains.
+        expect(sleeps).toEqual([80, 120]);
     });
 });
 
@@ -200,5 +251,175 @@ describe("an unanswered request-intervention", () => {
 
         expect(result.status).toBe("error");
         expect(result.error?.message).toContain("300s");
+    });
+});
+
+describe("the execution clock", () => {
+    /** A tool whose call advances the clock, so steps have real duration. */
+    function slowTools(secondsPerCall: number) {
+        return {
+            slow: tool({
+                description: "takes time",
+                inputSchema: type({}),
+                outputSchema: type({ ready: "boolean" }),
+                execute: () => {
+                    setSystemTime(new Date(Date.now() + secondsPerCall * 1000));
+                    return { ready: true };
+                },
+            }),
+        } satisfies ToolSet;
+    }
+
+    test("bills a step inside a poll attempt once, not once per level", async () => {
+        // A `waitFor` attempt is itself a step, and the condition chain inside
+        // it runs more steps. Charging both bills the same seconds twice and
+        // halves the effective budget of any polling run.
+        setSystemTime(new Date("2026-01-01T00:00:00Z"));
+        const { engine } = fastForwardEngine();
+        const result = await executeWorkflow({
+            workflowDefinition: workflow(
+                step("wait", {
+                    type: "wait-for-condition",
+                    nextStepId: "after",
+                    params: {
+                        conditionStepId: "check",
+                        condition: {
+                            type: "jmespath",
+                            expression: "check.ready",
+                        },
+                        intervalMs: { type: "literal", value: 60_000 },
+                    },
+                }),
+                step("check", {
+                    type: "tool-call",
+                    params: { toolName: "slow", toolInput: {} },
+                }),
+                step("after", {
+                    type: "tool-call",
+                    nextStepId: "fin",
+                    params: { toolName: "slow", toolInput: {} },
+                }),
+                step("fin", { type: "end" }),
+            ),
+            agentConfig: { tools: slowTools(40), model: createMockModel([]) },
+            executionOptions: {
+                silenceLogs: true,
+                executionEngine: engine,
+                policy: {
+                    durationPolicy: {
+                        maxExecutionSeconds: 100,
+                        maxStepExecutionSeconds: 100,
+                    },
+                },
+            },
+            procedureId: "double-charge",
+        });
+        // 40s in the poll plus 40s after it is 80s of real work, inside a 100s
+        // budget. Billed per level it would be 120s and the run would die.
+        expect(result.error).toBeNull();
+        expect(result.status).toBe("success");
+    });
+});
+
+describe("the poll interval floor", () => {
+    function pollingWorkflow(backoffMultiplier: number): WorkflowDefinition {
+        return workflow(
+            step("wait", {
+                type: "wait-for-condition",
+                nextStepId: "fin",
+                params: {
+                    conditionStepId: "check",
+                    condition: { type: "jmespath", expression: "check.ready" },
+                    intervalMs: { type: "literal", value: 60_000 },
+                    maxAttempts: { type: "literal", value: 4 },
+                    backoffMultiplier: {
+                        type: "jmespath",
+                        expression: `\`${backoffMultiplier}\``,
+                    },
+                },
+            }),
+            step("check", {
+                type: "tool-call",
+                params: { toolName: "probe", toolInput: {} },
+            }),
+            step("fin", { type: "end" }),
+        );
+    }
+
+    /** A condition that never comes true, so every attempt is used. */
+    const neverReady = {
+        probe: tool({
+            description: "never ready",
+            inputSchema: type({}),
+            outputSchema: type({ ready: "boolean" }),
+            execute: () => ({ ready: false }),
+        }),
+    } satisfies ToolSet;
+
+    test.each([
+        ["a multiplier below 1", 0],
+        ["a NaN multiplier", Number.NaN],
+    ])("holds under %s", async (_label, backoffMultiplier) => {
+        // The floor is applied once before the loop, so multiplying the
+        // interval in place can walk it under the bound and busy-poll.
+        setSystemTime(new Date("2026-01-01T00:00:00Z"));
+        const { engine, sleeps } = fastForwardEngine();
+        await executeWorkflow({
+            workflowDefinition: pollingWorkflow(backoffMultiplier),
+            agentConfig: { tools: neverReady, model: createMockModel([]) },
+            executionOptions: {
+                silenceLogs: true,
+                executionEngine: engine,
+                policy: {
+                    durationPolicy: {
+                        minPollIntervalSeconds: 60,
+                        maxWaitSeconds: 86_400,
+                    },
+                },
+            },
+            procedureId: "poll-floor",
+        });
+        // Asserting the whole sequence, not `every(>= 60)`: a zero-length
+        // sleep never reaches `run.sleep`, so it leaves no entry and a
+        // predicate over the recorded entries passes vacuously.
+        expect(sleeps).toEqual([60, 60, 60]);
+    });
+});
+
+describe("a step bound beyond the timer range", () => {
+    test("runs untimed instead of being killed immediately", async () => {
+        // Delays past ~24.85 days overflow a 32-bit millisecond value and fire
+        // on the next tick, so a huge bound must skip the timer rather than
+        // become an instant timeout.
+        const tools = {
+            add: tool({
+                description: "adds, slowly enough to lose a 1ms race",
+                inputSchema: type({}),
+                outputSchema: type("number"),
+                execute: async () => {
+                    await Bun.sleep(25);
+                    return 1;
+                },
+            }),
+        } satisfies ToolSet;
+        const { result } = await runWith(
+            workflow(
+                step("call", {
+                    type: "tool-call",
+                    nextStepId: "fin",
+                    params: { toolName: "add", toolInput: {} },
+                }),
+                step("fin", { type: "end" }),
+            ),
+            {
+                durationPolicy: {
+                    maxExecutionSeconds: 30 * 86_400,
+                    maxStepExecutionSeconds: 30 * 86_400,
+                },
+            },
+            tools,
+        );
+        expect(result.error).toBeNull();
+        expect(result.status).toBe("success");
     });
 });

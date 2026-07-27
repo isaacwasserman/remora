@@ -5,11 +5,19 @@ export function delaySeconds(seconds: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
+/**
+ * Longest delay `setTimeout` can represent. Beyond this the delay overflows a
+ * 32-bit signed integer and the timer fires on the next tick instead, so a
+ * step bounded past this point has to run untimed rather than be killed at
+ * once.
+ */
+const MAX_TIMER_SECONDS = 2_147_483;
+
 async function runWithTimeout<T>(
     fn: () => Promise<T>,
     timeoutSeconds: number | undefined,
 ): Promise<T> {
-    if (timeoutSeconds === undefined) {
+    if (timeoutSeconds === undefined || timeoutSeconds > MAX_TIMER_SECONDS) {
         return fn();
     }
 

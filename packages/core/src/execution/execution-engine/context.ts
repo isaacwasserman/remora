@@ -39,6 +39,14 @@ export function createExecutionContext(
     const budget = createDurationBudget(run, limits);
 
     /**
+     * Depth of nested `policedStep` calls. A `waitFor` attempt is a step whose
+     * body runs more steps, and the outer measurement already contains the
+     * inner ones, so only the outermost charges — otherwise every second inside
+     * a poll is billed once per level.
+     */
+    let stepDepth = 0;
+
+    /**
      * Runs one step under the policy: the budget gate is checked before
      * `run.step`, so it throws outside the retry loop and no retry can swallow
      * it, and the elapsed time is charged to the execution clock. A replayed
@@ -57,6 +65,8 @@ export function createExecutionContext(
             budget.remainingExecution(),
             await budget.remainingDuration(),
         );
+        const isOutermost = stepDepth === 0;
+        stepDepth++;
         const startedAtMs = Date.now();
         try {
             return await run.step(joinStepPath(stepPath), stepFn, {
@@ -64,10 +74,13 @@ export function createExecutionContext(
                 timeoutSeconds,
             });
         } finally {
-            await budget.chargeExecution(
-                stepPath,
-                (Date.now() - startedAtMs) / 1000,
-            );
+            stepDepth--;
+            if (isOutermost) {
+                await budget.chargeExecution(
+                    stepPath,
+                    (Date.now() - startedAtMs) / 1000,
+                );
+            }
         }
     };
 
@@ -200,7 +213,14 @@ export function createExecutionContext(
                     // already lost.
                     Math.min(interval, (deadline - Date.now()) / 1000),
                 );
-                interval *= backoffMultiplier;
+                // Re-floored rather than multiplied in place: a multiplier
+                // below 1 (or a NaN one, which an expression can produce)
+                // would otherwise walk the interval under the policy floor and
+                // busy-poll the condition.
+                interval = floorSeconds(
+                    interval * backoffMultiplier,
+                    limits.minPollIntervalSeconds,
+                );
             }
         },
     };

@@ -77,8 +77,14 @@ describe("wall clock", () => {
             maxDurationSeconds: 60,
             maxExecutionSeconds: 10,
         });
+        // Anchors the start at t=0. Without this the anchor is recorded lazily
+        // at the first check below, so the wall clock would not in fact be
+        // spent and the test would pass whichever order the checks run in.
+        await budget.assertRemaining();
+
         await budget.chargeExecution(["work"], 10);
         setSystemTime(new Date("2026-01-01T00:05:00Z"));
+        expect(await budget.remainingDuration()).toBeLessThan(0);
         await expect(budget.assertRemaining()).rejects.toThrow(
             "maxExecutionSeconds",
         );

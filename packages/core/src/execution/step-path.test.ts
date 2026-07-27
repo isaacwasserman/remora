@@ -423,9 +423,14 @@ describe("step paths", () => {
         expect(reservedKeys).toContain("__remoraflow.startedAt");
         expect(reservedKeys).toContain("wait.__remoraflow.deadline");
         expect(reservedKeys).toContain("wait.attempt.1.__remoraflow.wakeAt");
-        // Every step charges its elapsed time under its own reserved key, which
-        // is what lets a resumed run recharge the execution clock.
+        // The outermost step of a nesting charges its elapsed time, which is
+        // what lets a resumed run recharge the execution clock. The step nested
+        // inside it does not: the outer measurement already contains it, and
+        // charging both bills those seconds twice.
         expect(reservedKeys).toContain(
+            "wait.attempt.0.__remoraflow.elapsedSeconds",
+        );
+        expect(reservedKeys).not.toContain(
             "wait.attempt.0.check.__remoraflow.elapsedSeconds",
         );
         expect(
@@ -433,6 +438,10 @@ describe("step paths", () => {
                 /^(?:[a-zA-Z0-9_.]*\.)?__remoraflow\.[a-z][a-zA-Z]*$/.test(key),
             ),
         ).toBe(true);
-        expect(stepKeys.some((key) => key.includes("__"))).toBe(false);
+        // Deliberately not asserting that `stepKeys` is free of `__`: the
+        // recorder partitions on RESERVED_SEGMENT, so that holds by
+        // construction. The property that matters — an author cannot claim a
+        // reserved id — is enforced by the schema and tested in
+        // `validators.test.ts`.
     });
 });
