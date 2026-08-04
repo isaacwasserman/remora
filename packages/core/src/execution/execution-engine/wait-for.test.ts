@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { testDurationPolicy } from "../test-support";
+import { createCheckpointingExecutionEngine } from "./checkpointing";
+import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
+import type { CheckpointStore } from "./checkpointing/types";
 import { createExecutionContext } from "./context";
-import { createDurableExecutionEngine } from "./durable-execution";
-import { createInMemoryCheckpointAdapter } from "./durable-execution/in-memory-adapter";
-import type { DurableExecutionAdapter } from "./durable-execution/types";
 import type { ExecutionRun } from "./types";
 
 /** Drains a `waitFor` generator, returning its settled value. */
@@ -18,9 +18,9 @@ async function settle<TValue>(
 }
 
 /** A run whose `sleep` calls are counted rather than actually served. */
-function countingRun(store: DurableExecutionAdapter) {
+function countingRun(store: CheckpointStore) {
     const sleeps: number[] = [];
-    const run = createDurableExecutionEngine(store).createRun("p", "r");
+    const run = createCheckpointingExecutionEngine(store).createRun("r");
     const counting: ExecutionRun = {
         ...run,
         step: (name, fn, options) => run.step(name, fn, options),
@@ -37,7 +37,7 @@ function countingRun(store: DurableExecutionAdapter) {
 describe("waitFor", () => {
     test("polls until truthy, sleeping between attempts", async () => {
         const { context, sleeps } = countingRun(
-            createInMemoryCheckpointAdapter(),
+            testingOnly_createInMemoryCheckpointStore(),
         );
         const seen: number[] = [];
         const result = await settle(
@@ -61,7 +61,7 @@ describe("waitFor", () => {
     test("forwards what an attempt yields, and yields nothing on replay", async () => {
         // `poll` is a generator so progress from inside an attempt can escape the
         // `adapter.step` boundary, which hands back a promise rather than a stream.
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const first = countingRun(store);
         const forwarded: string[] = [];
         const waiting = first.context.waitFor(
@@ -111,7 +111,7 @@ describe("waitFor", () => {
         // The wake-up deadline is checkpointed when the sleep starts, so a
         // resumed run does not re-serve the whole elapsed poll history before
         // reaching the first live attempt.
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const intervalSeconds = 0.05;
 
         const first = countingRun(store);
@@ -148,13 +148,15 @@ describe("waitFor", () => {
         // Attempts 0-2 replay from their checkpoints, and none of their elapsed
         // deadlines is waited out a second time.
         expect(attempted).toEqual([3]);
-        expect(resumed.sleeps).toEqual([]);
+        // Each replayed delay is still issued — a durable engine keys operations
+        // by position — but owes no time.
+        expect(resumed.sleeps).toEqual([0, 0, 0]);
     });
 
     test("a delay interrupted mid-flight waits out only its remainder", async () => {
         // The deadline is recorded before sleeping, so an interrupted delay is
         // resumed rather than restarted from zero.
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const first = countingRun(store);
         await expect(
             settle(

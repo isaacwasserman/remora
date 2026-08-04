@@ -184,7 +184,6 @@ for (const engine of ENGINES) {
                     ),
                     agentConfig,
                     executionOptions: options(),
-                    procedureId: "triage",
                 });
 
                 expect(result.status).toBe("success");
@@ -261,7 +260,6 @@ for (const engine of ENGINES) {
                     ),
                     agentConfig,
                     executionOptions: options(),
-                    procedureId: "batch",
                 });
 
                 expect(result.status).toBe("success");
@@ -356,7 +354,6 @@ for (const engine of ENGINES) {
                     ),
                     agentConfig,
                     executionOptions: options(),
-                    procedureId: "route",
                 });
 
                 expect(result.status).toBe("success");
@@ -414,7 +411,6 @@ for (const engine of ENGINES) {
                     ),
                     agentConfig,
                     executionOptions: options(),
-                    procedureId: "billing",
                 });
 
                 expect(result.status).toBe("error");
@@ -467,7 +463,6 @@ describe("executeWorkflow validation gate", () => {
                 silenceLogs: true,
                 executionEngine: createInMemoryExecutionEngine(),
             },
-            procedureId: "invalid",
         });
 
         expect(result.status).toBe("error");
@@ -512,7 +507,6 @@ describe("executeWorkflow option defaulting", () => {
                 executionEngine: createInMemoryExecutionEngine(),
                 userInterventionAdapter: undefined,
             },
-            procedureId: "defaulting",
         });
 
         expect(result.status).toBe("error");

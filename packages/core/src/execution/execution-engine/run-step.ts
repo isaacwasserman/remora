@@ -1,4 +1,4 @@
-import { rethrowIfUnrecoverable, StepTimeoutError } from "./errors";
+import { StepTimeoutError, UnrecoverableExecutionError } from "./errors";
 import type { StepOptions } from "./types";
 
 export function delaySeconds(seconds: number): Promise<void> {
@@ -13,7 +13,7 @@ export function delaySeconds(seconds: number): Promise<void> {
  */
 const MAX_TIMER_SECONDS = 2_147_483;
 
-async function runWithTimeout<T>(
+export async function runWithTimeout<T>(
     fn: () => Promise<T>,
     timeoutSeconds: number | undefined,
 ): Promise<T> {
@@ -38,14 +38,22 @@ async function runWithTimeout<T>(
 }
 
 /**
- * Applies a step's {@link StepOptions} retry and timeout policy to `fn`. Shared
- * by every engine, so the retry semantics of a step never depend on which engine
- * is running it. Retries are opt-in: with no retry option set, `fn` runs once.
+ * A step's {@link StepOptions} reduced to the two decisions a retry loop makes,
+ * so an engine that delegates retrying to its host derives them from the same
+ * place {@link runStep} does.
  */
-export async function runStep<T>(
-    fn: () => Promise<T>,
+export type ResolvedRetryPolicy = {
+    maxAttempts: number;
+    /** Whether a failed attempt is worth repeating at all. */
+    isRetriable: (error: unknown) => boolean;
+    /** Delay before the attempt following `attempt`, which is 1-based. */
+    delaySecondsAfter: (attempt: number) => number;
+};
+
+export function resolveRetryPolicy(
     options: StepOptions | undefined,
-): Promise<T> {
+): ResolvedRetryPolicy {
+    // Retries are opt-in: with no retry option set, a step runs once.
     const retriesEnabled =
         options !== undefined &&
         (options.maxAttempts !== undefined ||
@@ -53,30 +61,52 @@ export async function runStep<T>(
             options.backoffCoefficient !== undefined ||
             options.shouldRetry !== undefined);
 
-    const maxAttempts = retriesEnabled ? (options?.maxAttempts ?? 3) : 1;
     const backoffCoefficient = options?.backoffCoefficient ?? 2;
     const maxDelay = options?.maxRetryDelaySeconds ?? Number.POSITIVE_INFINITY;
-    let currentDelay = options?.retryDelaySeconds ?? 1;
+    const initialDelay = options?.retryDelaySeconds ?? 1;
+
+    return {
+        maxAttempts: retriesEnabled ? (options?.maxAttempts ?? 3) : 1,
+        isRetriable: (error) => {
+            // Retrying one of these cannot help, and would spend budget the run
+            // has already been told it is out of.
+            if (error instanceof UnrecoverableExecutionError) {
+                return false;
+            }
+            if (options?.shouldRetry === undefined) {
+                return true;
+            }
+            const message =
+                error instanceof Error ? error.message : String(error);
+            return options.shouldRetry(message);
+        },
+        delaySecondsAfter: (attempt) =>
+            Math.min(
+                initialDelay * backoffCoefficient ** (attempt - 1),
+                maxDelay,
+            ),
+    };
+}
+
+/**
+ * Applies a step's {@link StepOptions} retry and timeout policy to `fn`. Used by
+ * engines that retry in-process; an engine whose host owns retrying passes
+ * {@link resolveRetryPolicy} to the host instead.
+ */
+export async function runStep<T>(
+    fn: () => Promise<T>,
+    options: StepOptions | undefined,
+): Promise<T> {
+    const policy = resolveRetryPolicy(options);
 
     for (let attempt = 1; ; attempt++) {
         try {
             return await runWithTimeout(fn, options?.timeoutSeconds);
         } catch (error) {
-            // Ahead of the attempt bookkeeping: retrying one of these cannot
-            // help, and would spend budget the run has already been told it is
-            // out of.
-            rethrowIfUnrecoverable(error);
-            const message =
-                error instanceof Error ? error.message : String(error);
-            const outOfAttempts = attempt >= maxAttempts;
-            const rejectedByPredicate =
-                options?.shouldRetry !== undefined &&
-                !options.shouldRetry(message);
-            if (outOfAttempts || rejectedByPredicate) {
+            if (attempt >= policy.maxAttempts || !policy.isRetriable(error)) {
                 throw error;
             }
-            await delaySeconds(Math.min(currentDelay, maxDelay));
-            currentDelay *= backoffCoefficient;
+            await delaySeconds(policy.delaySecondsAfter(attempt));
         }
     }
 }

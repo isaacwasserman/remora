@@ -1,61 +1,28 @@
-import { delaySeconds, runStep } from "../run-step";
-import type { ExecutionEngine, ExecutionRun } from "../types";
+import type { ExecutionEngine } from "../types";
 import type { DurableExecutionAdapter } from "./types";
 
-/**
- * Binds a {@link DurableExecutionAdapter} to a single run, producing an
- * {@link ExecutionRun} that records each step's result through the adapter. A
- * step whose result is already recorded returns it without re-executing.
- *
- * A step's key is exactly the name the caller supplied, so callers must supply
- * names that are unique within the run — reusing one replays the first call's
- * recorded result.
- */
-function createRun(
-    adapter: DurableExecutionAdapter,
-    procedureId: string,
-    runId: string,
-): ExecutionRun {
-    return {
-        getExecutionInfo() {
-            return { procedureId, runId };
-        },
-
-        async step(stepName, fn, stepOptions) {
-            const resultKey = `${stepName}:result`;
-
-            const recorded = await adapter.load(runId, resultKey);
-            if (recorded !== undefined) {
-                return recorded.value as Awaited<ReturnType<typeof fn>>;
-            }
-
-            const result = await runStep(fn, stepOptions);
-            await adapter.save(runId, resultKey, result);
-            return result;
-        },
-
-        sleep(seconds) {
-            return delaySeconds(seconds);
-        },
-    };
-}
+export type { DurableExecutionAdapter } from "./types";
 
 /**
- * Creates an {@link ExecutionEngine} that records every step's result through
- * `adapter`, so a run re-invoked with the same `procedureId` and `runId` skips
- * the steps that already completed.
+ * Wraps a {@link DurableExecutionAdapter} — already bound to the invocation the
+ * host is running — as an {@link ExecutionEngine}, so the workflow executor can
+ * consume it like any other engine.
  *
- * Recovery is the host's job: nothing here detects a crashed run or restarts
- * one. The engine only guarantees that *if* a run is invoked again under the
- * same ids, completed steps are not repeated. Durability beyond that is
- * entirely the adapter's.
+ * `createRun` reports the host's ids and ignores the ones it is passed: a
+ * durable host assigns the run, and a caller-minted id would name a run the host
+ * has never heard of.
+ *
+ * The adapter's journal is keyed by operation order, so the workflow must issue
+ * the same sequence of `step` and `sleep` calls on every invocation. Values that
+ * would otherwise vary — clocks, random ids — must be produced inside a `step`,
+ * which the executor already does.
  */
 export function createDurableExecutionEngine(
     adapter: DurableExecutionAdapter,
 ): ExecutionEngine {
     return {
-        createRun(procedureId, runId = crypto.randomUUID()) {
-            return createRun(adapter, procedureId, runId);
+        createRun() {
+            return adapter;
         },
     };
 }

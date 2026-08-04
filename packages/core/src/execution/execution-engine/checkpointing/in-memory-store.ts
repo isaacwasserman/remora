@@ -1,12 +1,12 @@
-import type { DurableExecutionAdapter } from "./types";
+import type { CheckpointStore } from "./types";
 
 /**
- * A {@link DurableExecutionAdapter} backed by a `Map` per run. Nothing survives
- * the process, so it is **not** durable — it exists to give
+ * A {@link CheckpointStore} backed by a `Map` per run. Nothing survives the
+ * process, so it is **not** durable — it exists to give
  * `createInMemoryExecutionEngine` a checkpointing mode, and to let tests assert
  * replay behavior without a real backend.
  */
-export function createInMemoryCheckpointAdapter(): DurableExecutionAdapter {
+export function testingOnly_createInMemoryCheckpointStore(): CheckpointStore {
     const runs = new Map<string, Map<string, unknown>>();
 
     return {

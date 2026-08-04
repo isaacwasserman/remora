@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createDurableExecutionEngine } from "./durable-execution";
-import { createInMemoryCheckpointAdapter } from "./durable-execution/in-memory-adapter";
+import { createCheckpointingExecutionEngine } from "./checkpointing";
+import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
 import { createInMemoryExecutionEngine } from "./in-memory";
 import type { ExecutionEngine } from "./types";
 
@@ -12,14 +12,16 @@ const ENGINES: Array<{ name: string; create: () => ExecutionEngine }> = [
     {
         name: "durable",
         create: () =>
-            createDurableExecutionEngine(createInMemoryCheckpointAdapter()),
+            createCheckpointingExecutionEngine(
+                testingOnly_createInMemoryCheckpointStore(),
+            ),
     },
 ];
 
 for (const engine of ENGINES) {
     describe(`step policy [${engine.name}]`, () => {
         test("no retry option means a single attempt", async () => {
-            const run = engine.create().createRun("p", "r");
+            const run = engine.create().createRun("r");
             let attempts = 0;
             await expect(
                 run.step("s", async () => {
@@ -31,7 +33,7 @@ for (const engine of ENGINES) {
         });
 
         test("step retries up to maxAttempts then succeeds", async () => {
-            const run = engine.create().createRun("p", "r");
+            const run = engine.create().createRun("r");
             let attempts = 0;
             const output = await run.step(
                 "s",
@@ -49,7 +51,7 @@ for (const engine of ENGINES) {
         });
 
         test("step throws after exhausting its attempts", async () => {
-            const run = engine.create().createRun("p", "r");
+            const run = engine.create().createRun("r");
             let attempts = 0;
             await expect(
                 run.step(
@@ -65,7 +67,7 @@ for (const engine of ENGINES) {
         });
 
         test("shouldRetry returning false stops retrying immediately", async () => {
-            const run = engine.create().createRun("p", "r");
+            const run = engine.create().createRun("r");
             let attempts = 0;
             await expect(
                 run.step(
@@ -85,7 +87,7 @@ for (const engine of ENGINES) {
         });
 
         test("timeoutSeconds fails a slow attempt", async () => {
-            const run = engine.create().createRun("p", "r");
+            const run = engine.create().createRun("r");
             await expect(
                 run.step(
                     "s",

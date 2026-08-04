@@ -2,17 +2,30 @@ import { jsonSchemaToType } from "@ark/json-schema";
 import dedent from "dedent";
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
 import type { AgentConfig, AnyTool, ToolSet } from "../../types";
+import { _executeWorkflow } from "..";
+import {
+    approvalPoliciesToAISDKToolApprovalConfig,
+    assertApprovalOfToolCallStep,
+    resolveApprovalRequests,
+} from "../approval-policies";
 import { createDataPresentationResources } from "../data-comprehension";
-import { _executeWorkflow } from "../execute-workflow";
-import { rethrowIfUnrecoverable } from "../execution-engine/errors";
+import {
+    LoopIterationLimitExceededError,
+    rethrowIfUnrecoverable,
+} from "../execution-engine/errors";
 import { RESERVED_SEGMENT } from "../execution-engine/step-path";
 import { evaluateExpressionAgainstScope } from "../expressions/expression";
-import { runLanguageModel } from "../llm";
 import type {
     ExecutionScope,
     StepExecutionUpdate,
     StepExecutor,
 } from "../types";
+import {
+    appendApprovalResponses,
+    runLanguageModel,
+    runLanguageModelTurn,
+} from "./llm";
+import type { ModelMessage } from "ai";
 import { constrainToolSetInputs } from "./tool-constraint";
 import { runTool } from "./tool-runner";
 
@@ -52,36 +65,146 @@ export const stepExecutors: StepExecutorMap = {
             workflowDefinition,
             agentConfig,
             executionContext,
+            userInterventionContext,
+            options,
         }) {
-            const maxSteps = step.params.maxSteps
-                ? evaluateExpressionAgainstScope(step.params.maxSteps, scope)
-                : 10;
+            const maxSteps = Math.min(
+                step.params.maxSteps
+                    ? evaluateExpressionAgainstScope(
+                          step.params.maxSteps,
+                          scope,
+                      )
+                    : options.policies.tokenBudgetPolicy.maxAgentSteps,
+                options.policies.tokenBudgetPolicy.maxAgentSteps,
+            );
             try {
                 const tools = resolveTools(agentConfig, step.params.tools);
                 const inputConstrainedTools = constrainToolSetInputs(
                     tools,
                     step.params.inputConstraints,
                 );
-                const output = await executionContext.step(
-                    uniqueStepIdPath,
-                    () =>
-                        runLanguageModel({
-                            model: agentConfig.model,
-                            tools: inputConstrainedTools,
-                            instructions: step.params.instructions,
-                            outputFormat: jsonSchemaToType(
-                                step.params.outputFormat as Parameters<
-                                    typeof jsonSchemaToType
-                                >[0],
-                            ),
-                            maxSteps,
-                        }),
+                const outputFormat = jsonSchemaToType(
+                    step.params.outputFormat as Parameters<
+                        typeof jsonSchemaToType
+                    >[0],
                 );
-                yield {
-                    scope: { ...scope, [step.id]: output },
-                    output: null,
-                    error: null,
-                };
+                const toolApproval =
+                    options.approvalPolicies.length > 0
+                        ? approvalPoliciesToAISDKToolApprovalConfig(
+                              options.approvalPolicies,
+                          )
+                        : undefined;
+
+                let messages: ModelMessage[] = [
+                    { role: "user", content: step.params.instructions },
+                ];
+                let spentSteps = 0;
+
+                for (let turn = 0; ; turn++) {
+                    const remainingSteps = maxSteps - spentSteps;
+                    if (remainingSteps < 1) {
+                        yield {
+                            scope: null,
+                            output: null,
+                            error: {
+                                code: "AGENT_RUN_FAILED",
+                                path: [
+                                    "steps",
+                                    stepIndex(workflowDefinition, step.id),
+                                ],
+                                message: `Agent exhausted its step budget of ${maxSteps}.`,
+                            },
+                        };
+                        return;
+                    }
+
+                    const record = await executionContext.step(
+                        [
+                            ...uniqueStepIdPath,
+                            RESERVED_SEGMENT,
+                            "turn",
+                            String(turn),
+                        ],
+                        () =>
+                            runLanguageModelTurn({
+                                model: agentConfig.model,
+                                messages,
+                                tools: inputConstrainedTools,
+                                outputFormat,
+                                toolApproval,
+                                maxSteps: remainingSteps,
+                                maxInputTokens:
+                                    options.policies.tokenBudgetPolicy
+                                        .maxContextTokens,
+                            }),
+                    );
+
+                    spentSteps += record.modelStepsUsed;
+                    messages = [...messages, ...record.turnMessages];
+
+                    if (record.status === "complete") {
+                        yield {
+                            scope: { ...scope, [step.id]: record.output },
+                            output: null,
+                            error: null,
+                        };
+                        return;
+                    }
+
+                    if (
+                        record.status === "step-budget-exhausted" ||
+                        record.status === "stalled"
+                    ) {
+                        yield {
+                            scope: null,
+                            output: null,
+                            error: {
+                                code: "AGENT_RUN_FAILED",
+                                path: [
+                                    "steps",
+                                    stepIndex(workflowDefinition, step.id),
+                                ],
+                                message:
+                                    record.status === "stalled"
+                                        ? `Agent stalled with unresolved tool calls: ${record.unresolvedToolCallIds.join(", ")}.`
+                                        : `Agent exhausted its step budget of ${maxSteps}.`,
+                            },
+                        };
+                        return;
+                    }
+
+                    if (spentSteps >= maxSteps) {
+                        yield {
+                            scope: null,
+                            output: null,
+                            error: {
+                                code: "AGENT_RUN_FAILED",
+                                path: [
+                                    "steps",
+                                    stepIndex(workflowDefinition, step.id),
+                                ],
+                                message:
+                                    "Agent exhausted its step budget with a tool call still awaiting approval.",
+                            },
+                        };
+                        return;
+                    }
+
+                    const turnPath = [
+                        ...uniqueStepIdPath,
+                        RESERVED_SEGMENT,
+                        "turn",
+                        String(turn),
+                    ];
+                    const responseParts = yield* resolveApprovalRequests({
+                        scope,
+                        approvals: record.approvals,
+                        executionContext,
+                        userInterventionContext,
+                        basePath: turnPath,
+                    });
+                    messages = appendApprovalResponses(messages, responseParts);
+                }
             } catch (e) {
                 rethrowIfUnrecoverable(e);
                 const errorMessage = e instanceof Error ? e.message : String(e);
@@ -271,6 +394,7 @@ export const stepExecutors: StepExecutorMap = {
             executionContext,
             agentConfig,
             workflowDefinition,
+            options,
         }) {
             try {
                 const rawSourceData = evaluateExpressionAgainstScope(
@@ -279,7 +403,8 @@ export const stepExecutors: StepExecutorMap = {
                 );
                 const { prompt: dataPrompt, tools } =
                     createDataPresentationResources(rawSourceData, {
-                        maxDataTokens: 8192,
+                        maxDataTokens:
+                            options.policies.tokenBudgetPolicy.maxDataTokens,
                     });
                 const prompt = dedent`
                     You are tasked with extracting information from the data below, and outputting it in a specifc format. ${Object.keys(tools).length > 0 ? "Use the information below as well as any provided tools to assist your answer." : ""}
@@ -300,7 +425,9 @@ export const stepExecutors: StepExecutorMap = {
                                     typeof jsonSchemaToType
                                 >[0],
                             ),
-                            maxSteps: 10,
+                            maxSteps:
+                                options.policies.tokenBudgetPolicy
+                                    .maxAgentSteps,
                         }),
                 );
                 yield {
@@ -344,6 +471,16 @@ export const stepExecutors: StepExecutorMap = {
                 scope,
             ) as unknown[];
             const loopOutput: unknown[] = [];
+
+            const { maxLoopIterations } = options.policies.structuralLimits;
+            if (maxLoopIterations > 0 && iterator.length > maxLoopIterations) {
+                throw new LoopIterationLimitExceededError(
+                    step.id,
+                    iterator.length,
+                    maxLoopIterations,
+                );
+            }
+
             for (const [iteratorIndex, iteratorElement] of iterator.entries()) {
                 const loopBodyStartScope: ExecutionScope = {
                     ...scope,
@@ -531,6 +668,8 @@ export const stepExecutors: StepExecutorMap = {
             workflowDefinition,
             agentConfig,
             executionContext,
+            options,
+            userInterventionContext
         }) {
             const tools = agentConfig.tools;
             const tool = tools[step.params.toolName as keyof typeof tools];
@@ -565,6 +704,17 @@ export const stepExecutors: StepExecutorMap = {
                     ],
                 ),
             );
+
+            yield* assertApprovalOfToolCallStep({
+                scope,
+                stepId: step.id,
+                toolName: step.params.toolName,
+                toolInput,
+                approvalPolicies: options.approvalPolicies,
+                executionContext, 
+                userInterventionContext,
+                uniqueStepIdPath
+            })
 
             try {
                 const toolOutput = await executionContext.step(

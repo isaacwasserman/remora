@@ -325,7 +325,7 @@ async function runCase(contractCase: ContractCase): Promise<ExecutionScope> {
         workflowDefinition,
         agentConfig,
         executionContext: createExecutionContext(
-            createInMemoryExecutionEngine().createRun("proc", "run"),
+            createInMemoryExecutionEngine().createRun(),
             testDurationPolicy(),
         ),
         userInterventionContext: createUserInverventionContext(

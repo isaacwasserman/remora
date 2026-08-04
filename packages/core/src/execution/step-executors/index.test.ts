@@ -29,7 +29,7 @@ import { stepExecutors } from ".";
 function makeContext(policyOverrides: Record<string, number> = {}) {
     const sleeps: number[] = [];
     const adapter = createInMemoryExecutionEngine();
-    const run = adapter.createRun("proc", "run");
+    const run = adapter.createRun("run");
     const recording: ExecutionRun = {
         ...run,
         step: (name, fn, options) => run.step(name, fn, options),

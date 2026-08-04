@@ -81,7 +81,6 @@ async function run(
             executionEngine: engine,
             ...extras,
         },
-        procedureId: "duration",
     });
     return { result, sleeps };
 }
@@ -100,7 +99,6 @@ async function runWith(
             silenceLogs: true,
             executionEngine: engine,
         },
-        procedureId: "duration",
     });
     return { result, sleeps };
 }
@@ -312,7 +310,6 @@ describe("the execution clock", () => {
                     },
                 },
             },
-            procedureId: "double-charge",
         });
         // 40s in the poll plus 40s after it is 80s of real work, inside a 100s
         // budget. Billed per level it would be 120s and the run would die.
@@ -377,7 +374,6 @@ describe("the poll interval floor", () => {
                     },
                 },
             },
-            procedureId: "poll-floor",
         });
         // Asserting the whole sequence, not `every(>= 60)`: a zero-length
         // sleep never reaches `run.sleep`, so it leaves no entry and a

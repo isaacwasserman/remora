@@ -86,13 +86,11 @@ export async function* executeWorkflowStream({
     workflowDefinition,
     agentConfig,
     executionOptions,
-    procedureId,
     runId,
 }: {
     workflowDefinition: WorkflowDefinition;
     agentConfig: AgentConfig;
     executionOptions: ExecutionOptions;
-    procedureId: string;
     runId?: string;
 }): AsyncGenerator<ExecutionState> {
     // TODO: Ensure workflow input is valid if applicable
@@ -139,7 +137,7 @@ export async function* executeWorkflowStream({
     };
 
     const executionContext = createExecutionContext(
-        resolvedExecutionOptions.executionEngine.createRun(procedureId, runId),
+        resolvedExecutionOptions.executionEngine.createRun(),
         policy.durationPolicy,
     );
 

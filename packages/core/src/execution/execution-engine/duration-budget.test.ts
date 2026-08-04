@@ -4,9 +4,9 @@ import {
     resolveDurationLimits,
 } from "../../duration-policy";
 import { remoraflowOptionsSchema } from "../../types";
-import { createDurableExecutionEngine } from "./durable-execution";
-import { createInMemoryCheckpointAdapter } from "./durable-execution/in-memory-adapter";
-import type { DurableExecutionAdapter } from "./durable-execution/types";
+import { createCheckpointingExecutionEngine } from "./checkpointing";
+import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
+import type { CheckpointStore } from "./checkpointing/types";
 import { createDurationBudget } from "./duration-budget";
 import { DurationLimitExceededError } from "./errors";
 import { createInMemoryExecutionEngine } from "./in-memory";
@@ -20,15 +20,15 @@ function limits(overrides: Record<string, number> = {}): DurationLimits {
 
 /** A budget over a throwaway run, for the clocks that need no replay. */
 function budgetWith(overrides: Record<string, number> = {}) {
-    const run = createInMemoryExecutionEngine().createRun("p", "r");
+    const run = createInMemoryExecutionEngine().createRun();
     return createDurationBudget(run, limits(overrides));
 }
 
 function resumableBudget(
-    store: DurableExecutionAdapter,
+    store: CheckpointStore,
     overrides: Record<string, number> = {},
 ) {
-    const run = createDurableExecutionEngine(store).createRun("p", "r");
+    const run = createCheckpointingExecutionEngine(store).createRun("r");
     return createDurationBudget(run, limits(overrides));
 }
 
@@ -103,7 +103,7 @@ describe("wall clock across a resume", () => {
     test("a resumed run inherits the original start rather than a fresh budget", async () => {
         // Time the host spent down still counts against the run. Re-anchoring
         // on resume would let a crash-looping run extend itself forever.
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         setSystemTime(new Date("2026-01-01T00:00:00Z"));
         const first = resumableBudget(store, { maxDurationSeconds: 600 });
         expect(await first.remainingDuration()).toBe(600);
@@ -118,7 +118,7 @@ describe("wall clock across a resume", () => {
         // recharges the original measurement rather than the ~0 the replay
         // itself takes. Without this the execution clock restarts at zero on
         // every resume and never binds.
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const first = resumableBudget(store, { maxExecutionSeconds: 100 });
         await first.chargeExecution(["slowStep"], 80);
         expect(first.remainingExecution()).toBe(20);
@@ -129,7 +129,7 @@ describe("wall clock across a resume", () => {
     });
 
     test("a step that has not run before charges its live measurement", async () => {
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const budget = resumableBudget(store, { maxExecutionSeconds: 100 });
         await budget.chargeExecution(["firstStep"], 10);
         await budget.chargeExecution(["secondStep"], 25);
@@ -137,7 +137,7 @@ describe("wall clock across a resume", () => {
     });
 
     test("the start anchor is recorded once, not per call", async () => {
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         setSystemTime(new Date("2026-01-01T00:00:00Z"));
         const budget = resumableBudget(store, { maxDurationSeconds: 600 });
         await budget.remainingDuration();
@@ -153,7 +153,7 @@ describe("charging a failed step", () => {
         // re-executes it. Recording the first attempt's cost would make every
         // later attempt replay that number instead of its own, and a run
         // crash-looping on one expensive step could never exhaust the budget.
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const first = resumableBudget(store, { maxExecutionSeconds: 500 });
         first.chargeUnrecordedExecution(100);
         expect(first.remainingExecution()).toBe(400);

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
 import { testDurationPolicy } from "../test-support";
+import { createCheckpointingExecutionEngine } from "./checkpointing";
+import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
+import type { CheckpointStore } from "./checkpointing/types";
 import { createExecutionContext } from "./context";
-import { createDurableExecutionEngine } from "./durable-execution";
-import { createInMemoryCheckpointAdapter } from "./durable-execution/in-memory-adapter";
-import type { DurableExecutionAdapter } from "./durable-execution/types";
 import { DurationLimitExceededError } from "./errors";
 
 /** Moves the clock as if the work took `seconds`, without waiting. */
@@ -12,11 +12,11 @@ function spend(seconds: number) {
 }
 
 function contextOver(
-    store: DurableExecutionAdapter,
+    store: CheckpointStore,
     overrides: Record<string, number>,
 ) {
     return createExecutionContext(
-        createDurableExecutionEngine(store).createRun("p", "r"),
+        createCheckpointingExecutionEngine(store).createRun("r"),
         testDurationPolicy(overrides),
     );
 }
@@ -32,7 +32,7 @@ describe("charging across a resume", () => {
         // retry would replay that number instead of its own and the clock would
         // be stuck at the first attempt's price.
         setSystemTime(new Date("2026-01-01T00:00:00Z"));
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const budgetSeconds = { maxExecutionSeconds: 50 };
 
         const first = contextOver(store, budgetSeconds);
@@ -57,7 +57,7 @@ describe("charging across a resume", () => {
 
     test("a replayed successful step recharges its recorded cost", async () => {
         setSystemTime(new Date("2026-01-01T00:00:00Z"));
-        const store = createInMemoryCheckpointAdapter();
+        const store = testingOnly_createInMemoryCheckpointStore();
         const budgetSeconds = { maxExecutionSeconds: 50 };
 
         const first = contextOver(store, budgetSeconds);

@@ -60,7 +60,6 @@ async function statusesOf(
                 userInterventionAdapter: options.userInterventionAdapter,
             }),
         },
-        procedureId: "waiting",
         runId: "run",
     })) {
         statuses.push(state.status);

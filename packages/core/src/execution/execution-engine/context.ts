@@ -35,7 +35,7 @@ export function createExecutionContext(
     run: ExecutionRun,
     policy: DurationPolicy,
 ): ExecutionContext {
-    const { procedureId, runId } = run.getExecutionInfo();
+    const { runId } = run.getExecutionInfo();
     const limits = resolveDurationLimits(policy);
     const budget = createDurationBudget(run, limits);
 
@@ -168,17 +168,17 @@ export function createExecutionContext(
                 ) *
                     1000,
         );
+        // Issued even when nothing is owed. A durable engine journals operations
+        // positionally, so a replay that skipped the delay would shift every
+        // later operation's key onto the wrong entry.
         const remainingMs = wakeAtMs - Date.now();
-        if (remainingMs > 0) {
-            await run.sleep(remainingMs / 1000);
-        }
+        await run.sleep(Math.max(0, remainingMs) / 1000);
     };
 
     // Deliberately not spreading `run`: that would put the unpoliced `step` and
     // `sleep` on this object, leaving the policed ones to win on property order
     // alone. Reordering these keys would then disable enforcement silently.
     return {
-        procedureId,
         runId,
         assertWithinBudget: budget.assertRemaining,
         step: policedStep,

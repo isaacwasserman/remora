@@ -16,7 +16,7 @@ export type WaitForOptions = {
 
 /** A single run of a workflow, as produced by {@link ExecutionEngine.createRun}. */
 export interface ExecutionRun {
-    getExecutionInfo(): { procedureId: string; runId: string };
+    getExecutionInfo(): { runId: string };
 
     step<T>(
         stepName: string,
@@ -38,7 +38,7 @@ export interface ExecutionEngine {
      * Binds this engine to a specific run. `runId` defaults to a fresh random
      * UUID when omitted.
      */
-    createRun(procedureId: string, runId?: string): ExecutionRun;
+    createRun(runId?: string): ExecutionRun;
 }
 
 /**
@@ -49,7 +49,6 @@ export interface ExecutionEngine {
 export type StepPath = string[];
 
 export type ExecutionContext = {
-    procedureId: string;
     runId: string;
 
     /**

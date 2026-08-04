@@ -3,7 +3,7 @@ import { createInMemoryExecutionEngine } from ".";
 
 describe("in-memory execution engine", () => {
     test("a step executes every time it is reached", async () => {
-        const run = createInMemoryExecutionEngine().createRun("p", "r");
+        const run = createInMemoryExecutionEngine().createRun();
         let calls = 0;
         const first = await run.step("s", async () => ++calls);
         const second = await run.step("s", async () => ++calls);
@@ -13,16 +13,16 @@ describe("in-memory execution engine", () => {
     test("re-invoking a run under the same ids re-executes rather than replaying", async () => {
         const engine = createInMemoryExecutionEngine();
         let calls = 0;
-        await engine.createRun("p", "r").step("s", async () => ++calls);
-        await engine.createRun("p", "r").step("s", async () => ++calls);
+        await engine.createRun("r").step("s", async () => ++calls);
+        await engine.createRun("r").step("s", async () => ++calls);
         expect(calls).toBe(2);
     });
 
     test("checkpointing: true records results so a resumed run replays them", async () => {
         const engine = createInMemoryExecutionEngine({ checkpointing: true });
         let calls = 0;
-        await engine.createRun("p", "r").step("s", async () => ++calls);
-        await engine.createRun("p", "r").step("s", async () => ++calls);
+        await engine.createRun("r").step("s", async () => ++calls);
+        await engine.createRun("r").step("s", async () => ++calls);
         expect(calls).toBe(1);
     });
 
@@ -30,7 +30,7 @@ describe("in-memory execution engine", () => {
         // The mirror image of the durable engine's stability guarantee: without
         // checkpointing, an id minted inside a step is minted afresh on every
         // attempt.
-        const run = createInMemoryExecutionEngine().createRun("p", "r");
+        const run = createInMemoryExecutionEngine().createRun();
         const seen: string[] = [];
         let attempts = 0;
         await run.step(

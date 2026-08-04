@@ -52,7 +52,6 @@ async function runWorkflow(
         workflowDefinition: workflow(...steps),
         agentConfig,
         executionOptions: { silenceLogs: true },
-        procedureId: "llm-steps",
     })) {
         last = state;
     }
@@ -173,7 +172,7 @@ async function runAgentLoopStep(
         workflowDefinition: workflow(agentStep),
         agentConfig,
         executionContext: createExecutionContext(
-            createInMemoryExecutionEngine().createRun("proc", "run"),
+            createInMemoryExecutionEngine().createRun("run"),
             testDurationPolicy(),
         ),
         userInterventionContext: createUserInverventionContext(

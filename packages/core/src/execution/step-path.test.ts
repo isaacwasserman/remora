@@ -9,9 +9,9 @@ import {
 } from "../types";
 import { step, workflow } from "../workflow-fixtures";
 import { _executeWorkflow } from "./execute-workflow";
+import { createCheckpointingExecutionEngine } from "./execution-engine/checkpointing";
+import { testingOnly_createInMemoryCheckpointStore } from "./execution-engine/checkpointing/in-memory-store";
 import { createExecutionContext } from "./execution-engine/context";
-import { createDurableExecutionEngine } from "./execution-engine/durable-execution";
-import { createInMemoryCheckpointAdapter } from "./execution-engine/durable-execution/in-memory-adapter";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import { RESERVED_SEGMENT } from "./execution-engine/step-path";
 import { createMockModel, testDurationPolicy } from "./test-support";
@@ -64,7 +64,7 @@ async function runCapturingStepKeys(
     workflowDefinition: WorkflowDefinition,
     tools: ToolSet,
 ) {
-    const backing = createInMemoryCheckpointAdapter();
+    const backing = testingOnly_createInMemoryCheckpointStore();
     const stepKeys: string[] = [];
     const reservedKeys: string[] = [];
     const store = {
@@ -92,7 +92,7 @@ async function runCapturingStepKeys(
         initialScope: {},
         agentConfig,
         executionContext: createExecutionContext(
-            createDurableExecutionEngine(store).createRun("p", "r"),
+            createCheckpointingExecutionEngine(store).createRun("r"),
             testDurationPolicy(),
         ),
         userInterventionContext: createUserInverventionContext(

@@ -1,9 +1,10 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
 import type {
     AgentConfig,
-    RemoraflowOptions,
+    RemoraflowOptions as RemoraflowSettings,
     ResolvedRemoraflowOptions,
 } from "../types";
+import type { ApprovalPolicy } from "./approval-policies/types";
 import type {
     ExecutionContext,
     ExecutionEngine,
@@ -27,7 +28,9 @@ export type ExecutionError = {
         | "WAIT_FOR_CONDITION_FAILED"
         | "ASK_SUPERVISOR_ERROR"
         | "DURATION_LIMIT_EXCEEDED"
+        | "LOOP_ITERATION_LIMIT_EXCEEDED"
         | "TYPE_ERROR"
+        | "POLICY_DENIED"
         | "UNKNOWN";
     message: string;
     path?: PropertyKey[];
@@ -38,28 +41,17 @@ export type LogLine = {
     text: string;
 };
 
-/**
- * Host wiring plus the policy. Every limit lives in `policy` — there are no
- * limit fields alongside it, so a bound cannot be set in two places and
- * disagree with itself.
- */
 export type ExecutionOptions = {
-    /** Resolved once by the executor and shared with the validation pass. */
-    policy?: RemoraflowOptions;
+    settings?: RemoraflowSettings;
     executionEngine?: ExecutionEngine;
     userInterventionAdapter?: UserInterventionAdapter;
-    silenceLogs?: boolean;
+    approvalPolicies?: ApprovalPolicy[];
 };
 
 export type ResolvedExecutionOptions = Required<
     Omit<ExecutionOptions, "policy">
-> & { policy: ResolvedRemoraflowOptions };
+> & { policies: ResolvedRemoraflowOptions };
 
-/**
- * Non-terminal statuses. The run is still live in every case — the waiting ones
- * exist so a host can tell a run that is deliberately blocked from one that has
- * hung, and report *what* it is blocked on.
- */
 export type RunningExecutionStatus =
     | "in-progress"
     /** Serving a `sleep` step's delay. */
