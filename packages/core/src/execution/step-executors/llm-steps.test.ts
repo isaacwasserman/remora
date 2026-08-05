@@ -46,7 +46,7 @@ async function runWorkflow(
     let last: ExecutionState | undefined;
     for await (const state of executeWorkflowStream({
         workflowDefinition: workflow(...steps),
-        agentConfig,
+        tools: agentConfig.tools, model: agentConfig.model,
         executionOptions: { silenceLogs: true },
     })) {
         last = state;
@@ -166,7 +166,9 @@ async function runAgentLoopStep(
         step: agentStep,
         scope: {},
         workflowDefinition: workflow(agentStep),
-        agentConfig,
+        tools: agentConfig.tools, model: agentConfig.model,
+        settings: remoraflowSettingsSchema.assert({}),
+        approvalPolicies: [],
         executionContext: createExecutionContext(
             createInMemoryExecutionEngine().createRun("run"),
             testPolicies(),
@@ -174,13 +176,6 @@ async function runAgentLoopStep(
         userInterventionContext: createUserInverventionContext(
             defaultUserInterventionAdapter,
         ),
-        options: {
-            silenceLogs: true,
-            policies: remoraflowSettingsSchema.assert({}),
-            approvalPolicies: [],
-            executionEngine: createInMemoryExecutionEngine(),
-            userInterventionAdapter: defaultUserInterventionAdapter,
-        },
     })) {
         last = update;
     }

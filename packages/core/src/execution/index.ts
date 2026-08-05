@@ -1,8 +1,13 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
-import { type AgentConfig, remoraflowSettingsSchema } from "../types";
+import {
+    type LanguageModel,
+    type ToolSet,
+    remoraflowSettingsSchema,
+} from "../types";
 import { buildStepIndex } from "../utils";
 import { validateWorkflowDefinition } from "../validation";
 import type { ValidatorError } from "../validation/types";
+import type { ApprovalPolicy } from "./approval-policies/types";
 import { createExecutionContext } from "./execution-engine/context";
 import { UnrecoverableExecutionError } from "./execution-engine/errors";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
@@ -14,7 +19,6 @@ import type {
     ExecutionScope,
     ExecutionState,
     LogLine,
-    ResolvedExecutionOptions,
     StepExecutionUpdate,
     StepExecutor,
 } from "./types";
@@ -27,18 +31,22 @@ import {
 export async function* _executeWorkflow({
     workflowDefinition,
     initialScope,
-    agentConfig,
+    tools,
+    model,
+    settings,
+    approvalPolicies,
     executionContext,
     userInterventionContext,
-    executionOptions,
     uniqueStepIdPath,
 }: {
     workflowDefinition: WorkflowDefinition;
     initialScope: ExecutionScope;
-    agentConfig: AgentConfig;
+    tools: ToolSet;
+    model: LanguageModel;
+    settings: ReturnType<typeof remoraflowSettingsSchema.assert>;
+    approvalPolicies: ApprovalPolicy[];
     executionContext: ExecutionContext;
     userInterventionContext: UserInterventionContext;
-    executionOptions: ResolvedExecutionOptions;
     uniqueStepIdPath: StepPath;
 }): AsyncGenerator<StepExecutionUpdate> {
     const stepsById = buildStepIndex(workflowDefinition);
@@ -53,18 +61,18 @@ export async function* _executeWorkflow({
         const stepExecutor = stepExecutors[currentStep.type] as StepExecutor;
         let lastUpdate: StepExecutionUpdate | undefined;
         try {
-            // Checked here rather than before the step is resolved so an
-            // overage can name the step the run refused to start.
             await executionContext.assertWithinDurationBudget();
             for await (const update of stepExecutor.execute({
                 uniqueStepIdPath: [...uniqueStepIdPath, currentStep.id],
                 step: currentStep,
                 scope,
                 workflowDefinition,
-                agentConfig,
+                tools,
+                model,
+                settings,
+                approvalPolicies,
                 executionContext,
                 userInterventionContext,
-                options: executionOptions,
             })) {
                 if (update.error) {
                     yield update;
@@ -77,10 +85,6 @@ export async function* _executeWorkflow({
             if (!(error instanceof UnrecoverableExecutionError)) {
                 throw error;
             }
-            // Raised beneath the generator, where there is no update to yield.
-            // Rejoining the update channel at the frame that knows which step
-            // was running is what gives the error a `path`; a nested run's
-            // enclosing block step then forwards it unchanged.
             yield {
                 scope,
                 output: null,
@@ -108,23 +112,25 @@ export async function* _executeWorkflow({
 
 export async function* executeWorkflowStream({
     workflowDefinition,
-    agentConfig,
+    tools,
+    model,
     executionOptions,
 }: {
     workflowDefinition: WorkflowDefinition;
-    agentConfig: AgentConfig;
-    executionOptions: ExecutionOptions;
+    tools: ToolSet;
+    model: LanguageModel;
+    executionOptions?: ExecutionOptions;
 }): AsyncGenerator<ExecutionState> {
-    // TODO: Ensure workflow input is valid if applicable
-    // TODO: Ensure workflow output is valid if applicable
-    const policy = remoraflowSettingsSchema.assert(
+    const settings = remoraflowSettingsSchema.assert(
         executionOptions?.settings ?? {},
     );
+    const approvalPolicies = executionOptions?.approvalPolicies ?? [];
+    const silenceLogs = executionOptions?.silenceLogs ?? false;
 
     const { isValid, diagnostics: validationDiagnostics } =
         validateWorkflowDefinition(workflowDefinition, {
-            tools: agentConfig.tools,
-            options: policy,
+            tools,
+            options: settings,
         });
 
     if (!isValid) {
@@ -145,25 +151,17 @@ export async function* executeWorkflowStream({
         return;
     }
 
-    const silenceLogs = executionOptions?.silenceLogs ?? false;
-    const resolvedExecutionOptions = {
-        policies: policy,
-        approvalPolicies: executionOptions?.approvalPolicies ?? [],
-        executionEngine:
-            executionOptions?.executionEngine ??
-            createInMemoryExecutionEngine(),
-        userInterventionAdapter:
-            executionOptions?.userInterventionAdapter ??
-            defaultUserInterventionAdapter,
-    };
+    const executionEngine =
+        executionOptions?.executionEngine ?? createInMemoryExecutionEngine();
 
     const executionContext = createExecutionContext(
-        resolvedExecutionOptions.executionEngine.createRun(),
-        { duration: policy.duration, retry: policy.stepRetry },
+        executionEngine.createRun(),
+        { duration: settings.duration, retry: settings.stepRetry },
     );
 
     const userInterventionContext = createUserInverventionContext(
-        resolvedExecutionOptions.userInterventionAdapter,
+        executionOptions?.userInterventionAdapter ??
+            defaultUserInterventionAdapter,
     );
 
     let latestUpdate: StepExecutionUpdate | null = null;
@@ -174,8 +172,10 @@ export async function* executeWorkflowStream({
             () =>
                 _executeWorkflow({
                     workflowDefinition,
-                    agentConfig,
-                    executionOptions: resolvedExecutionOptions,
+                    tools,
+                    model,
+                    settings,
+                    approvalPolicies,
                     initialScope: {},
                     executionContext,
                     userInterventionContext,
@@ -183,11 +183,8 @@ export async function* executeWorkflowStream({
                 }),
             {
                 silence: silenceLogs,
-                maxLogLineLength:
-                    resolvedExecutionOptions.policies.logLimits
-                        .maxLogLineLength,
-                maxLogLines:
-                    resolvedExecutionOptions.policies.logLimits.maxLogLines,
+                maxLogLineLength: settings.logLimits.maxLogLineLength,
+                maxLogLines: settings.logLimits.maxLogLines,
             },
         )) {
             latestUpdate = captured.objective;
@@ -224,9 +221,8 @@ export async function* executeWorkflowStream({
                 scope: latestUpdate?.scope ?? {},
             };
             return;
-        } else {
-            throw error;
         }
+        throw error;
     }
     yield {
         status: "success",

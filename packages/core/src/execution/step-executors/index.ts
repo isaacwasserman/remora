@@ -1,7 +1,7 @@
 import { jsonSchemaToType } from "@ark/json-schema";
 import dedent from "dedent";
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
-import type { AgentConfig, AnyTool, ToolSet } from "../../types";
+import type { AnyTool, ToolSet } from "../../types";
 import { _executeWorkflow } from "..";
 import {
     approvalPoliciesToAISDKToolApprovalConfig,
@@ -33,9 +33,9 @@ type StepExecutorMap = {
     [T in WorkflowStep["type"]]: StepExecutor<T>;
 };
 
-function resolveTools(agentConfig: AgentConfig, tools: string[]): ToolSet {
-    const resolvedTools = tools.map(
-        (toolName) => [toolName, agentConfig.tools[toolName]] as const,
+function resolveTools(allTools: ToolSet, toolNames: string[]): ToolSet {
+    const resolvedTools = toolNames.map(
+        (toolName) => [toolName, allTools[toolName]] as const,
     );
     for (const [toolName, resolvedTool] of resolvedTools) {
         if (!resolvedTool) {
@@ -63,10 +63,9 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             workflowDefinition,
-            agentConfig,
+            tools, model, settings, approvalPolicies,
             executionContext,
             userInterventionContext,
-            options,
         }) {
             const maxSteps = Math.min(
                 step.params.maxSteps
@@ -74,13 +73,13 @@ export const stepExecutors: StepExecutorMap = {
                           step.params.maxSteps,
                           scope,
                       )
-                    : options.policies.tokenBudgets.maxAgentSteps,
-                options.policies.tokenBudgets.maxAgentSteps,
+                    : settings.tokenBudgets.maxAgentSteps,
+                settings.tokenBudgets.maxAgentSteps,
             );
             try {
-                const tools = resolveTools(agentConfig, step.params.tools);
+                const resolvedTools = resolveTools(tools, step.params.tools);
                 const inputConstrainedTools = constrainToolSetInputs(
-                    tools,
+                    resolvedTools,
                     step.params.inputConstraints,
                 );
                 const outputFormat = jsonSchemaToType(
@@ -89,9 +88,9 @@ export const stepExecutors: StepExecutorMap = {
                     >[0],
                 );
                 const toolApproval =
-                    options.approvalPolicies.length > 0
+                    approvalPolicies.length > 0
                         ? approvalPoliciesToAISDKToolApprovalConfig(
-                              options.approvalPolicies,
+                              approvalPolicies,
                           )
                         : undefined;
 
@@ -127,14 +126,14 @@ export const stepExecutors: StepExecutorMap = {
                         ],
                         () =>
                             runLanguageModelTurn({
-                                model: agentConfig.model,
+                                model: model,
                                 messages,
                                 tools: inputConstrainedTools,
                                 outputFormat,
                                 toolApproval,
                                 maxSteps: remainingSteps,
                                 maxInputTokens:
-                                    options.policies.tokenBudgets
+                                    settings.tokenBudgets
                                         .maxContextTokens,
                             }),
                     );
@@ -392,9 +391,8 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             executionContext,
-            agentConfig,
+            tools, model, settings,
             workflowDefinition,
-            options,
         }) {
             try {
                 const rawSourceData = evaluateExpressionAgainstScope(
@@ -404,7 +402,7 @@ export const stepExecutors: StepExecutorMap = {
                 const { prompt: dataPrompt, tools } =
                     createDataPresentationResources(rawSourceData, {
                         maxDataTokens:
-                            options.policies.tokenBudgets.maxDataTokens,
+                            settings.tokenBudgets.maxDataTokens,
                     });
                 const prompt = dedent`
                     You are tasked with extracting information from the data below, and outputting it in a specifc format. ${Object.keys(tools).length > 0 ? "Use the information below as well as any provided tools to assist your answer." : ""}
@@ -417,7 +415,7 @@ export const stepExecutors: StepExecutorMap = {
                     uniqueStepIdPath,
                     () =>
                         runLanguageModel({
-                            model: agentConfig.model,
+                            model: model,
                             tools: tools as ToolSet,
                             instructions: prompt,
                             outputFormat: jsonSchemaToType(
@@ -426,7 +424,7 @@ export const stepExecutors: StepExecutorMap = {
                                 >[0],
                             ),
                             maxSteps:
-                                options.policies.tokenBudgets
+                                settings.tokenBudgets
                                     .maxAgentSteps,
                         }),
                 );
@@ -456,10 +454,9 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             workflowDefinition,
-            agentConfig,
+            tools, model, settings, approvalPolicies,
             executionContext,
             userInterventionContext,
-            options,
             uniqueStepIdPath,
         }) {
             const subworkflowDefinition: WorkflowDefinition = {
@@ -472,7 +469,7 @@ export const stepExecutors: StepExecutorMap = {
             ) as unknown[];
             const loopOutput: unknown[] = [];
 
-            const { maxLoopIterations } = options.policies.structuralLimits;
+            const { maxLoopIterations } = settings.structuralLimits;
             if (maxLoopIterations > 0 && iterator.length > maxLoopIterations) {
                 throw new LoopIterationLimitExceededError(
                     step.id,
@@ -490,10 +487,10 @@ export const stepExecutors: StepExecutorMap = {
                 for await (const update of _executeWorkflow({
                     workflowDefinition: subworkflowDefinition,
                     initialScope: loopBodyStartScope,
-                    agentConfig,
+                    tools, model,
                     executionContext,
                     userInterventionContext,
-                    executionOptions: options,
+                    settings, approvalPolicies,
                     uniqueStepIdPath: [
                         ...uniqueStepIdPath,
                         String(iteratorIndex),
@@ -526,7 +523,7 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             workflowDefinition,
-            agentConfig,
+            tools, model,
             executionContext,
         }) {
             try {
@@ -534,7 +531,7 @@ export const stepExecutors: StepExecutorMap = {
                     uniqueStepIdPath,
                     () =>
                         runLanguageModel({
-                            model: agentConfig.model,
+                            model: model,
                             tools: {},
                             instructions: step.params.prompt,
                             outputFormat: jsonSchemaToType(
@@ -592,10 +589,9 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             workflowDefinition,
-            agentConfig,
+            tools, model, settings, approvalPolicies,
             executionContext,
             userInterventionContext,
-            options,
             uniqueStepIdPath,
         }) {
             const branchingValue = evaluateExpressionAgainstScope(
@@ -635,10 +631,10 @@ export const stepExecutors: StepExecutorMap = {
             for await (const update of _executeWorkflow({
                 workflowDefinition: subworkflowDefinition,
                 initialScope: scope,
-                agentConfig,
+                tools, model,
                 executionContext,
                 userInterventionContext,
-                executionOptions: options,
+                settings, approvalPolicies,
                 uniqueStepIdPath: [
                     ...uniqueStepIdPath,
                     String(selectedCaseIndex),
@@ -666,13 +662,12 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             workflowDefinition,
-            agentConfig,
+            tools, model, settings, approvalPolicies,
             executionContext,
-            options,
             userInterventionContext
         }) {
-            const tools = agentConfig.tools;
-            const tool = tools[step.params.toolName as keyof typeof tools];
+            const allTools = tools;
+            const tool = allTools[step.params.toolName as keyof typeof tools];
             if (!tool) {
                 yield {
                     scope: null,
@@ -710,7 +705,7 @@ export const stepExecutors: StepExecutorMap = {
                 stepId: step.id,
                 toolName: step.params.toolName,
                 toolInput,
-                approvalPolicies: options.approvalPolicies,
+                approvalPolicies: approvalPolicies,
                 executionContext, 
                 userInterventionContext,
                 uniqueStepIdPath
@@ -751,10 +746,9 @@ export const stepExecutors: StepExecutorMap = {
             step,
             scope,
             workflowDefinition,
-            agentConfig,
+            tools, model, settings, approvalPolicies,
             executionContext,
             userInterventionContext,
-            options,
             uniqueStepIdPath,
         }) {
             const evalNumber = (
@@ -799,10 +793,10 @@ export const stepExecutors: StepExecutorMap = {
                         for await (const update of _executeWorkflow({
                             workflowDefinition: conditionChain,
                             initialScope: scope,
-                            agentConfig,
+                            tools, model,
                             executionContext,
                             userInterventionContext,
-                            executionOptions: options,
+                            settings, approvalPolicies,
                             // The attempt is part of the path so each poll
                             // re-runs the chain instead of replaying the first
                             // attempt's recorded step results.

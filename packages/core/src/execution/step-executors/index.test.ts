@@ -12,12 +12,7 @@ import { createExecutionContext } from "../execution-engine/context";
 import { createInMemoryExecutionEngine } from "../execution-engine/in-memory";
 import type { ExecutionContext, ExecutionRun } from "../execution-engine/types";
 import { createMockModel, testPolicies } from "../test-support";
-import type {
-    ExecutionError,
-    ExecutionScope,
-    ResolvedExecutionOptions,
-    StepExecutor,
-} from "../types";
+import type { ExecutionError, ExecutionScope, StepExecutor } from "../types";
 import { defaultUserInterventionAdapter } from "../user-intervention/default-adapter";
 import {
     createUserInverventionContext,
@@ -43,16 +38,6 @@ function makeContext(policyOverrides: Record<string, number> = {}) {
             testPolicies(policyOverrides),
         ),
         sleeps,
-    };
-}
-
-function makeOptions(): ResolvedExecutionOptions {
-    return {
-        policies: remoraflowSettingsSchema.assert({}),
-        approvalPolicies: [],
-        silenceLogs: true,
-        executionEngine: createInMemoryExecutionEngine(),
-        userInterventionAdapter: defaultUserInterventionAdapter,
     };
 }
 
@@ -87,10 +72,12 @@ async function runStep(
         step: workflowStep,
         scope,
         workflowDefinition,
-        agentConfig,
+        tools: agentConfig.tools,
+        model: agentConfig.model,
+        settings: remoraflowSettingsSchema.assert({}),
+        approvalPolicies: [],
         executionContext,
         userInterventionContext: createUserInverventionContext(intervention),
-        options: makeOptions(),
     })) {
         last = { scope: update.scope, error: update.error };
     }

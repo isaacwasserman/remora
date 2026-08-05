@@ -41,10 +41,8 @@ async function statusesOf(
     let last: ExecutionState | undefined;
     for await (const state of executeWorkflowStream({
         workflowDefinition,
-        agentConfig: {
-            tools: options.tools ?? {},
-            model: createMockModel([]),
-        },
+        tools: options.tools ?? {},
+        model: createMockModel([]),
         executionOptions: {
             // These fixtures poll on millisecond intervals and ask a
             // supervisor; the shipped defaults forbid both.
@@ -60,7 +58,6 @@ async function statusesOf(
                 userInterventionAdapter: options.userInterventionAdapter,
             }),
         },
-        runId: "run",
     })) {
         statuses.push(state.status);
         scopes.push(state.scope);

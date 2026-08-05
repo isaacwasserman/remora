@@ -1,8 +1,9 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
 import type {
-    AgentConfig,
+    LanguageModel,
     RemoraflowSettings,
     ResolvedRemoraflowSettings,
+    ToolSet,
 } from "../types";
 import type { ApprovalPolicy } from "./approval-policies/types";
 import type {
@@ -43,14 +44,11 @@ export type LogLine = {
 
 export type ExecutionOptions = {
     settings?: RemoraflowSettings;
+    approvalPolicies?: ApprovalPolicy[];
     executionEngine?: ExecutionEngine;
     userInterventionAdapter?: UserInterventionAdapter;
-    approvalPolicies?: ApprovalPolicy[];
+    silenceLogs?: boolean;
 };
-
-export type ResolvedExecutionOptions = Required<
-    Omit<ExecutionOptions, "policy">
-> & { policies: ResolvedRemoraflowSettings };
 
 export type RunningExecutionStatus =
     | "in-progress"
@@ -102,19 +100,18 @@ type StepOfType<T extends WorkflowStep["type"]> = Extract<
 >;
 
 export type StepExecutorArgs<TStepType extends WorkflowStep["type"]> = {
-    /**
-     * Identifies this step's execution within the run — the enclosing blocks'
-     * path plus the step id, so the same step in two loop iterations gets
-     * distinct step keys. @see {@link StepPath}
-     */
-    uniqueStepIdPath: StepPath;
     step: StepOfType<TStepType>;
     scope: ExecutionScope;
+    uniqueStepIdPath: StepPath;
     workflowDefinition: WorkflowDefinition;
-    agentConfig: AgentConfig;
+
+    tools: ToolSet;
+    model: LanguageModel;
+    settings: ResolvedRemoraflowSettings;
+    approvalPolicies: ApprovalPolicy[];
+
     executionContext: ExecutionContext;
     userInterventionContext: UserInterventionContext;
-    options: ResolvedExecutionOptions;
 };
 
 export interface StepExecutor<

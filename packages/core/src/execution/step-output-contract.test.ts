@@ -21,7 +21,7 @@ import { createExecutionContext } from "./execution-engine/context";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import { stepExecutors } from "./step-executors";
 import { createMockModel, testPolicies } from "./test-support";
-import type { ExecutionScope, ResolvedExecutionOptions } from "./types";
+import type { ExecutionScope } from "./types";
 import type { UserInterventionAdapter } from "./user-intervention/types";
 import { createUserInverventionContext } from "./user-intervention/types";
 
@@ -295,16 +295,6 @@ function typeScopeFor(runtimeScope: ExecutionScope): TypeScope {
     };
 }
 
-function makeOptions(): ResolvedExecutionOptions {
-    return {
-        silenceLogs: true,
-        policies: remoraflowSettingsSchema.assert({}),
-        approvalPolicies: [],
-        executionEngine: createInMemoryExecutionEngine(),
-        userInterventionAdapter: refusingIntervention(),
-    };
-}
-
 /** Runs a case's step under test and returns the scope it produced. */
 async function runCase(contractCase: ContractCase): Promise<ExecutionScope> {
     const [stepUnderTest] = contractCase.steps;
@@ -324,7 +314,10 @@ async function runCase(contractCase: ContractCase): Promise<ExecutionScope> {
         step: stepUnderTest as never,
         scope: contractCase.scope ?? {},
         workflowDefinition,
-        agentConfig,
+        tools: agentConfig.tools,
+        model: agentConfig.model,
+        settings: remoraflowSettingsSchema.assert({}),
+        approvalPolicies: [],
         executionContext: createExecutionContext(
             createInMemoryExecutionEngine().createRun(),
             testPolicies(),
@@ -332,7 +325,6 @@ async function runCase(contractCase: ContractCase): Promise<ExecutionScope> {
         userInterventionContext: createUserInverventionContext(
             contractCase.userInterventionAdapter ?? refusingIntervention(),
         ),
-        options: makeOptions(),
     })) {
         if (update.error) {
             throw new Error(

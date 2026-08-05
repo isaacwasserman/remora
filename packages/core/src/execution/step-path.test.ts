@@ -2,20 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { tool } from "ai";
 import { type } from "arktype";
 import type { WorkflowDefinition } from "../schema";
-import {
-    type AgentConfig,
-    remoraflowSettingsSchema,
-    type ToolSet,
-} from "../types";
+import { remoraflowSettingsSchema, type ToolSet } from "../types";
 import { step, workflow } from "../workflow-fixtures";
 import { _executeWorkflow } from ".";
 import { createCheckpointingExecutionEngine } from "./execution-engine/checkpointing";
 import { testingOnly_createInMemoryCheckpointStore } from "./execution-engine/checkpointing/in-memory-store";
 import { createExecutionContext } from "./execution-engine/context";
-import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import { RESERVED_SEGMENT } from "./execution-engine/step-path";
 import { createMockModel, testPolicies } from "./test-support";
-import type { ResolvedExecutionOptions, StepExecutionUpdate } from "./types";
+import type { StepExecutionUpdate } from "./types";
 import { defaultUserInterventionAdapter } from "./user-intervention/default-adapter";
 import { createUserInverventionContext } from "./user-intervention/types";
 
@@ -51,16 +46,6 @@ function countingToolset(readyOn = 1) {
     return { tools, counts };
 }
 
-function makeOptions(): ResolvedExecutionOptions {
-    return {
-        silenceLogs: true,
-        policies: remoraflowSettingsSchema.assert({}),
-        approvalPolicies: [],
-        executionEngine: createInMemoryExecutionEngine(),
-        userInterventionAdapter: defaultUserInterventionAdapter,
-    };
-}
-
 async function runCapturingStepKeys(
     workflowDefinition: WorkflowDefinition,
     tools: ToolSet,
@@ -85,13 +70,14 @@ async function runCapturingStepKeys(
         },
     };
 
-    const agentConfig: AgentConfig = { tools, model: createMockModel([]) };
-
     let last: StepExecutionUpdate | undefined;
     for await (const update of _executeWorkflow({
         workflowDefinition,
         initialScope: {},
-        agentConfig,
+        tools,
+        model: createMockModel([]),
+        settings: remoraflowSettingsSchema.assert({}),
+        approvalPolicies: [],
         executionContext: createExecutionContext(
             createCheckpointingExecutionEngine(store).createRun("r"),
             testPolicies(),
@@ -99,7 +85,6 @@ async function runCapturingStepKeys(
         userInterventionContext: createUserInverventionContext(
             defaultUserInterventionAdapter,
         ),
-        executionOptions: makeOptions(),
         uniqueStepIdPath: [],
     })) {
         if (update.error) throw new Error(update.error.message);

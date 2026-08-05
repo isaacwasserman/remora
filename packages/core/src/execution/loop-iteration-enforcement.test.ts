@@ -85,7 +85,7 @@ function run(
     };
     return executeWorkflow({
         workflowDefinition,
-        agentConfig: { tools, model: createMockModel([]) },
+        tools, model: createMockModel([]),
         executionOptions: { settings: policy, silenceLogs: true },
     });
 }
