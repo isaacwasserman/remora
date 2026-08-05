@@ -1,0 +1,93 @@
+import { rethrowIfUnrecoverable } from "../execution-engine/errors";
+import { evaluateExpressionAgainstScope } from "../expressions/expression";
+import type { StepExecutor } from "../types";
+import { assertApprovalOfToolCallStep } from "./approval-gate";
+import { stepIndex } from "./shared";
+import { runTool } from "./tool-runner";
+
+export const toolCallExecutor: StepExecutor<"tool-call"> = {
+    stepType: "tool-call",
+    execute: async function* ({
+        uniqueStepIdPath,
+        step,
+        scope,
+        workflowDefinition,
+        tools,
+        approvalPolicies,
+        executionContext,
+        userInterventionContext,
+    }) {
+        const allTools = tools;
+        const tool = allTools[step.params.toolName as keyof typeof tools];
+        if (!tool) {
+            yield {
+                scope: null,
+                output: null,
+                error: {
+                    code: "MISSING_TOOL",
+                    message: `Tool "${step.params.toolName}" could not be found in the provided toolset.`,
+                },
+            };
+            return;
+        }
+        const executionFunction = tool.execute;
+        if (!executionFunction) {
+            yield {
+                scope: null,
+                output: null,
+                error: {
+                    code: "MISSING_TOOL_EXECUTION_FUNCTION",
+                    message: `Tool "${step.params.toolName}" is missing its required execution function.`,
+                },
+            };
+            return;
+        }
+        const toolInput = Object.fromEntries(
+            Object.entries(step.params.toolInput).map(
+                ([paramName, paramExpression]) => [
+                    paramName,
+                    evaluateExpressionAgainstScope(paramExpression, scope),
+                ],
+            ),
+        );
+
+        yield* assertApprovalOfToolCallStep({
+            scope,
+            stepId: step.id,
+            toolName: step.params.toolName,
+            toolInput,
+            approvalPolicies: approvalPolicies,
+            executionContext,
+            userInterventionContext,
+            uniqueStepIdPath,
+        });
+
+        try {
+            const toolOutput = await executionContext.step(
+                uniqueStepIdPath,
+                () =>
+                    runTool(tool, toolInput, {
+                        toolCallId: step.id,
+                        messages: [],
+                    }),
+            );
+            yield {
+                scope: { ...scope, [step.id]: toolOutput },
+                output: null,
+                error: null,
+            };
+        } catch (e) {
+            rethrowIfUnrecoverable(e);
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            yield {
+                scope: null,
+                output: null,
+                error: {
+                    code: "TOOL_ERROR",
+                    path: ["steps", stepIndex(workflowDefinition, step.id)],
+                    message: `The "${step.params.toolName}" call within step "${step.id}" threw an error: "${errorMessage}".`,
+                },
+            };
+        }
+    },
+};
