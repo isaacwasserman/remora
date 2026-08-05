@@ -2,7 +2,7 @@ import { jsonSchemaToType } from "@ark/json-schema";
 import dedent from "dedent";
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
 import type { AnyTool, ToolSet } from "../../types";
-import { _executeWorkflow } from "..";
+import { _executeWorkflow } from "../run-workflow";
 import {
     approvalPoliciesToAISDKToolApprovalConfig,
     assertApprovalOfToolCallStep,
