@@ -4,14 +4,14 @@ import { type } from "arktype";
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
 import {
     type AgentConfig,
-    remoraflowOptionsSchema,
+    remoraflowSettingsSchema,
     type ToolSet,
 } from "../../types";
 import { step, workflow } from "../../workflow-fixtures";
 import { createExecutionContext } from "../execution-engine/context";
 import { createInMemoryExecutionEngine } from "../execution-engine/in-memory";
 import type { ExecutionContext, ExecutionRun } from "../execution-engine/types";
-import { createMockModel, testDurationPolicy } from "../test-support";
+import { createMockModel, testPolicies } from "../test-support";
 import type {
     ExecutionError,
     ExecutionScope,
@@ -40,7 +40,7 @@ function makeContext(policyOverrides: Record<string, number> = {}) {
     return {
         context: createExecutionContext(
             recording,
-            testDurationPolicy(policyOverrides),
+            testPolicies(policyOverrides),
         ),
         sleeps,
     };
@@ -48,7 +48,8 @@ function makeContext(policyOverrides: Record<string, number> = {}) {
 
 function makeOptions(): ResolvedExecutionOptions {
     return {
-        policy: remoraflowOptionsSchema.assert({}),
+        policies: remoraflowSettingsSchema.assert({}),
+        approvalPolicies: [],
         silenceLogs: true,
         executionEngine: createInMemoryExecutionEngine(),
         userInterventionAdapter: defaultUserInterventionAdapter,

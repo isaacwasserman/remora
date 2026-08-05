@@ -4,16 +4,12 @@ import type { MockLanguageModelV3 } from "ai/test";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import type { WorkflowStep } from "../../schema";
-import { type AgentConfig, remoraflowOptionsSchema } from "../../types";
+import { type AgentConfig, remoraflowSettingsSchema } from "../../types";
 import { step, workflow } from "../../workflow-fixtures";
-import { executeWorkflowStream } from "../execute-workflow";
+import { executeWorkflowStream } from "..";
 import { createExecutionContext } from "../execution-engine/context";
 import { createInMemoryExecutionEngine } from "../execution-engine/in-memory";
-import {
-    createMockModel,
-    failingModel,
-    testDurationPolicy,
-} from "../test-support";
+import { createMockModel, failingModel, testPolicies } from "../test-support";
 import type { ExecutionState, StepExecutionUpdate } from "../types";
 import { defaultUserInterventionAdapter } from "../user-intervention/default-adapter";
 import { createUserInverventionContext } from "../user-intervention/types";
@@ -173,14 +169,15 @@ async function runAgentLoopStep(
         agentConfig,
         executionContext: createExecutionContext(
             createInMemoryExecutionEngine().createRun("run"),
-            testDurationPolicy(),
+            testPolicies(),
         ),
         userInterventionContext: createUserInverventionContext(
             defaultUserInterventionAdapter,
         ),
         options: {
             silenceLogs: true,
-            policy: remoraflowOptionsSchema.assert({}),
+            policies: remoraflowSettingsSchema.assert({}),
+            approvalPolicies: [],
             executionEngine: createInMemoryExecutionEngine(),
             userInterventionAdapter: defaultUserInterventionAdapter,
         },

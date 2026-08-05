@@ -1,8 +1,8 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
 import type {
     AgentConfig,
-    RemoraflowOptions as RemoraflowSettings,
-    ResolvedRemoraflowOptions,
+    RemoraflowSettings,
+    ResolvedRemoraflowSettings,
 } from "../types";
 import type { ApprovalPolicy } from "./approval-policies/types";
 import type {
@@ -50,7 +50,7 @@ export type ExecutionOptions = {
 
 export type ResolvedExecutionOptions = Required<
     Omit<ExecutionOptions, "policy">
-> & { policies: ResolvedRemoraflowOptions };
+> & { policies: ResolvedRemoraflowSettings };
 
 export type RunningExecutionStatus =
     | "in-progress"

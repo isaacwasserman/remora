@@ -1,6 +1,6 @@
 import type { JSONSchema7Definition } from "json-schema";
 import type { WorkflowDefinition } from "../schema";
-import type { ResolvedRemoraflowOptions, ToolSet } from "../types";
+import type { ResolvedRemoraflowSettings, ToolSet } from "../types";
 
 export type ValidatorWarning = {
     severity: "warning";
@@ -22,7 +22,7 @@ export type ValidationContext = {
      * Resolved rather than raw, so every module reads the same effective policy
      * the runtime will enforce instead of re-deriving defaults of its own.
      */
-    options: ResolvedRemoraflowOptions;
+    options: ResolvedRemoraflowSettings;
 };
 
 export type ValidationModule = {

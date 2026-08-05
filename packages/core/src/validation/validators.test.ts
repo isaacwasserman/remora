@@ -4,8 +4,8 @@ import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import type { Expression, WorkflowDefinition, WorkflowStep } from "../schema";
 import {
-    type RemoraflowOptions,
-    remoraflowOptionsSchema,
+    type RemoraflowSettings,
+    remoraflowSettingsSchema,
     type ToolSet,
 } from "../types";
 import { step, workflow } from "../workflow-fixtures";
@@ -22,18 +22,18 @@ const tools: ToolSet = {
     known: tool({ inputSchema: type({}), execute: async () => 1 }),
 };
 
-const defaultOptions = remoraflowOptionsSchema.assert({});
+const defaultOptions = remoraflowSettingsSchema.assert({});
 
 const ctx = (
     toolSet: ToolSet = tools,
-    optionOverrides: RemoraflowOptions = {},
+    optionOverrides: RemoraflowSettings = {},
 ): ValidationContext => ({
     tools: toolSet,
-    options: remoraflowOptionsSchema.assert(optionOverrides),
+    options: remoraflowSettingsSchema.assert(optionOverrides),
 });
 
 /** Context for the step types the default options switch off. */
-const permissiveCtx = () => ctx(tools, { allowUserIntervention: true });
+const permissiveCtx = () => ctx(tools, { features: { allowUserIntervention: true } });
 
 /**
  * Input the type system would reject, standing in for the untrusted (typically
@@ -710,7 +710,7 @@ describe("block steps with nested chains", () => {
                     intervalMs: {
                         type: "literal",
                         value:
-                            defaultOptions.durationPolicy
+                            defaultOptions.duration
                                 .minPollIntervalSeconds * 1000,
                     },
                     ...overrides,
@@ -783,7 +783,7 @@ describe("block steps with nested chains", () => {
                     intervalMs: {
                         type: "literal",
                         value:
-                            defaultOptions.durationPolicy
+                            defaultOptions.duration
                                 .minPollIntervalSeconds * 1000,
                     },
                 },
@@ -992,7 +992,7 @@ describe("the poll interval floor at author time", () => {
     test("rejects a literal interval below minPollIntervalSeconds", () => {
         const { isValid } = validateWorkflowDefinition(
             withInterval(1_000),
-            ctx(tools, { durationPolicy: { minPollIntervalSeconds: 60 } }),
+            ctx(tools, { duration: { minPollIntervalSeconds: 60 } }),
         );
         expect(isValid).toBe(false);
     });
@@ -1000,7 +1000,7 @@ describe("the poll interval floor at author time", () => {
     test("accepts one at the floor", () => {
         const { diagnostics } = validateWorkflowDefinition(
             withInterval(60_000),
-            ctx(tools, { durationPolicy: { minPollIntervalSeconds: 60 } }),
+            ctx(tools, { duration: { minPollIntervalSeconds: 60 } }),
         );
         expect(errorsIn(diagnostics)).toEqual([]);
     });

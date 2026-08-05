@@ -107,7 +107,20 @@ export function unknownFailure(
     );
 }
 
-const durationPolicySchema = type({
+const featuresSchema = type({
+    allowUserIntervention: [
+        ["boolean", "@", 'whether to allow "request-intervention" steps'],
+        "=",
+        false,
+    ],
+    allowAgentLoops: [
+        ["boolean", "@", 'whether to allow "agent-loop" steps'],
+        "=",
+        true,
+    ],
+});
+
+const durationSchema = type({
     maxDurationSeconds: [
         [
             "number > 0",
@@ -160,7 +173,7 @@ const durationPolicySchema = type({
     ],
 });
 
-const stepRetryPolicySchema = type({
+const stepRetrySchema = type({
     maxAttempts: [
         [
             "number.integer",
@@ -182,13 +195,7 @@ const stepRetryPolicySchema = type({
     "shouldRetry?": type("Function").as<(errorMessage: string) => boolean>(),
 });
 
-const tokenUsageSchema = type({
-    "input?": ["number.integer >= 0"],
-    "output?": ["number.integer >= 0"],
-    "total?": ["number.integer >= 0"],
-});
-
-const tokenBudgetPolicySchema = type({
+const tokenBudgetsSchema = type({
     maxDataTokens: [
         [
             "number.integer > 0",
@@ -216,43 +223,39 @@ const tokenBudgetPolicySchema = type({
         "=",
         128_000,
     ],
-    "maxStepTokenUsage?": [
-        tokenUsageSchema,
-        "@",
-        "how many tokens may be used by any given step",
+});
+
+const structuralLimitsSchema = type({
+    maxSteps: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum number of steps that a workflow may contain (0 for unlimited)",
+        ],
+        "=",
+        0,
     ],
-    "maxTotalTokenUsage?": [
-        tokenUsageSchema,
-        "@",
-        "how many tokens may be used by a given run",
+    maxNestingDepth: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum nesting depth of steps within bodies of for-each and switch-case steps (0 for unlimited)",
+        ],
+        "=",
+        0,
+    ],
+    maxLoopIterations: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum number of iterations that a for-each step may have (0 for unlimited)",
+        ],
+        "=",
+        0,
     ],
 });
 
-export const remoraflowOptionsSchema = type({
-    allowUserIntervention: [
-        ["boolean", "@", 'whether to allow "request-intervention" steps'],
-        "=",
-        false,
-    ],
-    allowAgentLoops: [
-        ["boolean", "@", 'whether to allow "agent-loop" steps'],
-        "=",
-        true,
-    ],
-    durationPolicy: durationPolicySchema.default(() =>
-        durationPolicySchema.assert({}),
-    ),
-    stepRetryPolicy: stepRetryPolicySchema.default(() =>
-        stepRetryPolicySchema.assert({}),
-    ),
-    tokenBudgetPolicy: tokenBudgetPolicySchema.default(() =>
-        tokenBudgetPolicySchema.assert({}),
-    ),
-    maxToolOutputBytes: [
-        ["number.integer >= 0", "@", "maximum size of any given tool output"],
-        "=",
-        1024 * 1024 * 5,
-    ],
+const logLimitsSchema = type({
     maxLogLineLength: [
         [
             "number.integer >= 0",
@@ -273,5 +276,30 @@ export const remoraflowOptionsSchema = type({
     ],
 });
 
-export type RemoraflowOptions = typeof remoraflowOptionsSchema.inferIn;
-export type ResolvedRemoraflowOptions = typeof remoraflowOptionsSchema.inferOut;
+const toolExecutionLimitsSchema = type({
+    maxToolOutputBytes: [
+        ["number.integer >= 0", "@", "maximum size of any given tool output"],
+        "=",
+        1024 * 1024 * 5,
+    ],
+});
+
+export const remoraflowSettingsSchema = type({
+    features: featuresSchema.default(() => featuresSchema.assert({})),
+    duration: durationSchema.default(() => durationSchema.assert({})),
+    stepRetry: stepRetrySchema.default(() => stepRetrySchema.assert({})),
+    tokenBudgets: tokenBudgetsSchema.default(() =>
+        tokenBudgetsSchema.assert({}),
+    ),
+    structuralLimits: structuralLimitsSchema.default(() =>
+        structuralLimitsSchema.assert({}),
+    ),
+    logLimits: logLimitsSchema.default(() => logLimitsSchema.assert({})),
+    toolExecutionLimits: toolExecutionLimitsSchema.default(() =>
+        toolExecutionLimitsSchema.assert({}),
+    ),
+});
+
+export type RemoraflowSettings = typeof remoraflowSettingsSchema.inferIn;
+export type ResolvedRemoraflowSettings =
+    typeof remoraflowSettingsSchema.inferOut;

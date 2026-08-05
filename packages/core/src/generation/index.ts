@@ -1,7 +1,7 @@
 import type { WorkflowDefinition } from "../schema";
-import type { RemoraflowOptions, ToolSet } from "../types";
+import type { RemoraflowSettings, ToolSet } from "../types";
 
-export type GenerationOptions = RemoraflowOptions & {};
+export type GenerationOptions = RemoraflowSettings & {};
 
 export function generateWorkflow({
     taskDescription,
@@ -10,7 +10,7 @@ export function generateWorkflow({
 }: {
     taskDescription: string;
     tools: ToolSet;
-    options: RemoraflowOptions;
+    options: RemoraflowSettings;
 }): WorkflowDefinition {
     throw new Error("NOT IMPLEMENTED");
 }

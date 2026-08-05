@@ -74,8 +74,8 @@ export const stepExecutors: StepExecutorMap = {
                           step.params.maxSteps,
                           scope,
                       )
-                    : options.policies.tokenBudgetPolicy.maxAgentSteps,
-                options.policies.tokenBudgetPolicy.maxAgentSteps,
+                    : options.policies.tokenBudgets.maxAgentSteps,
+                options.policies.tokenBudgets.maxAgentSteps,
             );
             try {
                 const tools = resolveTools(agentConfig, step.params.tools);
@@ -134,7 +134,7 @@ export const stepExecutors: StepExecutorMap = {
                                 toolApproval,
                                 maxSteps: remainingSteps,
                                 maxInputTokens:
-                                    options.policies.tokenBudgetPolicy
+                                    options.policies.tokenBudgets
                                         .maxContextTokens,
                             }),
                     );
@@ -404,7 +404,7 @@ export const stepExecutors: StepExecutorMap = {
                 const { prompt: dataPrompt, tools } =
                     createDataPresentationResources(rawSourceData, {
                         maxDataTokens:
-                            options.policies.tokenBudgetPolicy.maxDataTokens,
+                            options.policies.tokenBudgets.maxDataTokens,
                     });
                 const prompt = dedent`
                     You are tasked with extracting information from the data below, and outputting it in a specifc format. ${Object.keys(tools).length > 0 ? "Use the information below as well as any provided tools to assist your answer." : ""}
@@ -426,7 +426,7 @@ export const stepExecutors: StepExecutorMap = {
                                 >[0],
                             ),
                             maxSteps:
-                                options.policies.tokenBudgetPolicy
+                                options.policies.tokenBudgets
                                     .maxAgentSteps,
                         }),
                 );

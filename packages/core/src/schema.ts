@@ -1,9 +1,9 @@
 import { jsonSchemaToType } from "@ark/json-schema";
 import { type Type, type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
-import { resolveDurationLimits } from "./duration-policy";
+import { resolveDurationLimits } from "./config/duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
-import type { ResolvedRemoraflowOptions } from "./types";
+import type { ResolvedRemoraflowSettings } from "./types";
 
 const jsonSchemaArktypeSchema = type("object")
     .narrow((schema, ctx) => {
@@ -139,9 +139,9 @@ const extractDataParamsSchema = type({
 );
 
 export function createWorkflowDefinitionSchema(
-    options: ResolvedRemoraflowOptions,
+    options: ResolvedRemoraflowSettings,
 ) {
-    const limits = resolveDurationLimits(options.durationPolicy);
+    const limits = resolveDurationLimits(options.duration);
     const maxSleepDurationMs = 1000 * limits.maxSleepSeconds;
     const sleepParamsSchema = type({
         type: "'sleep'",
@@ -239,12 +239,12 @@ export function createWorkflowDefinitionSchema(
                     assertLiteralExpressionConstraint(
                         expression,
                         type(
-                            `number <= ${options.tokenBudgetPolicy.maxAgentSteps}`,
+                            `number <= ${options.tokenBudgets.maxAgentSteps}`,
                         ),
                     ),
                 ),
                 "@",
-                `maximum number of tool-calling steps the agent may take; must be less than or equal to ${options.tokenBudgetPolicy.maxAgentSteps}`,
+                `maximum number of tool-calling steps the agent may take; must be less than or equal to ${options.tokenBudgets.maxAgentSteps}`,
             ],
         },
     }).describe(
@@ -320,10 +320,10 @@ export function createWorkflowDefinitionSchema(
         .or(startParamsSchema)
         .or(endSchema);
 
-    if (!options.allowAgentLoops) {
+    if (!options.features.allowAgentLoops) {
         stepParamsSchema = stepParamsSchema.exclude(agentLoopParamsSchema);
     }
-    if (!options.allowUserIntervention) {
+    if (!options.features.allowUserIntervention) {
         stepParamsSchema = stepParamsSchema.exclude(
             requestInterventionParamsSchema,
         );

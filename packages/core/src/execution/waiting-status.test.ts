@@ -3,7 +3,7 @@ import { tool } from "ai";
 import { type } from "arktype";
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
 import type { ToolSet } from "../types";
-import { executeWorkflowStream } from "./execute-workflow";
+import { executeWorkflowStream } from ".";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import { createMockModel } from "./test-support";
 import type { ExecutionState } from "./types";
@@ -48,9 +48,9 @@ async function statusesOf(
         executionOptions: {
             // These fixtures poll on millisecond intervals and ask a
             // supervisor; the shipped defaults forbid both.
-            policy: {
-                allowUserIntervention: true,
-                durationPolicy: { minPollIntervalSeconds: 0 },
+            settings: {
+                features: { allowUserIntervention: true },
+                duration: { minPollIntervalSeconds: 0 },
             },
             silenceLogs: true,
             executionEngine: createInMemoryExecutionEngine(),

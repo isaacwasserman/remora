@@ -8,7 +8,7 @@ import { inferJsonSchema } from "../schemistry";
 import {
     type AgentConfig,
     type LanguageModel,
-    remoraflowOptionsSchema,
+    remoraflowSettingsSchema,
     type ToolSet,
 } from "../types";
 import type { RemoraflowType } from "../validation/types";
@@ -20,7 +20,7 @@ import { step, workflow } from "../workflow-fixtures";
 import { createExecutionContext } from "./execution-engine/context";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
 import { stepExecutors } from "./step-executors";
-import { createMockModel, testDurationPolicy } from "./test-support";
+import { createMockModel, testPolicies } from "./test-support";
 import type { ExecutionScope, ResolvedExecutionOptions } from "./types";
 import type { UserInterventionAdapter } from "./user-intervention/types";
 import { createUserInverventionContext } from "./user-intervention/types";
@@ -298,7 +298,8 @@ function typeScopeFor(runtimeScope: ExecutionScope): TypeScope {
 function makeOptions(): ResolvedExecutionOptions {
     return {
         silenceLogs: true,
-        policy: remoraflowOptionsSchema.assert({}),
+        policies: remoraflowSettingsSchema.assert({}),
+        approvalPolicies: [],
         executionEngine: createInMemoryExecutionEngine(),
         userInterventionAdapter: refusingIntervention(),
     };
@@ -326,7 +327,7 @@ async function runCase(contractCase: ContractCase): Promise<ExecutionScope> {
         agentConfig,
         executionContext: createExecutionContext(
             createInMemoryExecutionEngine().createRun(),
-            testDurationPolicy(),
+            testPolicies(),
         ),
         userInterventionContext: createUserInverventionContext(
             contractCase.userInterventionAdapter ?? refusingIntervention(),

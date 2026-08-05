@@ -1,18 +1,27 @@
 import { MockLanguageModelV3 } from "ai/test";
-import type { DurationPolicy } from "../duration-policy";
-import { remoraflowOptionsSchema } from "../types";
+import type { DurationPolicy } from "../config/duration-policy";
+import type { RetryPolicy } from "../config/retry-policy";
+import { remoraflowSettingsSchema } from "../types";
 
 /**
- * A duration policy that stays out of the way, for tests about something else.
- * The shipped `minPollIntervalSeconds` floor is a minute, which would otherwise
- * stall every test that polls.
+ * Policies that stay out of the way, for tests about something else.
+ * `minPollIntervalSeconds` is zeroed so tests that poll don't stall.
  */
+export function testPolicies(overrides: Record<string, number> = {}): {
+    duration: DurationPolicy;
+    retry: RetryPolicy;
+} {
+    const options = remoraflowSettingsSchema.assert({
+        duration: { minPollIntervalSeconds: 0, ...overrides },
+    });
+    return { duration: options.duration, retry: options.stepRetry };
+}
+
+/** @deprecated Use {@link testPolicies} — returns only the duration policy. */
 export function testDurationPolicy(
     overrides: Record<string, number> = {},
 ): DurationPolicy {
-    return remoraflowOptionsSchema.assert({
-        durationPolicy: { minPollIntervalSeconds: 0, ...overrides },
-    }).durationPolicy;
+    return testPolicies(overrides).duration;
 }
 
 function textResult(text: string) {

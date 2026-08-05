@@ -4,13 +4,13 @@ import { type } from "arktype";
 import type { WorkflowDefinition } from "../schema";
 import {
     type AgentConfig,
-    type RemoraflowOptions,
-    remoraflowOptionsSchema,
+    type RemoraflowSettings,
+    remoraflowSettingsSchema,
     type ToolSet,
 } from "../types";
 import { validateWorkflowDefinition } from "../validation";
 import { step, workflow } from "../workflow-fixtures";
-import { executeWorkflow } from "./execute-workflow";
+import { executeWorkflow } from ".";
 import { runStep } from "./execution-engine/run-step";
 import type { ExecutionEngine } from "./execution-engine/types";
 import { createMockModel } from "./test-support";
@@ -68,7 +68,7 @@ function sleepWorkflow(
 
 async function run(
     workflowDefinition: WorkflowDefinition,
-    policy: RemoraflowOptions,
+    policy: RemoraflowSettings,
     extras: { userInterventionAdapter?: UserInterventionAdapter } = {},
 ) {
     const { engine, sleeps } = fastForwardEngine();
@@ -76,7 +76,7 @@ async function run(
         workflowDefinition,
         agentConfig,
         executionOptions: {
-            policy,
+            settings: policy,
             silenceLogs: true,
             executionEngine: engine,
             ...extras,
@@ -87,7 +87,7 @@ async function run(
 
 async function runWith(
     workflowDefinition: WorkflowDefinition,
-    policy: RemoraflowOptions,
+    policy: RemoraflowSettings,
     tools: ToolSet,
 ) {
     const { engine, sleeps } = fastForwardEngine();
@@ -95,7 +95,7 @@ async function runWith(
         workflowDefinition,
         agentConfig: { tools, model: createMockModel([]) },
         executionOptions: {
-            policy,
+            settings: policy,
             silenceLogs: true,
             executionEngine: engine,
         },
@@ -113,15 +113,15 @@ afterEach(() => {
  * is invisible to it and has to be caught at execution time instead.
  */
 describe("a sleep past maxSleepSeconds", () => {
-    const policy: RemoraflowOptions = {
-        durationPolicy: { maxSleepSeconds: 60 },
+    const policy: RemoraflowSettings = {
+        duration: { maxSleepSeconds: 60 },
     };
     const overBoundMs = 600_000;
 
     test("is rejected by standalone validation when authored as a literal", () => {
         const { isValid, diagnostics } = validateWorkflowDefinition(
             sleepWorkflow(overBoundMs),
-            { tools: {}, options: remoraflowOptionsSchema.assert(policy) },
+            { tools: {}, options: remoraflowSettingsSchema.assert(policy) },
         );
         expect(isValid).toBe(false);
         expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
@@ -164,11 +164,15 @@ describe("run-level budgets", () => {
                 }),
                 step("fin", { type: "end" }),
             ),
-            { durationPolicy: { maxDurationSeconds: 100 } },
+            { duration: { maxDurationSeconds: 100 } },
         );
         expect(result.status).toBe("error");
         expect(result.error?.code).toBe("DURATION_LIMIT_EXCEEDED");
         expect(result.error?.message).toContain("maxDurationSeconds");
+        // Both sleeps complete (the second clamped to what is left), so the
+        // budget is what stops `fin` from starting. The path names where the
+        // run halted, not the step that spent the budget.
+        expect(result.error?.path).toEqual(["steps", 2]);
     });
 
     test("a later sleep is clamped to what is left of the run", async () => {
@@ -199,7 +203,7 @@ describe("run-level budgets", () => {
                 step("fin", { type: "end" }),
             ),
             {
-                durationPolicy: {
+                duration: {
                     maxDurationSeconds: 200,
                     maxSleepSeconds: 150,
                 },
@@ -238,8 +242,8 @@ describe("an unanswered request-intervention", () => {
                 step("fin", { type: "end" }),
             ),
             {
-                allowUserIntervention: true,
-                durationPolicy: {
+                features: { allowUserIntervention: true },
+                duration: {
                     maxWaitSeconds: 300,
                     minPollIntervalSeconds: 60,
                 },
@@ -303,8 +307,8 @@ describe("the execution clock", () => {
             executionOptions: {
                 silenceLogs: true,
                 executionEngine: engine,
-                policy: {
-                    durationPolicy: {
+                settings: {
+                    duration: {
                         maxExecutionSeconds: 100,
                         maxStepExecutionSeconds: 100,
                     },
@@ -367,8 +371,8 @@ describe("the poll interval floor", () => {
             executionOptions: {
                 silenceLogs: true,
                 executionEngine: engine,
-                policy: {
-                    durationPolicy: {
+                settings: {
+                    duration: {
                         minPollIntervalSeconds: 60,
                         maxWaitSeconds: 86_400,
                     },
@@ -408,7 +412,7 @@ describe("a step bound beyond the timer range", () => {
                 step("fin", { type: "end" }),
             ),
             {
-                durationPolicy: {
+                duration: {
                     maxExecutionSeconds: 30 * 86_400,
                     maxStepExecutionSeconds: 30 * 86_400,
                 },
@@ -449,7 +453,7 @@ describe("a run budget that cuts a step short", () => {
         const { result } = await runWith(
             callHang,
             {
-                durationPolicy: {
+                duration: {
                     maxExecutionSeconds: 0.05,
                     maxStepExecutionSeconds: 3_600,
                 },
@@ -458,6 +462,9 @@ describe("a run budget that cuts a step short", () => {
         );
         expect(result.error?.code).toBe("DURATION_LIMIT_EXCEEDED");
         expect(result.error?.message).toContain("maxExecutionSeconds");
+        // Raised from inside the tool-call step, and still attributed to it
+        // rather than losing its path on the way out.
+        expect(result.error?.path).toEqual(["steps", 0]);
     });
 
     test("a step that outlives its own bound is still a step failure", async () => {
@@ -466,7 +473,7 @@ describe("a run budget that cuts a step short", () => {
         const { result } = await runWith(
             callHang,
             {
-                durationPolicy: {
+                duration: {
                     maxExecutionSeconds: 3_600,
                     maxStepExecutionSeconds: 0.05,
                 },

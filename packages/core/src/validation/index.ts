@@ -1,5 +1,5 @@
 import type { WorkflowDefinition } from "../schema";
-import { remoraflowOptionsSchema, type ToolSet } from "../types";
+import { remoraflowSettingsSchema, type ToolSet } from "../types";
 import { controlFlowValidator } from "./control-flow-validation";
 import { syntaxValidator } from "./syntax-validation";
 import { createToolDefinitionValidator } from "./tool-definition-validation";
@@ -23,7 +23,7 @@ export function validateWorkflowDefinition(
     workflowDefinition: WorkflowDefinition,
     {
         tools,
-        options = remoraflowOptionsSchema.assert({}),
+        options = remoraflowSettingsSchema.assert({}),
     }: { tools: ToolSet; options?: ValidationContext["options"] },
     toolAssertions: {
         assertToolsHaveExecutionFunctions: boolean;
