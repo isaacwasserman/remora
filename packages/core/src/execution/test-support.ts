@@ -1,6 +1,6 @@
 import { MockLanguageModelV3 } from "ai/test";
-import type { DurationPolicy } from "../config/duration-policy";
-import type { RetryPolicy } from "../config/retry-policy";
+import type { DurationPolicy } from "./execution-engine/duration-policy";
+import type { RetryPolicy } from "./execution-engine/retry-policy";
 import { remoraflowSettingsSchema } from "../types";
 
 /**

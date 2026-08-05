@@ -70,16 +70,27 @@ export async function* _executeWorkflow({
                 lastUpdate = update;
             }
         } catch (error) {
-            if (!(error instanceof UnrecoverableExecutionError)) {
-                throw error;
+            if (error instanceof UnrecoverableExecutionError) {
+                yield {
+                    scope,
+                    output: null,
+                    error: {
+                        code: error.code,
+                        message: error.message,
+                        path: ["steps", currentStep.index],
+                    },
+                };
+                return;
             }
+            const message =
+                error instanceof Error ? error.message : String(error);
             yield {
                 scope,
                 output: null,
                 error: {
-                    code: error.code,
-                    message: error.message,
+                    code: stepExecutor.errorCode,
                     path: ["steps", currentStep.index],
+                    message,
                 },
             };
             return;

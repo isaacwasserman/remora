@@ -1,4 +1,4 @@
-import type { DurationLimits } from "../../duration-policy";
+import type { DurationLimits } from "./duration-policy";
 import { DurationLimitExceededError } from "./errors";
 import { reservedStepPath } from "./step-path";
 import type { ExecutionRun, StepPath } from "./types";
@@ -19,11 +19,9 @@ export type DurationBudget = {
      */
     chargeExecution: (stepPath: StepPath, seconds: number) => Promise<void>;
     /**
-     * Charges time this process spent without recording it. For a step that
-     * failed: its result was never checkpointed, so a resumed run re-executes
-     * it, and a recorded charge would be replayed in place of what the new
-     * attempt actually spends — freezing the clock at the first attempt's cost
-     * however many times the step is retried.
+     * Charges time this process spent without persisting it to the store — a
+     * fallback when the store write itself fails. The charge counts for this
+     * invocation but will not survive a restart.
      */
     chargeUnrecordedExecution: (seconds: number) => void;
     /** Throws {@link DurationLimitExceededError} if either clock is spent. */

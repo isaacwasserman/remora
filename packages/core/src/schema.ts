@@ -1,7 +1,7 @@
 import { jsonSchemaToType } from "@ark/json-schema";
 import { type Type, type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
-import { resolveDurationLimits } from "./config/duration-policy";
+import { resolveDurationLimits } from "./execution/execution-engine/duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
 import type { ResolvedRemoraflowSettings } from "./types";
 

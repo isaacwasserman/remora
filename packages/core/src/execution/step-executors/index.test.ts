@@ -9,6 +9,7 @@ import {
 } from "../../types";
 import { step, workflow } from "../../workflow-fixtures";
 import { createExecutionContext } from "../execution-engine/context";
+import { UnrecoverableExecutionError } from "../execution-engine/errors";
 import { createInMemoryExecutionEngine } from "../execution-engine/in-memory";
 import type { ExecutionContext, ExecutionRun } from "../execution-engine/types";
 import { createMockModel, testPolicies } from "../test-support";
@@ -67,19 +68,28 @@ async function runStep(
     let last:
         | { scope: ExecutionScope | null; error: ExecutionError | null }
         | undefined;
-    for await (const update of executor.execute({
-        uniqueStepIdPath: [workflowStep.id],
-        step: workflowStep,
-        scope,
-        workflowDefinition,
-        tools: agentConfig.tools,
-        model: agentConfig.model,
-        settings: remoraflowSettingsSchema.assert({}),
-        approvalPolicies: [],
-        executionContext,
-        userInterventionContext: createUserInverventionContext(intervention),
-    })) {
-        last = { scope: update.scope, error: update.error };
+    try {
+        for await (const update of executor.execute({
+            uniqueStepIdPath: [workflowStep.id],
+            step: workflowStep,
+            scope,
+            workflowDefinition,
+            tools: agentConfig.tools,
+            model: agentConfig.model,
+            settings: remoraflowSettingsSchema.assert({}),
+            approvalPolicies: [],
+            executionContext,
+            userInterventionContext: createUserInverventionContext(intervention),
+        })) {
+            last = { scope: update.scope, error: update.error };
+        }
+    } catch (e) {
+        if (e instanceof UnrecoverableExecutionError) throw e;
+        const message = e instanceof Error ? e.message : String(e);
+        return {
+            scope: null,
+            error: { code: executor.errorCode, message },
+        };
     }
     return last ?? { scope: null, error: null };
 }

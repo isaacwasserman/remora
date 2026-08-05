@@ -4,9 +4,12 @@ import { ApprovalPolicyDeniedError } from "../approval-policies/errors";
 import type { ApprovalPolicy } from "../approval-policies/types";
 import { RESERVED_SEGMENT } from "../execution-engine/step-path";
 import type { ExecutionContext, StepPath } from "../execution-engine/types";
-import type { ExecutionScope, StepExecutionUpdate } from "../types";
+import type {
+    ExecutionScope,
+    PendingApproval,
+    StepExecutionUpdate,
+} from "../types";
 import type { UserInterventionContext } from "../user-intervention/types";
-import type { PendingApproval } from "./llm";
 
 const APPROVE_CHOICE = "Approve";
 const REJECT_CHOICE = "Reject";

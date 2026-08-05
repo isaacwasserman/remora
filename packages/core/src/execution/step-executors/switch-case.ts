@@ -6,6 +6,7 @@ import { stepIndex } from "./shared";
 
 export const switchCaseExecutor: StepExecutor<"switch-case"> = {
     stepType: "switch-case",
+    errorCode: "UNKNOWN",
     execute: async function* ({
         step,
         scope,

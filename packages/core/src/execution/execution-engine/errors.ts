@@ -1,4 +1,4 @@
-import type { DurationLimits } from "../../config/duration-policy";
+import type { DurationLimits } from "./duration-policy";
 import type { ExecutionError } from "../types";
 
 /**

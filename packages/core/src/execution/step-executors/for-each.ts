@@ -10,6 +10,7 @@ import type {
 
 export const forEachExecutor: StepExecutor<"for-each"> = {
     stepType: "for-each",
+    errorCode: "UNKNOWN",
     execute: async function* ({
         step,
         scope,

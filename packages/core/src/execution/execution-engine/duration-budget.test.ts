@@ -2,7 +2,7 @@ import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
 import {
     type DurationLimits,
     resolveDurationLimits,
-} from "../../config/duration-policy";
+} from "./duration-policy";
 import { remoraflowSettingsSchema } from "../../types";
 import { createCheckpointingExecutionEngine } from "./checkpointing";
 import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";

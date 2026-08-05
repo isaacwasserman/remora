@@ -1,4 +1,4 @@
-import type { ResolvedRemoraflowSettings } from "../types";
+import type { ResolvedRemoraflowSettings } from "../../types";
 
 export type DurationPolicy = ResolvedRemoraflowSettings["duration"];
 

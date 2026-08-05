@@ -3,6 +3,7 @@ import type { StepExecutor } from "../types";
 
 export const sleepExecutor: StepExecutor<"sleep"> = {
     stepType: "sleep",
+    errorCode: "UNKNOWN",
     execute: async function* ({
         uniqueStepIdPath,
         step,

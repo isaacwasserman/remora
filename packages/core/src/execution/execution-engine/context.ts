@@ -3,7 +3,8 @@ import {
     type DurationPolicy,
     floorSeconds,
     resolveDurationLimits,
-} from "../../duration-policy";
+} from "./duration-policy";
+import type { RetryPolicy } from "./retry-policy";
 import { createAsyncQueue } from "./async-queue";
 import { createDurationBudget } from "./duration-budget";
 import { DurationLimitExceededError, StepTimeoutError } from "./errors";
@@ -25,18 +26,18 @@ function isAsyncGenerator<TUpdate, TValue>(
 }
 
 /**
- * The layer that enforces the duration policy. It is the narrowest waist that
- * sees every timed operation and the only one that structurally separates wait
- * time (`run.sleep`) from execution time (`run.step`) — the
- * `maxDurationSeconds` / `maxExecutionSeconds` split. Step executors stay
- * policy-ignorant: they evaluate their authored durations and call in here.
+ * The layer that enforces duration and retry policies. It is the narrowest
+ * waist that sees every timed operation and the only one that structurally
+ * separates wait time (`run.sleep`) from execution time (`run.step`). Step
+ * executors stay policy-ignorant: they evaluate their authored durations and
+ * call in here. Per-step options override the retry policy defaults.
  */
 export function createExecutionContext(
     run: ExecutionRun,
-    policy: DurationPolicy,
+    policies: { duration: DurationPolicy; retry: RetryPolicy },
 ): ExecutionContext {
     const { runId } = run.getExecutionInfo();
-    const limits = resolveDurationLimits(policy);
+    const limits = resolveDurationLimits(policies.duration);
     const budget = createDurationBudget(run, limits);
 
     /**
@@ -52,15 +53,10 @@ export function createExecutionContext(
      * step's own result or error is the caller's answer, and a checkpoint store
      * that rejects while recording the charge would otherwise replace it.
      */
-    const chargeSpent = async (
+    const chargeTimeSpent = async (
         stepPath: StepPath,
         seconds: number,
-        succeeded: boolean,
     ): Promise<void> => {
-        if (!succeeded) {
-            budget.chargeUnrecordedExecution(seconds);
-            return;
-        }
         try {
             await budget.chargeExecution(stepPath, seconds);
         } catch (error) {
@@ -92,7 +88,7 @@ export function createExecutionContext(
         // budget is one of the terms below.
         const stepBoundSeconds = Math.min(
             options?.timeoutSeconds ?? Number.POSITIVE_INFINITY,
-            policy.maxStepExecutionSeconds,
+            policies.duration.maxStepExecutionSeconds,
         );
         const remainingExecutionSeconds = budget.remainingExecution();
         const remainingDurationSeconds = await budget.remainingDuration();
@@ -115,13 +111,13 @@ export function createExecutionContext(
         const isOutermost = stepDepth === 0;
         stepDepth++;
         const startedAtMs = Date.now();
-        let succeeded = false;
         try {
             const output = await run.step(joinStepPath(stepPath), stepFn, {
+                maxAttempts: policies.retry.maxAttempts,
+                retryDelaySeconds: policies.retry.retryDelaySeconds,
                 ...options,
                 timeoutSeconds,
             });
-            succeeded = true;
             return output;
         } catch (error) {
             if (error instanceof StepTimeoutError && bindingRunLimit) {
@@ -134,10 +130,9 @@ export function createExecutionContext(
         } finally {
             stepDepth--;
             if (isOutermost) {
-                await chargeSpent(
+                await chargeTimeSpent(
                     stepPath,
                     (Date.now() - startedAtMs) / 1000,
-                    succeeded,
                 );
             }
         }
@@ -180,7 +175,7 @@ export function createExecutionContext(
     // alone. Reordering these keys would then disable enforcement silently.
     return {
         runId,
-        assertWithinBudget: budget.assertRemaining,
+        assertWithinDurationBudget: budget.assertRemaining,
         step: policedStep,
         sleep: sleepStep,
         waitFor: async function* <TValue, TUpdate = never>(

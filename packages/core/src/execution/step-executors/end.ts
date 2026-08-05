@@ -3,6 +3,7 @@ import type { StepExecutor } from "../types";
 
 export const endExecutor: StepExecutor<"end"> = {
     stepType: "end",
+    errorCode: "UNKNOWN",
     execute: async function* ({ step, scope }) {
         if (step.params) {
             const output = evaluateExpressionAgainstScope(

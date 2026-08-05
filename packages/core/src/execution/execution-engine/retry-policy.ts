@@ -1,3 +1,3 @@
-import type { ResolvedRemoraflowSettings } from "../types";
+import type { ResolvedRemoraflowSettings } from "../../types";
 
 export type RetryPolicy = ResolvedRemoraflowSettings["stepRetry"];

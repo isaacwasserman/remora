@@ -11,12 +11,8 @@ import type { StandardSchemaV1 } from "../../../schemistry";
 import type { LanguageModel, ToolSet } from "../../../types";
 import { tokenLimitMiddleware } from "./middleware";
 
-export type PendingApproval = {
-    approvalId: string;
-    toolCallId: string;
-    toolName: string;
-    input: unknown;
-};
+import type { PendingApproval } from "../../types";
+export type { PendingApproval } from "../../types";
 
 export type LanguageModelTurnResult<TOutput> =
     | {

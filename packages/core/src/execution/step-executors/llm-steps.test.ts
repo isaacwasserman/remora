@@ -161,25 +161,35 @@ async function runAgentLoopStep(
     agentStep: Extract<WorkflowStep, { type: "agent-loop" }>,
     agentConfig: AgentConfig,
 ): Promise<StepExecutionUpdate | undefined> {
+    const executor = stepExecutors["agent-loop"];
     let last: StepExecutionUpdate | undefined;
-    for await (const update of stepExecutors["agent-loop"].execute({
-        uniqueStepIdPath: [agentStep.id],
-        step: agentStep,
-        scope: {},
-        workflowDefinition: workflow(agentStep),
-        tools: agentConfig.tools,
-        model: agentConfig.model,
-        settings: remoraflowSettingsSchema.assert({}),
-        approvalPolicies: [],
-        executionContext: createExecutionContext(
-            createInMemoryExecutionEngine().createRun("run"),
-            testPolicies(),
-        ),
-        userInterventionContext: createUserInverventionContext(
-            defaultUserInterventionAdapter,
-        ),
-    })) {
-        last = update;
+    try {
+        for await (const update of executor.execute({
+            uniqueStepIdPath: [agentStep.id],
+            step: agentStep,
+            scope: {},
+            workflowDefinition: workflow(agentStep),
+            tools: agentConfig.tools,
+            model: agentConfig.model,
+            settings: remoraflowSettingsSchema.assert({}),
+            approvalPolicies: [],
+            executionContext: createExecutionContext(
+                createInMemoryExecutionEngine().createRun("run"),
+                testPolicies(),
+            ),
+            userInterventionContext: createUserInverventionContext(
+                defaultUserInterventionAdapter,
+            ),
+        })) {
+            last = update;
+        }
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return {
+            scope: null,
+            output: null,
+            error: { code: executor.errorCode, message },
+        };
     }
     return last;
 }

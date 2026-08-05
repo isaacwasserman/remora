@@ -1,6 +1,7 @@
 import type { WorkflowDefinition } from "../schema";
 import { remoraflowSettingsSchema, type ToolSet } from "../types";
 import { controlFlowValidator } from "./control-flow-validation";
+import { controlFlowValidator as structuralLimitValidator } from "./structural-limit-validation";
 import { syntaxValidator } from "./syntax-validation";
 import { createToolDefinitionValidator } from "./tool-definition-validation";
 import { toolInputValidator } from "./tool-input-validation";
@@ -40,6 +41,7 @@ export function validateWorkflowDefinition(
     const validationPipeline: ValidationModule[] = [
         syntaxValidator,
         controlFlowValidator,
+        structuralLimitValidator,
         toolReferenceValidator,
         variableReferenceValidator,
         toolInputValidator,

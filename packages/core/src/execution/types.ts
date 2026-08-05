@@ -84,6 +84,13 @@ export type ExecutionState =
 
 export type ExecutionScope = Record<string, unknown>;
 
+export type PendingApproval = {
+    approvalId: string;
+    toolCallId: string;
+    toolName: string;
+    input: unknown;
+};
+
 export type StepExecutionUpdate =
     | {
           scope: ExecutionScope;
@@ -118,6 +125,7 @@ export interface StepExecutor<
     TStepType extends WorkflowStep["type"] = WorkflowStep["type"],
 > {
     stepType: TStepType;
+    errorCode: ExecutionError["code"];
     execute: (
         args: StepExecutorArgs<TStepType>,
     ) => AsyncGenerator<StepExecutionUpdate>;
