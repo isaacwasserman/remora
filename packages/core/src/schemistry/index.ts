@@ -10,6 +10,9 @@ export { inferJsonSchema, type JsonSchema } from "./json-schema/from-value";
 export {
     type SubsetDiagnostic,
     schemaSubsetDiagnostics,
+    type ValidationResult,
+    type ValueError,
+    validateValue,
 } from "./json-schema/subset";
 export { inferSchema, summarizeObjectStructure } from "./json-schema/summarize";
 export {

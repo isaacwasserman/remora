@@ -39,6 +39,7 @@ export function constrainToolSetInputs(
             toolName in inputConstraints
                 ? [
                       toolName,
+                      // biome-ignore lint/style/noNonNullAssertion: <explanation>
                       constrainToolInput(tool, inputConstraints[toolName]!),
                   ]
                 : [toolName, tool],

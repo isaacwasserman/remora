@@ -30,6 +30,7 @@
     "references": [
         { "path": "packages/core" },
         { "path": "packages/ui" },
+        { "path": "apps/cli" },
         { "path": "apps/demo" },
         { "path": "apps/docs" },
         { "path": "apps/registry" }

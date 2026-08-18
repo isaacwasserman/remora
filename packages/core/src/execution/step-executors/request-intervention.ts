@@ -60,10 +60,7 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                 };
                 return;
             }
-            if (
-                choicesArray.length === 0 &&
-                !step.params.allowFreeResponse
-            ) {
+            if (choicesArray.length === 0 && !step.params.allowFreeResponse) {
                 yield {
                     scope,
                     output: null,
@@ -118,9 +115,7 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                 uniqueStepIdPath,
                 async () => {
                     const received =
-                        await userInterventionContext.getResponse(
-                            questionId,
-                        );
+                        await userInterventionContext.getResponse(questionId);
                     if (received.error) {
                         throw new Error(
                             `Could not read the supervising user's answer: ${received.message}`,
@@ -129,6 +124,23 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                     return received.data;
                 },
             );
+
+            if (
+                !step.params.allowFreeResponse &&
+                !choicesArray.includes(answer)
+            ) {
+                yield {
+                    scope,
+                    output: null,
+                    error: {
+                        code: "TYPE_ERROR",
+                        path: ["steps", stepIndex(workflowDefinition, step.id)],
+                        message: `Intervention response "${answer}" in step "${step.id}" is not one of the allowed choices and free response is disabled.`,
+                    },
+                };
+                return;
+            }
+
             yield {
                 scope: { ...scope, [step.id]: answer },
                 output: null,

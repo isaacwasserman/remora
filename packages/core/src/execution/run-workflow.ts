@@ -1,8 +1,9 @@
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
-import {
-    type LanguageModel,
-    type ToolSet,
+import { isStepTypeAllowed } from "../step-registry";
+import type {
+    LanguageModel,
     remoraflowSettingsSchema,
+    ToolSet,
 } from "../types";
 import { buildStepIndex } from "../utils";
 import type { ApprovalPolicy } from "./approval-policies/types";
@@ -41,17 +42,32 @@ export async function* _executeWorkflow({
     let currentStepId: string | undefined = workflowDefinition.initialStepId;
 
     let scope: ExecutionScope = initialScope;
+    let lastEndStepId: string | undefined;
 
     while (currentStepId) {
         const currentStep = stepsById.get(currentStepId) as WorkflowStep & {
             index: number;
         };
+        const stepPath = [...uniqueStepIdPath, currentStep.id];
+        if (!isStepTypeAllowed(currentStep.type, settings.features)) {
+            yield {
+                scope,
+                output: null,
+                error: {
+                    code: "INVALID_WORKFLOW",
+                    path: ["steps", currentStep.index],
+                    message: `Step "${currentStep.id}" has type "${currentStep.type}", which is not permitted by the current feature flags.`,
+                },
+                currentUniqueStepIdPath: stepPath,
+            };
+            return;
+        }
         const stepExecutor = stepExecutors[currentStep.type] as StepExecutor;
         let lastUpdate: StepExecutionUpdate | undefined;
         try {
             await executionContext.assertWithinDurationBudget();
-            for await (const update of stepExecutor.execute({
-                uniqueStepIdPath: [...uniqueStepIdPath, currentStep.id],
+            for await (const rawUpdate of stepExecutor.execute({
+                uniqueStepIdPath: stepPath,
                 step: currentStep,
                 scope,
                 workflowDefinition,
@@ -62,6 +78,11 @@ export async function* _executeWorkflow({
                 executionContext,
                 userInterventionContext,
             })) {
+                const update: StepExecutionUpdate = {
+                    ...rawUpdate,
+                    currentUniqueStepIdPath:
+                        rawUpdate.currentUniqueStepIdPath ?? stepPath,
+                };
                 if (update.error) {
                     yield update;
                     return;
@@ -79,6 +100,7 @@ export async function* _executeWorkflow({
                         message: error.message,
                         path: ["steps", currentStep.index],
                     },
+                    currentUniqueStepIdPath: stepPath,
                 };
                 return;
             }
@@ -92,19 +114,27 @@ export async function* _executeWorkflow({
                     path: ["steps", currentStep.index],
                     message,
                 },
+                currentUniqueStepIdPath: stepPath,
             };
             return;
         }
         if (lastUpdate?.scope) {
             scope = lastUpdate.scope;
         }
+        if (currentStep.type === "end") {
+            lastEndStepId = currentStep.id;
+        } else if (lastUpdate && !lastUpdate.error) {
+            lastEndStepId = lastUpdate.lastEndStepId;
+        }
         currentStepId = currentStep.nextStepId;
     }
 
-    const outputStep = workflowDefinition.steps.find(
-        (step) => step.type === "end" && step.id in scope,
-    );
-    const output = outputStep ? scope[outputStep.id] : null;
+    const output = lastEndStepId ? (scope[lastEndStepId] ?? null) : null;
 
-    yield { scope, output, error: null };
+    yield {
+        scope,
+        output,
+        error: null,
+        currentUniqueStepIdPath: uniqueStepIdPath,
+    };
 }

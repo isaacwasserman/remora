@@ -76,6 +76,13 @@ export const switchCaseExecutor: StepExecutor<"switch-case"> = {
             scope: { ...scope, ...branchScope },
             output: null,
             error: null,
+            ...(step.nextStepId
+                ? {}
+                : {
+                      lastEndStepId: !lastUpdate?.error
+                          ? lastUpdate?.lastEndStepId
+                          : undefined,
+                  }),
         };
     },
 };

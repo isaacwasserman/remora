@@ -111,24 +111,36 @@ export function validateBlockTermination(
 export function validateControlFlow(
     workflowDefinition: WorkflowDefinition,
 ): ValidatorDiagnostic[] {
+    const stepsById = buildStepIndex(workflowDefinition);
+    const diagnostics: ValidatorDiagnostic[] = [];
+
     const { diagnostics: stepReferenceDiagnostics } =
         validateStepReferences(workflowDefinition);
     if (stepReferenceDiagnostics.length > 0) {
         return stepReferenceDiagnostics;
     }
 
+    const initialStep = stepsById.get(workflowDefinition.initialStepId);
+    if (initialStep && initialStep.type !== "start") {
+        diagnostics.push({
+            severity: "warning",
+            path: ["initialStepId"],
+            message: `The initial step "${workflowDefinition.initialStepId}" is of type "${initialStep.type}", not "start". A "start" step is recommended as the entry point.`,
+        });
+    }
+
     const { diagnostics: cycleDetectionDiagnostics } =
         workflowHasCycles(workflowDefinition);
     if (cycleDetectionDiagnostics.length > 0) {
-        return cycleDetectionDiagnostics;
+        return [...diagnostics, ...cycleDetectionDiagnostics];
     }
 
     const orphanDiagnostics = validateNoOrphans(workflowDefinition);
     if (orphanDiagnostics.length > 0) {
-        return orphanDiagnostics;
+        return [...diagnostics, ...orphanDiagnostics];
     }
 
-    return validateBlockTermination(workflowDefinition);
+    return [...diagnostics, ...validateBlockTermination(workflowDefinition)];
 }
 
 export const controlFlowValidator: ValidationModule = {

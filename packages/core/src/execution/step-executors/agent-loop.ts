@@ -3,9 +3,9 @@ import type { ModelMessage } from "ai";
 import { approvalPoliciesToAISDKToolApprovalConfig } from "../approval-policies";
 import { RESERVED_SEGMENT } from "../execution-engine/step-path";
 import { evaluateExpressionAgainstScope } from "../expressions/expression";
+import { appendApprovalResponses, runLanguageModelTurn } from "../llm";
 import type { StepExecutor } from "../types";
 import { resolveApprovalRequests } from "./approval-gate";
-import { appendApprovalResponses, runLanguageModelTurn } from "./llm";
 import { resolveTools, stepIndex } from "./shared";
 import { constrainToolSetInputs } from "./tool-constraint";
 
@@ -36,19 +36,20 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
             step.params.inputConstraints,
         );
         const outputFormat = jsonSchemaToType(
-            step.params.outputFormat as Parameters<
-                typeof jsonSchemaToType
-            >[0],
+            step.params.outputFormat as Parameters<typeof jsonSchemaToType>[0],
         );
         const toolApproval =
             approvalPolicies.length > 0
-                ? approvalPoliciesToAISDKToolApprovalConfig(
-                      approvalPolicies,
-                  )
+                ? approvalPoliciesToAISDKToolApprovalConfig(approvalPolicies)
                 : undefined;
 
+        const resolvedInstructions = evaluateExpressionAgainstScope(
+            { type: "template", template: step.params.instructions },
+            scope,
+        ) as string;
+
         let messages: ModelMessage[] = [
-            { role: "user", content: step.params.instructions },
+            { role: "user", content: resolvedInstructions },
         ];
         let spentSteps = 0;
 
@@ -60,10 +61,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                     output: null,
                     error: {
                         code: "AGENT_RUN_FAILED",
-                        path: [
-                            "steps",
-                            stepIndex(workflowDefinition, step.id),
-                        ],
+                        path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message: `Agent exhausted its step budget of ${maxSteps}.`,
                     },
                 };
@@ -71,12 +69,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
             }
 
             const record = await executionContext.step(
-                [
-                    ...uniqueStepIdPath,
-                    RESERVED_SEGMENT,
-                    "turn",
-                    String(turn),
-                ],
+                [...uniqueStepIdPath, RESERVED_SEGMENT, "turn", String(turn)],
                 () =>
                     runLanguageModelTurn({
                         model: model,
@@ -85,8 +78,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                         outputFormat,
                         toolApproval,
                         maxSteps: remainingSteps,
-                        maxInputTokens:
-                            settings.tokenBudgets.maxContextTokens,
+                        maxInputTokens: settings.tokenBudgets.maxContextTokens,
                     }),
             );
 
@@ -111,10 +103,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                     output: null,
                     error: {
                         code: "AGENT_RUN_FAILED",
-                        path: [
-                            "steps",
-                            stepIndex(workflowDefinition, step.id),
-                        ],
+                        path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message:
                             record.status === "stalled"
                                 ? `Agent stalled with unresolved tool calls: ${record.unresolvedToolCallIds.join(", ")}.`
@@ -130,10 +119,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                     output: null,
                     error: {
                         code: "AGENT_RUN_FAILED",
-                        path: [
-                            "steps",
-                            stepIndex(workflowDefinition, step.id),
-                        ],
+                        path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message:
                             "Agent exhausted its step budget with a tool call still awaiting approval.",
                     },

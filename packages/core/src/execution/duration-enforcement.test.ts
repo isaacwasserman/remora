@@ -74,7 +74,8 @@ async function run(
     const { engine, sleeps } = fastForwardEngine();
     const result = await executeWorkflow({
         workflowDefinition,
-        tools: agentConfig.tools, model: agentConfig.model,
+        tools: agentConfig.tools,
+        model: agentConfig.model,
         executionOptions: {
             settings: policy,
             silenceLogs: true,
@@ -93,7 +94,8 @@ async function runWith(
     const { engine, sleeps } = fastForwardEngine();
     const result = await executeWorkflow({
         workflowDefinition,
-        tools, model: createMockModel([]),
+        tools,
+        model: createMockModel([]),
         executionOptions: {
             settings: policy,
             silenceLogs: true,
@@ -303,7 +305,8 @@ describe("the execution clock", () => {
                 }),
                 step("fin", { type: "end" }),
             ),
-            tools: slowTools(40), model: createMockModel([]),
+            tools: slowTools(40),
+            model: createMockModel([]),
             executionOptions: {
                 silenceLogs: true,
                 executionEngine: engine,
@@ -367,7 +370,8 @@ describe("the poll interval floor", () => {
         const { engine, sleeps } = fastForwardEngine();
         await executeWorkflow({
             workflowDefinition: pollingWorkflow(backoffMultiplier),
-            tools: neverReady, model: createMockModel([]),
+            tools: neverReady,
+            model: createMockModel([]),
             executionOptions: {
                 silenceLogs: true,
                 executionEngine: engine,

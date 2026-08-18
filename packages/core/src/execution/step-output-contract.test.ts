@@ -275,6 +275,27 @@ const CONTRACT_CASES: Record<WorkflowStep["type"], ContractCase> = {
         conformance: "structural",
         sharedOutputFormat: objectFormat,
     },
+    while: {
+        steps: [
+            step("target", {
+                type: "while",
+                params: {
+                    conditionStepId: "cond",
+                    loopBodyStepId: "body",
+                },
+            }),
+            step("cond", {
+                type: "end",
+                params: { output: { type: "literal", value: false } },
+            }),
+            step("body", {
+                type: "end",
+                params: { output: { type: "literal", value: 1 } },
+            }),
+        ],
+        expectedOutput: [],
+        conformance: "verified",
+    },
 };
 
 /**

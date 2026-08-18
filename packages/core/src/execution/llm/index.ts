@@ -7,12 +7,15 @@ import {
     type ToolApprovalConfiguration,
     wrapLanguageModel,
 } from "ai";
-import type { StandardSchemaV1 } from "../../../schemistry";
-import type { LanguageModel, ToolSet } from "../../../types";
-import { tokenLimitMiddleware } from "./middleware";
+import type { StandardSchemaV1 } from "../../schemistry";
+import type { LanguageModel, ToolSet } from "../../types";
+import type { PendingApproval } from "../types";
+import {
+    createSchemaSanitizationMiddleware,
+    createTokenLimitMiddleware,
+} from "./middleware";
 
-import type { PendingApproval } from "../../types";
-export type { PendingApproval } from "../../types";
+export type { PendingApproval } from "../types";
 
 export type LanguageModelTurnResult<TOutput> =
     | {
@@ -57,7 +60,9 @@ export async function runLanguageModelTurn<TOutput>({
     maxSteps: number;
     maxInputTokens?: number;
 }): Promise<LanguageModelTurnResult<TOutput>> {
-    const middleware = tokenLimitMiddleware({
+    const schemaSanitizationMiddleware = createSchemaSanitizationMiddleware();
+
+    const tokenLimitMiddleware = createTokenLimitMiddleware({
         maxInputTokens,
         shouldTruncateMessage: (message) => message.role !== "system",
         onTruncate: ({ phase, budget }) => {
@@ -68,7 +73,10 @@ export async function runLanguageModelTurn<TOutput>({
     });
 
     const result = await generateText({
-        model: wrapLanguageModel({ model, middleware }),
+        model: wrapLanguageModel({
+            model,
+            middleware: [tokenLimitMiddleware, schemaSanitizationMiddleware],
+        }),
         tools: tools as Parameters<typeof streamText>[0]["tools"],
         messages,
         output: Output.object({ schema: outputFormat }),
@@ -113,7 +121,7 @@ export async function runLanguageModelTurn<TOutput>({
     if (result.finishReason === "stop") {
         return {
             status: "complete",
-            output: result.output,
+            output: result.output as TOutput,
             turnMessages,
             modelStepsUsed,
         };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { testDurationPolicy } from "../test-support";
+import { testPolicies } from "../test-support";
 import { createCheckpointingExecutionEngine } from "./checkpointing";
 import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
 import type { CheckpointStore } from "./checkpointing/types";
@@ -29,7 +29,7 @@ function countingRun(store: CheckpointStore) {
         },
     };
     return {
-        context: createExecutionContext(counting, testDurationPolicy()),
+        context: createExecutionContext(counting, testPolicies()),
         sleeps,
     };
 }

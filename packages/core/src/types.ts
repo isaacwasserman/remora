@@ -71,9 +71,17 @@ export type AnyTool = {
     inputSchema: AnyToolSchema;
     outputSchema?: AnyToolSchema;
     execute?: (input: any, options: any) => any;
+    description?: string;
+};
+export type AnyStubbedTool = {
+    inputSchema: AnyToolSchema;
+    outputSchema?: AnyToolSchema;
+    description?: string;
 };
 
 export type ToolSet = Record<string, AnyTool>;
+
+export type StubbedToolSet = Record<string, AnyStubbedTool>;
 
 export type LanguageModel = Exclude<AnyLanguageModel, string>;
 
@@ -269,7 +277,7 @@ const logLimitsSchema = type({
         [
             "number.integer >= 0",
             "@",
-            "maximum number of log lines that will be captured in the output before recycling earlier logs",
+            "maximum number of log lines that will be captured in the output before recycling earlier logs (0 for unlimited)",
         ],
         "=",
         4096,
@@ -303,3 +311,5 @@ export const remoraflowSettingsSchema = type({
 export type RemoraflowSettings = typeof remoraflowSettingsSchema.inferIn;
 export type ResolvedRemoraflowSettings =
     typeof remoraflowSettingsSchema.inferOut;
+
+export type { ExecutionState } from "./execution/types";

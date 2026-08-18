@@ -1,4 +1,5 @@
 import type { WorkflowDefinition } from "../../schema";
+import { toolReferences } from "../../step-registry";
 import type { ToolSet } from "../../types";
 import type { ValidationModule, ValidatorError } from "../types";
 
@@ -13,36 +14,14 @@ export function validateWorkflowToolNames(
         stepIndex++
     ) {
         const step = workflowDefinition.steps[stepIndex];
-        if (step?.type === "tool-call") {
-            if (!(step.params.toolName in tools)) {
+        if (!step) continue;
+        for (const ref of toolReferences(step)) {
+            if (!(ref.toolName in tools)) {
                 diagnostics.push({
                     severity: "error",
-                    path: [
-                        "workflowDefinition",
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "toolName",
-                    ],
-                    message: `Step "${step.id}": Tool "${step.params.toolName}" is not available in the given toolset.`,
+                    path: ["steps", stepIndex, ...ref.path],
+                    message: `Step "${step.id}": Tool "${ref.toolName}" is not available in the given toolset.`,
                 });
-            }
-        } else if (step?.type === "agent-loop") {
-            for (const [toolIndex, toolName] of step.params.tools.entries()) {
-                if (!(toolName in tools)) {
-                    diagnostics.push({
-                        severity: "error",
-                        path: [
-                            "workflowDefinition",
-                            "steps",
-                            stepIndex,
-                            "params",
-                            "tools",
-                            toolIndex,
-                        ],
-                        message: `Step "${step.id}": Tool "${toolName}" is not available in the given toolset.`,
-                    });
-                }
             }
         }
     }

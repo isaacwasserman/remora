@@ -1,5 +1,5 @@
-import type { DurationLimits } from "./duration-policy";
 import type { ExecutionError } from "../types";
+import type { DurationLimits } from "./duration-policy";
 
 /**
  * An error the runtime raises deliberately, where retrying cannot help. Retry

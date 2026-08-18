@@ -19,6 +19,8 @@ import type {
 export type ExecutionError = {
     code:
         | "INVALID_WORKFLOW"
+        | "INVALID_INPUT"
+        | "INVALID_OUTPUT"
         | "UNRECOGNIZED_CASE"
         | "MISSING_TOOL"
         | "MISSING_TOOL_EXECUTION_FUNCTION"
@@ -66,6 +68,7 @@ export type ExecutionState =
           error: ExecutionError;
           logs: LogLine[];
           scope: ExecutionScope;
+          executionPath: StepPath[];
       }
     | {
           status: RunningExecutionStatus;
@@ -73,6 +76,7 @@ export type ExecutionState =
           error: null;
           logs: LogLine[];
           scope: ExecutionScope;
+          executionPath: StepPath[];
       }
     | {
           status: "success";
@@ -80,6 +84,7 @@ export type ExecutionState =
           error: null;
           logs: LogLine[];
           scope: ExecutionScope;
+          executionPath: StepPath[];
       };
 
 export type ExecutionScope = Record<string, unknown>;
@@ -91,15 +96,25 @@ export type PendingApproval = {
     input: unknown;
 };
 
-export type StepExecutionUpdate =
+export type StepExecutorOutput = (
     | {
           scope: ExecutionScope;
           output: unknown;
           error: null;
-          /** Omitted when the step is not blocked on anything. */
           status?: RunningExecutionStatus;
+          /**
+           * When the update ends a chain on an "end" step, holds that end
+           * step's id so enclosing block executors can propagate it up when
+           * the block itself has no `nextStepId`.
+           */
+          lastEndStepId?: string;
       }
-    | { scope: ExecutionScope | null; output: null; error: ExecutionError };
+    | { scope: ExecutionScope | null; output: null; error: ExecutionError }
+) & { currentUniqueStepIdPath?: StepPath };
+
+export type StepExecutionUpdate = StepExecutorOutput & {
+    currentUniqueStepIdPath: StepPath;
+};
 
 type StepOfType<T extends WorkflowStep["type"]> = Extract<
     WorkflowStep,
@@ -128,5 +143,5 @@ export interface StepExecutor<
     errorCode: ExecutionError["code"];
     execute: (
         args: StepExecutorArgs<TStepType>,
-    ) => AsyncGenerator<StepExecutionUpdate>;
+    ) => AsyncGenerator<StepExecutorOutput>;
 }

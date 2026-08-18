@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { withDurableExecution } from "@aws/durable-execution-sdk-js";
 import { LocalDurableTestRunner } from "@aws/durable-execution-sdk-js-testing";
-import { testDurationPolicy } from "../../test-support";
+import { testPolicies } from "../../test-support";
 import { createExecutionContext } from "../context";
 import type { ExecutionRun } from "../types";
 import { createDurableExecutionEngine } from ".";
@@ -190,7 +190,7 @@ describe("lambda durable execution adapter", () => {
         // before it and the host stalls the run on a replay inconsistency.
         const calls: string[] = [];
         const runner = runnerFor(async (run) => {
-            const context = createExecutionContext(run, testDurationPolicy());
+            const context = createExecutionContext(run, testPolicies());
             await context.step(["first"], async () => {
                 calls.push("first");
                 return 1;

@@ -182,7 +182,8 @@ for (const engine of ENGINES) {
                             },
                         }),
                     ),
-                    tools: agentConfig.tools, model: agentConfig.model,
+                    tools: agentConfig.tools,
+                    model: agentConfig.model,
                     executionOptions: options(),
                 });
 
@@ -258,7 +259,8 @@ for (const engine of ENGINES) {
                             },
                         }),
                     ),
-                    tools: agentConfig.tools, model: agentConfig.model,
+                    tools: agentConfig.tools,
+                    model: agentConfig.model,
                     executionOptions: options(),
                 });
 
@@ -352,7 +354,8 @@ for (const engine of ENGINES) {
                             },
                         }),
                     ),
-                    tools: agentConfig.tools, model: agentConfig.model,
+                    tools: agentConfig.tools,
+                    model: agentConfig.model,
                     executionOptions: options(),
                 });
 
@@ -409,7 +412,8 @@ for (const engine of ENGINES) {
                         }),
                         step("finish", { type: "end" }),
                     ),
-                    tools: agentConfig.tools, model: agentConfig.model,
+                    tools: agentConfig.tools,
+                    model: agentConfig.model,
                     executionOptions: options(),
                 });
 
@@ -458,7 +462,8 @@ describe("executeWorkflow validation gate", () => {
                 }),
                 step("finish", { type: "end" }),
             ),
-            tools: agentConfig.tools, model: agentConfig.model,
+            tools: agentConfig.tools,
+            model: agentConfig.model,
             executionOptions: {
                 silenceLogs: true,
                 executionEngine: createInMemoryExecutionEngine(),
@@ -500,7 +505,8 @@ describe("executeWorkflow option defaulting", () => {
                 }),
                 step("finish", { type: "end" }),
             ),
-            tools: agentConfig.tools, model: agentConfig.model,
+            tools: agentConfig.tools,
+            model: agentConfig.model,
             executionOptions: {
                 settings: { features: { allowUserIntervention: true } },
                 silenceLogs: true,

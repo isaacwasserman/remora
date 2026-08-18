@@ -8,8 +8,7 @@ import {
 } from "./duration-policy";
 
 function policy(overrides: Record<string, number> = {}): DurationPolicy {
-    return remoraflowSettingsSchema.assert({ duration: overrides })
-        .duration;
+    return remoraflowSettingsSchema.assert({ duration: overrides }).duration;
 }
 
 describe("resolveDurationLimits", () => {

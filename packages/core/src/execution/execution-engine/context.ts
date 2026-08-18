@@ -1,13 +1,13 @@
+import { createAsyncQueue } from "./async-queue";
+import { createDurationBudget } from "./duration-budget";
 import {
     clampSeconds,
     type DurationPolicy,
     floorSeconds,
     resolveDurationLimits,
 } from "./duration-policy";
-import type { RetryPolicy } from "./retry-policy";
-import { createAsyncQueue } from "./async-queue";
-import { createDurationBudget } from "./duration-budget";
 import { DurationLimitExceededError, StepTimeoutError } from "./errors";
+import type { RetryPolicy } from "./retry-policy";
 import { joinStepPath, reservedStepPath } from "./step-path";
 import type {
     ExecutionContext,
@@ -115,6 +115,7 @@ export function createExecutionContext(
             const output = await run.step(joinStepPath(stepPath), stepFn, {
                 maxAttempts: policies.retry.maxAttempts,
                 retryDelaySeconds: policies.retry.retryDelaySeconds,
+                shouldRetry: policies.retry.shouldRetry,
                 ...options,
                 timeoutSeconds,
             });

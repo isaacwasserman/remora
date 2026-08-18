@@ -10,7 +10,7 @@ import { executeWorkflowStream } from "..";
 import { createExecutionContext } from "../execution-engine/context";
 import { createInMemoryExecutionEngine } from "../execution-engine/in-memory";
 import { createMockModel, failingModel, testPolicies } from "../test-support";
-import type { ExecutionState, StepExecutionUpdate } from "../types";
+import type { ExecutionState, StepExecutorOutput } from "../types";
 import { defaultUserInterventionAdapter } from "../user-intervention/default-adapter";
 import { createUserInverventionContext } from "../user-intervention/types";
 import { stepExecutors } from ".";
@@ -59,6 +59,32 @@ async function runWorkflow(
 }
 
 describe("llm-prompt executor", () => {
+    test("resolves template variables in the prompt against scope", async () => {
+        const model = createMockModel([{ answer: "sentiment: positive" }]);
+
+        const result = await runWorkflow(
+            { model, tools: { fetchDoc: docTool } },
+            step("begin", { type: "start", nextStepId: "fetch" }),
+            step("fetch", {
+                type: "tool-call",
+                nextStepId: "ask",
+                params: { toolName: "fetchDoc", toolInput: {} },
+            }),
+            step("ask", {
+                type: "llm-prompt",
+                nextStepId: "finish",
+                params: {
+                    prompt: "Summarize: ${fetch.text}",
+                    outputFormat: answerFormat,
+                },
+            }),
+            step("finish", { type: "end" }),
+        );
+
+        expect(result.error).toBeNull();
+        expect(recordedPrompts(model)).toContain(sourceText);
+    });
+
     test("wraps a model failure as LLM_RUN_FAILED", async () => {
         const result = await runWorkflow(
             { model: failingModel("model down"), tools: {} },
@@ -77,6 +103,33 @@ describe("llm-prompt executor", () => {
 });
 
 describe("agent-loop executor", () => {
+    test("resolves template variables in instructions against scope", async () => {
+        const model = createMockModel([{ answer: "done" }]);
+
+        const result = await runWorkflow(
+            { model, tools: { fetchDoc: docTool } },
+            step("begin", { type: "start", nextStepId: "fetch" }),
+            step("fetch", {
+                type: "tool-call",
+                nextStepId: "agent",
+                params: { toolName: "fetchDoc", toolInput: {} },
+            }),
+            step("agent", {
+                type: "agent-loop",
+                nextStepId: "finish",
+                params: {
+                    instructions: "Process: ${fetch.text}",
+                    tools: ["fetchDoc"],
+                    outputFormat: answerFormat,
+                },
+            }),
+            step("finish", { type: "end" }),
+        );
+
+        expect(result.error).toBeNull();
+        expect(recordedPrompts(model)).toContain(sourceText);
+    });
+
     test("resolves tools and stores the model's output", async () => {
         const model = createMockModel([{ answer: "done" }]);
 
@@ -160,9 +213,9 @@ describe("extract-data executor", () => {
 async function runAgentLoopStep(
     agentStep: Extract<WorkflowStep, { type: "agent-loop" }>,
     agentConfig: AgentConfig,
-): Promise<StepExecutionUpdate | undefined> {
+): Promise<StepExecutorOutput | undefined> {
     const executor = stepExecutors["agent-loop"];
-    let last: StepExecutionUpdate | undefined;
+    let last: StepExecutorOutput | undefined;
     try {
         for await (const update of executor.execute({
             uniqueStepIdPath: [agentStep.id],
@@ -189,6 +242,7 @@ async function runAgentLoopStep(
             scope: null,
             output: null,
             error: { code: executor.errorCode, message },
+            currentUniqueStepIdPath: [agentStep.id],
         };
     }
     return last;

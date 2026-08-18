@@ -3,8 +3,8 @@ import dedent from "dedent";
 import type { ToolSet } from "../../types";
 import { createDataPresentationResources } from "../data-comprehension";
 import { evaluateExpressionAgainstScope } from "../expressions/expression";
+import { runLanguageModel } from "../llm";
 import type { StepExecutor } from "../types";
-import { runLanguageModel } from "./llm";
 
 export const extractDataExecutor: StepExecutor<"extract-data"> = {
     stepType: "extract-data",
@@ -21,10 +21,12 @@ export const extractDataExecutor: StepExecutor<"extract-data"> = {
             step.params.sourceData,
             scope,
         );
-        const { prompt: dataPrompt, tools } =
-            createDataPresentationResources(rawSourceData, {
+        const { prompt: dataPrompt, tools } = createDataPresentationResources(
+            rawSourceData,
+            {
                 maxDataTokens: settings.tokenBudgets.maxDataTokens,
-            });
+            },
+        );
         const prompt = dedent`
 				You are tasked with extracting information from the data below, and outputting it in a specifc format. ${Object.keys(tools).length > 0 ? "Use the information below as well as any provided tools to assist your answer." : ""}
 
@@ -43,6 +45,7 @@ export const extractDataExecutor: StepExecutor<"extract-data"> = {
                     >[0],
                 ),
                 maxSteps: settings.tokenBudgets.maxAgentSteps,
+                maxInputTokens: settings.tokenBudgets.maxContextTokens,
             }),
         );
         yield {

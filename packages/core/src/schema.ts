@@ -3,7 +3,11 @@ import { type Type, type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import { resolveDurationLimits } from "./execution/execution-engine/duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
-import type { ResolvedRemoraflowSettings } from "./types";
+import {
+    type ResolvedRemoraflowSettings,
+    remoraflowSettingsSchema,
+} from "./types";
+import dedent from "dedent";
 
 const jsonSchemaArktypeSchema = type("object")
     .narrow((schema, ctx) => {
@@ -99,10 +103,77 @@ const forEachParamsSchema = type({
             "@",
             "the id of the first step in the loop body chain to execute for each item in the list",
         ],
+        "accumulatorName?": [
+            "string",
+            "@",
+            "when provided with accumulatorInitialValue, the loop runs in fold mode: each iteration's body output replaces the accumulator instead of being appended to an array, and the step's final output is the accumulator's terminal value; this is the variable name the accumulator is available as in the loop body scope",
+        ],
+        "accumulatorInitialValue?": [
+            expressionSchema,
+            "@",
+            "the starting value of the accumulator, evaluated once before the first iteration; required when accumulatorName is provided",
+        ],
     },
-}).describe(
-    "a step that iterates over a list and executes a chain of steps for each item; the loop body chain runs until a step with no nextStepId, at which point the next iteration begins; once all items are exhausted, execution continues with this step's nextStepId",
-);
+})
+    .narrow((step, ctx) => {
+        const hasName = step.params.accumulatorName !== undefined;
+        const hasInit = step.params.accumulatorInitialValue !== undefined;
+        if (hasName !== hasInit) {
+            return ctx.reject({
+                expected:
+                    "both accumulatorName and accumulatorInitialValue, or neither",
+            });
+        }
+        if (hasName && step.params.accumulatorName === step.params.itemName) {
+            return ctx.reject({
+                expected: "accumulatorName to differ from itemName",
+            });
+        }
+        return true;
+    })
+    .describe(
+        "a step that iterates over a list and executes a chain of steps for each item; the loop body chain runs until a step with no nextStepId, at which point the next iteration begins; once all items are exhausted, execution continues with this step's nextStepId; optionally specify accumulatorName and accumulatorInitialValue to fold iterations into a single value instead of collecting them into an array",
+    );
+
+const whileParamsSchema = type({
+    type: "'while'",
+    params: {
+        conditionStepId: [
+            "string",
+            "@",
+            "the id of the first step in the condition-check chain; runs until a step with no nextStepId, then the terminal end step's output is checked for truthiness — truthy continues the loop, falsy ends it",
+        ],
+        loopBodyStepId: [
+            "string",
+            "@",
+            "the id of the first step in the loop body chain to execute on each iteration; outputs are accumulated into an array unless an accumulator is specified",
+        ],
+        "accumulatorName?": [
+            "string",
+            "@",
+            "when provided with accumulatorInitialValue, the loop runs in fold mode: each iteration's body output replaces the accumulator instead of being appended to an array, and the step's final output is the accumulator's terminal value; this is the variable name the accumulator is available as in the loop body and condition chain scopes",
+        ],
+        "accumulatorInitialValue?": [
+            expressionSchema,
+            "@",
+            "the starting value of the accumulator, evaluated once before the first iteration; required when accumulatorName is provided",
+        ],
+    },
+})
+    .narrow((step, ctx) => {
+        const hasName = step.params.accumulatorName !== undefined;
+        const hasInit = step.params.accumulatorInitialValue !== undefined;
+        if (hasName !== hasInit) {
+            return ctx.reject({
+                expected:
+                    "both accumulatorName and accumulatorInitialValue, or neither",
+            });
+        }
+        return true;
+    })
+    .describe(
+        "a step that repeatedly evaluates a condition chain and, while its output is truthy, executes a loop body chain; each body output is collected into an array; when the condition is falsy, execution continues with this step's nextStepId; optionally specify accumulatorName and accumulatorInitialValue to fold iterations into a single value instead of collecting them into an array",
+    );
 
 const llmPromptSchema = type({
     type: "'llm-prompt'",
@@ -174,12 +245,12 @@ export function createWorkflowDefinitionSchema(
                 "@",
                 "an expression evaluated after each execution of the condition-check chain; if it evaluates to a truthy value, the wait completes with that value as its output; all step outputs from the condition chain are available in scope for this expression",
             ],
-            "maxAttempts?": [
+            maxAttempts: type([
                 expressionSchema,
                 "@",
-                "maximum number of polling attempts before giving up (default: 10)",
-            ],
-            intervalMs: [
+                "maximum number of polling attempts before giving up (defaults to 10)",
+            ]).default((): Expression => ({ type: "literal", value: 10 })),
+            intervalMs: type([
                 expressionSchema.narrow((expression) =>
                     assertLiteralExpressionConstraint(
                         expression,
@@ -189,13 +260,18 @@ export function createWorkflowDefinitionSchema(
                     ),
                 ),
                 "@",
-                `milliseconds to wait between polling attempts; must be at least ${limits.minPollIntervalSeconds * 1000}, which is also the interval a smaller one is raised to at execution time`,
-            ],
-            "backoffMultiplier?": [
+                `milliseconds to wait between polling attempts; must be at least ${limits.minPollIntervalSeconds * 1000}, which is also the interval a smaller one is raised to at execution time (defaults to ${limits.minPollIntervalSeconds * 1000})`,
+            ]).default(
+                (): Expression => ({
+                    type: "literal",
+                    value: limits.minPollIntervalSeconds * 1000,
+                }),
+            ),
+            backoffMultiplier: type([
                 expressionSchema,
                 "@",
-                "multiply the interval by this factor after each attempt",
-            ],
+                "multiply the interval by this factor after each attempt (defaults to 1)",
+            ]).default((): Expression => ({ type: "literal", value: 1 })),
             "timeoutMs?": [
                 expressionSchema.narrow((expression) =>
                     assertLiteralExpressionConstraint(
@@ -238,9 +314,7 @@ export function createWorkflowDefinitionSchema(
                 expressionSchema.narrow((expression) =>
                     assertLiteralExpressionConstraint(
                         expression,
-                        type(
-                            `number <= ${options.tokenBudgets.maxAgentSteps}`,
-                        ),
+                        type(`number <= ${options.tokenBudgets.maxAgentSteps}`),
                     ),
                 ),
                 "@",
@@ -299,7 +373,7 @@ export function createWorkflowDefinitionSchema(
         "a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
     );
 
-    const endSchema = type({
+    const endParamsSchema = type({
         type: "'end'",
         "params?": {
             output: expressionSchema,
@@ -313,12 +387,13 @@ export function createWorkflowDefinitionSchema(
         .or(extractDataParamsSchema)
         .or(switchCaseParamsSchema)
         .or(forEachParamsSchema)
+        .or(whileParamsSchema)
         .or(sleepParamsSchema)
         .or(waitForConditionParamsSchema)
         .or(agentLoopParamsSchema)
         .or(requestInterventionParamsSchema)
         .or(startParamsSchema)
-        .or(endSchema);
+        .or(endParamsSchema);
 
     if (!options.features.allowAgentLoops) {
         stepParamsSchema = stepParamsSchema.exclude(agentLoopParamsSchema);
@@ -331,7 +406,7 @@ export function createWorkflowDefinitionSchema(
 
     const workflowStepArktypeSchema = type({
         // A leading `__` is reserved for the runtime's own checkpoint keys.
-        id: /^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/,
+        id: [/^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/, "@", "unique step id"],
         name: "string",
         description: "string",
         "nextStepId?": "string",
@@ -339,7 +414,7 @@ export function createWorkflowDefinitionSchema(
 
     /** Schema for validating workflow definitions. */
     const workflowDefinitionArktypeSchema = type({
-        initialStepId: "string",
+        initialStepId: ["string", "@", "the id of the step which serves as the workflow's entry"],
         "inputSchema?": [
             jsonSchemaArktypeSchema,
             "@",
@@ -379,3 +454,7 @@ export type WorkflowStep = StandardSchemaTypeInfer<WorkflowStepArktypeSchema>;
  */
 export type WorkflowDefinition =
     StandardSchemaTypeInfer<WorkflowDefinitionArktypeSchema>;
+
+export const workflowDefinitionSchema = createWorkflowDefinitionSchema(
+    remoraflowSettingsSchema.assert({}),
+);

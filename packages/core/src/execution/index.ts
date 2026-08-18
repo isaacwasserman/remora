@@ -1,14 +1,16 @@
 import type { WorkflowDefinition } from "../schema";
+import { validateValue } from "../schemistry";
 import {
     type LanguageModel,
-    type ToolSet,
     remoraflowSettingsSchema,
+    type ToolSet,
 } from "../types";
 import { validateWorkflowDefinition } from "../validation";
 import type { ValidatorError } from "../validation/types";
 import { createExecutionContext } from "./execution-engine/context";
 import { UnrecoverableExecutionError } from "./execution-engine/errors";
 import { createInMemoryExecutionEngine } from "./execution-engine/in-memory";
+import type { StepPath } from "./execution-engine/types";
 import { withLogCapture } from "./logger";
 import { _executeWorkflow } from "./run-workflow";
 import type {
@@ -26,11 +28,13 @@ export async function* executeWorkflowStream({
     workflowDefinition,
     tools,
     model,
+    input,
     executionOptions,
 }: {
     workflowDefinition: WorkflowDefinition;
     tools: ToolSet;
     model: LanguageModel;
+    input?: unknown;
     executionOptions?: ExecutionOptions;
 }): AsyncGenerator<ExecutionState> {
     const settings = remoraflowSettingsSchema.assert(
@@ -59,8 +63,31 @@ export async function* executeWorkflowStream({
             },
             logs: [],
             scope: {},
+            executionPath: [],
         };
         return;
+    }
+
+    if (workflowDefinition.inputSchema) {
+        const { valid, errors } = validateValue(
+            input ?? {},
+            workflowDefinition.inputSchema,
+        );
+        if (!valid) {
+            const detail = errors[0];
+            yield {
+                status: "error",
+                output: null,
+                error: {
+                    code: "INVALID_INPUT",
+                    message: `Workflow input does not match the input schema: ${detail?.error ?? "validation failed"}`,
+                },
+                logs: [],
+                scope: {},
+                executionPath: [],
+            };
+            return;
+        }
     }
 
     const executionEngine =
@@ -76,8 +103,14 @@ export async function* executeWorkflowStream({
             defaultUserInterventionAdapter,
     );
 
+    const initialScope = {
+        [workflowDefinition.initialStepId]: input,
+        ...(input !== undefined ? { input } : {}),
+    };
+
     let latestUpdate: StepExecutionUpdate | null = null;
     let latestLogs: LogLine[] = [];
+    let executionPath: StepPath[] = [];
 
     try {
         for await (const captured of withLogCapture(
@@ -88,7 +121,7 @@ export async function* executeWorkflowStream({
                     model,
                     settings,
                     approvalPolicies,
-                    initialScope: {},
+                    initialScope,
                     executionContext,
                     userInterventionContext,
                     uniqueStepIdPath: [],
@@ -101,6 +134,10 @@ export async function* executeWorkflowStream({
         )) {
             latestUpdate = captured.objective;
             latestLogs = captured.logs.logs;
+            executionPath = [
+                ...executionPath,
+                latestUpdate.currentUniqueStepIdPath,
+            ];
             if (latestUpdate.error) {
                 yield {
                     status: "error",
@@ -108,6 +145,7 @@ export async function* executeWorkflowStream({
                     error: latestUpdate.error,
                     logs: latestLogs,
                     scope: latestUpdate.scope ?? {},
+                    executionPath,
                 };
                 return;
             }
@@ -118,6 +156,7 @@ export async function* executeWorkflowStream({
                 error: null,
                 logs: latestLogs,
                 scope: latestUpdate.scope,
+                executionPath,
             };
         }
     } catch (error) {
@@ -131,17 +170,43 @@ export async function* executeWorkflowStream({
                 },
                 logs: latestLogs,
                 scope: latestUpdate?.scope ?? {},
+                executionPath,
             };
             return;
         }
         throw error;
     }
+
+    if (workflowDefinition.outputSchema) {
+        const output = latestUpdate?.output;
+        const { valid, errors } = validateValue(
+            output,
+            workflowDefinition.outputSchema,
+        );
+        if (!valid) {
+            const detail = errors[0];
+            yield {
+                status: "error",
+                output: null,
+                error: {
+                    code: "INVALID_OUTPUT",
+                    message: `Workflow output does not match the output schema: ${detail?.error ?? "validation failed"}`,
+                },
+                logs: latestLogs,
+                scope: latestUpdate?.scope ?? {},
+                executionPath,
+            };
+            return;
+        }
+    }
+
     yield {
         status: "success",
         output: latestUpdate?.output,
         error: null,
         logs: latestLogs,
         scope: latestUpdate?.scope ?? {},
+        executionPath,
     };
 }
 

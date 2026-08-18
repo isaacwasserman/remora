@@ -57,7 +57,7 @@ export type ExecutionContext = {
      * that a run made up of steps which never reach the context — `start`,
      * `end`, a `switch-case` that only branches — still cannot overrun.
      */
-    assertWithinBudget: () => Promise<void>;
+    assertWithinDurationBudget: () => Promise<void>;
 
     step: <TStepOutput>(
         stepPath: StepPath,

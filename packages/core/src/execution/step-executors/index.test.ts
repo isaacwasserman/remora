@@ -79,7 +79,8 @@ async function runStep(
             settings: remoraflowSettingsSchema.assert({}),
             approvalPolicies: [],
             executionContext,
-            userInterventionContext: createUserInverventionContext(intervention),
+            userInterventionContext:
+                createUserInverventionContext(intervention),
         })) {
             last = { scope: update.scope, error: update.error };
         }
@@ -262,6 +263,379 @@ describe("step executors", () => {
         // outputs (each loop body ends in an `end` step outputting `item`).
         expect(result.scope?.fe).toEqual([1, 2, 3]);
     });
+
+    test("for-each over an empty array produces an empty output", async () => {
+        const forEach = step("fe", {
+            type: "for-each",
+            params: {
+                target: { type: "jmespath", expression: "items" },
+                itemName: "item",
+                loopBodyStepId: "body",
+            },
+        });
+        const body = step("body", {
+            type: "end",
+            params: { output: { type: "jmespath", expression: "item" } },
+        });
+        const result = await runStep(
+            forEach,
+            { items: [] },
+            { workflowDefinition: workflow(forEach, body) },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.fe).toEqual([]);
+    });
+
+    test("for-each propagates an error from a loop body step", async () => {
+        const forEach = step("fe", {
+            type: "for-each",
+            params: {
+                target: { type: "jmespath", expression: "items" },
+                itemName: "item",
+                loopBodyStepId: "callTool",
+            },
+        });
+        const callTool = step("callTool", {
+            type: "tool-call",
+            params: {
+                toolName: "missing",
+                toolInput: {},
+            },
+        });
+        const result = await runStep(
+            forEach,
+            { items: [1] },
+            { workflowDefinition: workflow(forEach, callTool) },
+        );
+        expect(result.error?.code).toBe("MISSING_TOOL");
+    });
+
+    test("for-each with accumulator folds iterations", async () => {
+        let callCount = 0;
+        const add = tool({
+            description: "add",
+            inputSchema: type({ a: "number", b: "number" }),
+            outputSchema: type({ sum: "number" }),
+            execute: ({ a, b }: { a: number; b: number }) => {
+                callCount++;
+                return { sum: a + b };
+            },
+        });
+        const forEach = step("fe", {
+            type: "for-each",
+            params: {
+                target: { type: "literal", value: [1, 2, 3] },
+                itemName: "item",
+                loopBodyStepId: "body",
+                accumulatorName: "acc",
+                accumulatorInitialValue: { type: "literal", value: 0 },
+            },
+        });
+        const body = step("body", {
+            type: "tool-call",
+            nextStepId: "bodyEnd",
+            params: {
+                toolName: "add",
+                toolInput: {
+                    a: { type: "jmespath", expression: "acc" },
+                    b: { type: "jmespath", expression: "item" },
+                },
+            },
+        });
+        const bodyEnd = step("bodyEnd", {
+            type: "end",
+            params: {
+                output: { type: "jmespath", expression: "body.sum" },
+            },
+        });
+        const result = await runStep(
+            forEach,
+            {},
+            {
+                workflowDefinition: workflow(forEach, body, bodyEnd),
+                agentConfig: makeAgentConfig({ add }),
+            },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.fe).toBe(6);
+        expect(callCount).toBe(3);
+    });
+
+    test("for-each with accumulator over empty array returns initial value", async () => {
+        const forEach = step("fe", {
+            type: "for-each",
+            params: {
+                target: { type: "literal", value: [] },
+                itemName: "item",
+                loopBodyStepId: "body",
+                accumulatorName: "acc",
+                accumulatorInitialValue: {
+                    type: "literal",
+                    value: "init",
+                },
+            },
+        });
+        const body = step("body", {
+            type: "end",
+            params: { output: { type: "jmespath", expression: "item" } },
+        });
+        const result = await runStep(
+            forEach,
+            {},
+            { workflowDefinition: workflow(forEach, body) },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.fe).toBe("init");
+    });
+
+    test("switch-case propagates an error from a branch body step", async () => {
+        const callTool = step("callTool", {
+            type: "tool-call",
+            params: {
+                toolName: "missing",
+                toolInput: {},
+            },
+        });
+        const switchStep = step("sc", {
+            type: "switch-case",
+            params: {
+                switchOn: { type: "jmespath", expression: "x" },
+                cases: [
+                    {
+                        value: { type: "literal", value: "go" },
+                        branchBodyStepId: "callTool",
+                    },
+                ],
+            },
+        });
+        const result = await runStep(
+            switchStep,
+            { x: "go" },
+            { workflowDefinition: workflow(switchStep, callTool) },
+        );
+        expect(result.error?.code).toBe("MISSING_TOOL");
+    });
+
+    test("while collects each loop body's output into an array", async () => {
+        let condCalls = 0;
+        let bodyCalls = 0;
+        const probe = tool({
+            description: "probe",
+            inputSchema: type({}),
+            outputSchema: type({ go: "boolean" }),
+            execute: () => ({ go: ++condCalls <= 3 }),
+        });
+        const count = tool({
+            description: "count",
+            inputSchema: type({}),
+            outputSchema: type({ n: "number" }),
+            execute: () => ({ n: ++bodyCalls }),
+        });
+        const whileStep = step("wh", {
+            type: "while",
+            params: { conditionStepId: "cond", loopBodyStepId: "body" },
+        });
+        const cond = step("cond", {
+            type: "tool-call",
+            nextStepId: "condEnd",
+            params: { toolName: "probe", toolInput: {} },
+        });
+        const condEnd = step("condEnd", {
+            type: "end",
+            params: {
+                output: { type: "jmespath", expression: "cond.go" },
+            },
+        });
+        const body = step("body", {
+            type: "tool-call",
+            nextStepId: "bodyEnd",
+            params: { toolName: "count", toolInput: {} },
+        });
+        const bodyEnd = step("bodyEnd", {
+            type: "end",
+            params: {
+                output: { type: "jmespath", expression: "body.n" },
+            },
+        });
+        const result = await runStep(
+            whileStep,
+            {},
+            {
+                workflowDefinition: workflow(
+                    whileStep,
+                    cond,
+                    condEnd,
+                    body,
+                    bodyEnd,
+                ),
+                agentConfig: makeAgentConfig({ probe, count }),
+            },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.wh).toEqual([1, 2, 3]);
+    });
+
+    test("while with immediately-false condition produces an empty output", async () => {
+        const whileStep = step("wh", {
+            type: "while",
+            params: { conditionStepId: "cond", loopBodyStepId: "body" },
+        });
+        const cond = step("cond", {
+            type: "end",
+            params: { output: { type: "literal", value: false } },
+        });
+        const body = step("body", {
+            type: "end",
+            params: { output: { type: "literal", value: 1 } },
+        });
+        const result = await runStep(
+            whileStep,
+            {},
+            { workflowDefinition: workflow(whileStep, cond, body) },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.wh).toEqual([]);
+    });
+
+    test("while propagates an error from a loop body step", async () => {
+        const whileStep = step("wh", {
+            type: "while",
+            params: { conditionStepId: "cond", loopBodyStepId: "body" },
+        });
+        const cond = step("cond", {
+            type: "end",
+            params: { output: { type: "literal", value: true } },
+        });
+        const body = step("body", {
+            type: "tool-call",
+            params: { toolName: "missing", toolInput: {} },
+        });
+        const result = await runStep(
+            whileStep,
+            {},
+            { workflowDefinition: workflow(whileStep, cond, body) },
+        );
+        expect(result.error?.code).toBe("MISSING_TOOL");
+    });
+
+    test("while propagates an error from a condition chain step", async () => {
+        const whileStep = step("wh", {
+            type: "while",
+            params: { conditionStepId: "cond", loopBodyStepId: "body" },
+        });
+        const cond = step("cond", {
+            type: "tool-call",
+            params: { toolName: "missing", toolInput: {} },
+        });
+        const body = step("body", {
+            type: "end",
+            params: { output: { type: "literal", value: 1 } },
+        });
+        const result = await runStep(
+            whileStep,
+            {},
+            { workflowDefinition: workflow(whileStep, cond, body) },
+        );
+        expect(result.error?.code).toBe("MISSING_TOOL");
+    });
+
+    test("while with accumulator folds iterations", async () => {
+        let condCalls = 0;
+        let bodyCalls = 0;
+        const probe = tool({
+            description: "probe",
+            inputSchema: type({}),
+            outputSchema: type({ go: "boolean" }),
+            execute: () => ({ go: ++condCalls <= 3 }),
+        });
+        const append = tool({
+            description: "append",
+            inputSchema: type({ acc: "string" }),
+            outputSchema: type({ result: "string" }),
+            execute: ({ acc }: { acc: string }) => ({
+                result: `${acc}${++bodyCalls}`,
+            }),
+        });
+        const whileStep = step("wh", {
+            type: "while",
+            params: {
+                conditionStepId: "cond",
+                loopBodyStepId: "body",
+                accumulatorName: "acc",
+                accumulatorInitialValue: { type: "literal", value: "" },
+            },
+        });
+        const cond = step("cond", {
+            type: "tool-call",
+            nextStepId: "condEnd",
+            params: { toolName: "probe", toolInput: {} },
+        });
+        const condEnd = step("condEnd", {
+            type: "end",
+            params: {
+                output: { type: "jmespath", expression: "cond.go" },
+            },
+        });
+        const body = step("body", {
+            type: "tool-call",
+            nextStepId: "bodyEnd",
+            params: {
+                toolName: "append",
+                toolInput: {
+                    acc: { type: "jmespath", expression: "acc" },
+                },
+            },
+        });
+        const bodyEnd = step("bodyEnd", {
+            type: "end",
+            params: {
+                output: { type: "jmespath", expression: "body.result" },
+            },
+        });
+        const result = await runStep(
+            whileStep,
+            {},
+            {
+                workflowDefinition: workflow(
+                    whileStep,
+                    cond,
+                    condEnd,
+                    body,
+                    bodyEnd,
+                ),
+                agentConfig: makeAgentConfig({ probe, append }),
+            },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.wh).toBe("123");
+    });
+
+    test("while with accumulator and immediately-false condition returns initial value", async () => {
+        const whileStep = step("wh", {
+            type: "while",
+            params: {
+                conditionStepId: "cond",
+                loopBodyStepId: "body",
+                accumulatorName: "acc",
+                accumulatorInitialValue: { type: "literal", value: 42 },
+            },
+        });
+        const cond = step("cond", {
+            type: "end",
+            params: { output: { type: "literal", value: false } },
+        });
+        const body = step("body", {
+            type: "end",
+            params: { output: { type: "literal", value: 0 } },
+        });
+        const result = await runStep(
+            whileStep,
+            {},
+            { workflowDefinition: workflow(whileStep, cond, body) },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.wh).toBe(42);
+    });
 });
 
 type AskSupervisorStep = Extract<
@@ -339,6 +713,39 @@ describe("request-intervention", () => {
         );
         expect(result.error).toBeNull();
         expect(result.scope?.ask).toBe("typed in");
+    });
+
+    test("rejects a response not in the choices when free response is disabled", async () => {
+        const result = await runStep(
+            askStep,
+            {},
+            {
+                userInterventionAdapter: {
+                    requestIntervention: async () => {},
+                    getResponse: async () => ({ answer: "maybe" }),
+                },
+            },
+        );
+        expect(result.error?.code).toBe("TYPE_ERROR");
+        expect(result.error?.message).toContain(
+            "not one of the allowed choices",
+        );
+    });
+
+    test("accepts a response not in the choices when free response is enabled", async () => {
+        const freeAsk = ask({ type: "literal", value: ["yes", "no"] }, true);
+        const result = await runStep(
+            freeAsk,
+            {},
+            {
+                userInterventionAdapter: {
+                    requestIntervention: async () => {},
+                    getResponse: async () => ({ answer: "maybe" }),
+                },
+            },
+        );
+        expect(result.error).toBeNull();
+        expect(result.scope?.ask).toBe("maybe");
     });
 
     test("surfaces a failed intervention request instead of waiting forever", async () => {

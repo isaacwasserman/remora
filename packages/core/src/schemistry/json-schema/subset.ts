@@ -260,13 +260,13 @@ function classify(
 }
 
 /** A single validation failure from the full JSON-Schema validator. */
-interface ValueError {
+export interface ValueError {
     instanceLocation?: string;
     error?: string;
 }
 
 /** Result of validating a concrete value against a schema. */
-interface ValidationResult {
+export interface ValidationResult {
     valid: boolean;
     errors: ValueError[];
 }
@@ -299,7 +299,7 @@ function constDiagnostics(
 }
 
 /** Exhaustively validates a concrete value against a (ref-free) schema. */
-function validateValue(
+export function validateValue(
     value: unknown,
     sup: JSONSchema7Definition,
 ): ValidationResult {

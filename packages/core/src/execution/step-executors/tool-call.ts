@@ -14,6 +14,7 @@ export const toolCallExecutor: StepExecutor<"tool-call"> = {
         approvalPolicies,
         executionContext,
         userInterventionContext,
+        settings,
     }) {
         const allTools = tools;
         const tool = allTools[step.params.toolName as keyof typeof tools];
@@ -60,13 +61,16 @@ export const toolCallExecutor: StepExecutor<"tool-call"> = {
             uniqueStepIdPath,
         });
 
-        const toolOutput = await executionContext.step(
-            uniqueStepIdPath,
-            () =>
-                runTool(tool, toolInput, {
+        const toolOutput = await executionContext.step(uniqueStepIdPath, () =>
+            runTool(
+                tool,
+                toolInput,
+                {
                     toolCallId: step.id,
                     messages: [],
-                }),
+                },
+                settings.toolExecutionLimits.maxToolOutputBytes,
+            ),
         );
         yield {
             scope: { ...scope, [step.id]: toolOutput },

@@ -1,5 +1,6 @@
-import type { LanguageModel, LanguageModelMiddleware } from "ai";
+import type { JSONSchema7, LanguageModel, LanguageModelMiddleware } from "ai";
 import { APICallError } from "ai";
+import type { JSONSchema7Definition, JSONSchema7TypeName } from "json-schema";
 import { estimateTokenCount } from "tokenx";
 
 // =============================================================================
@@ -660,7 +661,7 @@ export function isContextOverflowError(error: unknown): boolean {
 // The middleware
 // -----------------------------------------------------------------------------
 
-export function tokenLimitMiddleware(
+export function createTokenLimitMiddleware(
     options: TokenLimitMiddlewareOptions,
 ): LanguageModelMiddleware {
     const {
@@ -802,21 +803,133 @@ export function tokenLimitMiddleware(
     };
 }
 
-// -----------------------------------------------------------------------------
-// Usage
-// -----------------------------------------------------------------------------
-//
-// import { wrapLanguageModel } from "ai";
-// import { anthropic } from "@ai-sdk/anthropic";
-//
-// const model = wrapLanguageModel({
-//     model: anthropic("claude-sonnet-4-5"),
-//     middleware: tokenLimitMiddleware({
-//         maxInputTokens: 150_000,
-//         // Never truncate system messages:
-//         shouldTruncateMessage: (m) => m.role !== "system",
-//         // Never partially drop tool-calls (only whole messages):
-//         shouldTruncateMessagePart: (p) => p.type !== "tool-call",
-//         onTruncate: (info) => console.warn("prompt truncated", info),
-//     }),
-// });
+export function sanitizeSchemaForAI(
+    schema: JSONSchema7Definition,
+): JSONSchema7Definition {
+    if (typeof schema === "boolean") {
+        return schema;
+    }
+
+    const result: JSONSchema7 = { ...schema };
+
+    const rawType = result.type;
+    const types: JSONSchema7TypeName[] = Array.isArray(rawType)
+        ? rawType
+        : rawType
+          ? [rawType]
+          : [];
+
+    // 1. Array Sanitization
+    if (types.includes("array")) {
+        result.items = result.items
+            ? Array.isArray(result.items)
+                ? result.items.map(sanitizeSchemaForAI)
+                : sanitizeSchemaForAI(result.items)
+            : result.items;
+
+        result.additionalItems = result.additionalItems
+            ? sanitizeSchemaForAI(result.additionalItems)
+            : result.additionalItems;
+
+        result.minItems =
+            result.minItems === 0 ? 0 : result.minItems === 1 ? 1 : undefined;
+        result.maxItems = undefined;
+    }
+
+    // 2. Object Sanitization
+    if (types.includes("object")) {
+        result.properties = result.properties
+            ? Object.fromEntries(
+                  Object.entries(result.properties).map(([k, v]) => [
+                      k,
+                      sanitizeSchemaForAI(v),
+                  ]),
+              )
+            : result.properties;
+
+        if (result.patternProperties) {
+            result.patternProperties = Object.fromEntries(
+                Object.entries(result.patternProperties).map(([k, v]) => [
+                    k,
+                    sanitizeSchemaForAI(v),
+                ]),
+            );
+        }
+
+        result.additionalProperties =
+            result.additionalProperties === false ? false : undefined;
+    }
+
+    // 3. Numeric Sanitization
+    if (types.includes("integer") || types.includes("number")) {
+        result.multipleOf = undefined;
+        result.minimum = undefined;
+        result.exclusiveMinimum = undefined;
+        result.maximum = undefined;
+        result.exclusiveMaximum = undefined;
+    }
+
+    // 4. String Sanitization
+    if (types.includes("string")) {
+        result.minLength = undefined;
+        result.maxLength = undefined;
+    }
+
+    // 5. Recursive Combinators & Definitions (Handles cases with or without explicit type)
+    if (result.anyOf) {
+        result.anyOf = result.anyOf.map(sanitizeSchemaForAI);
+    }
+    if (result.oneOf) {
+        result.oneOf = result.oneOf.map(sanitizeSchemaForAI);
+    }
+    if (result.allOf) {
+        result.allOf = result.allOf.map(sanitizeSchemaForAI);
+    }
+    if (result.definitions) {
+        result.definitions = Object.fromEntries(
+            Object.entries(result.definitions).map(([k, v]) => [
+                k,
+                sanitizeSchemaForAI(v),
+            ]),
+        );
+    }
+    if (result.$defs) {
+        result.$defs = Object.fromEntries(
+            Object.entries(result.$defs).map(([k, v]) => [
+                k,
+                sanitizeSchemaForAI(v),
+            ]),
+        );
+    }
+
+    return result;
+}
+
+export function createSchemaSanitizationMiddleware(): LanguageModelMiddleware {
+    return {
+        transformParams: async ({ params }) => {
+            const tools = params.tools?.map((tool) =>
+                tool.type !== "provider"
+                    ? {
+                          ...tool,
+                          inputSchema: sanitizeSchemaForAI(
+                              tool.inputSchema,
+                          ) as JSONSchema7,
+                      }
+                    : tool,
+            );
+            const responseFormat =
+                params.responseFormat?.type === "json"
+                    ? {
+                          ...params.responseFormat,
+                          schema: params.responseFormat.schema
+                              ? (sanitizeSchemaForAI(
+                                    params.responseFormat.schema,
+                                ) as JSONSchema7)
+                              : params.responseFormat.schema,
+                      }
+                    : params.responseFormat;
+            return { ...params, tools, responseFormat };
+        },
+    };
+}

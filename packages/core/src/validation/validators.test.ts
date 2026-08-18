@@ -33,7 +33,8 @@ const ctx = (
 });
 
 /** Context for the step types the default options switch off. */
-const permissiveCtx = () => ctx(tools, { features: { allowUserIntervention: true } });
+const permissiveCtx = () =>
+    ctx(tools, { features: { allowUserIntervention: true } });
 
 /**
  * Input the type system would reject, standing in for the untrusted (typically
@@ -256,6 +257,96 @@ describe("controlFlowValidator", () => {
             [],
         );
     });
+
+    test("warns when a while condition chain does not terminate with an end step", () => {
+        const wf = workflow(
+            step("start", { type: "start", nextStepId: "loop" }),
+            step("loop", {
+                type: "while",
+                nextStepId: "end",
+                params: {
+                    conditionStepId: "cond",
+                    loopBodyStepId: "body",
+                },
+            }),
+            step("cond", {
+                type: "tool-call",
+                params: { toolName: "known", toolInput: {} },
+            }),
+            step("body", {
+                type: "end",
+                params: { output: { type: "literal", value: 1 } },
+            }),
+            step("end", { type: "end" }),
+        );
+        const { diagnostics } = controlFlowValidator.validate(wf, ctx());
+        expect(hasError(diagnostics)).toBe(false);
+        expect(
+            diagnostics.some(
+                (d) =>
+                    d.severity === "warning" &&
+                    d.message.includes('condition chain of while step "loop"'),
+            ),
+        ).toBe(true);
+    });
+
+    test("warns when a while body chain does not terminate with an end step", () => {
+        const wf = workflow(
+            step("start", { type: "start", nextStepId: "loop" }),
+            step("loop", {
+                type: "while",
+                nextStepId: "end",
+                params: {
+                    conditionStepId: "cond",
+                    loopBodyStepId: "body",
+                },
+            }),
+            step("cond", {
+                type: "end",
+                params: { output: { type: "literal", value: true } },
+            }),
+            step("body", {
+                type: "tool-call",
+                params: { toolName: "known", toolInput: {} },
+            }),
+            step("end", { type: "end" }),
+        );
+        const { diagnostics } = controlFlowValidator.validate(wf, ctx());
+        expect(hasError(diagnostics)).toBe(false);
+        expect(
+            diagnostics.some(
+                (d) =>
+                    d.severity === "warning" &&
+                    d.message.includes('loop body of while step "loop"'),
+            ),
+        ).toBe(true);
+    });
+
+    test("accepts a valid while step with both chains ending in end", () => {
+        const wf = workflow(
+            step("start", { type: "start", nextStepId: "loop" }),
+            step("loop", {
+                type: "while",
+                nextStepId: "end",
+                params: {
+                    conditionStepId: "cond",
+                    loopBodyStepId: "body",
+                },
+            }),
+            step("cond", {
+                type: "end",
+                params: { output: { type: "literal", value: true } },
+            }),
+            step("body", {
+                type: "end",
+                params: { output: { type: "literal", value: 1 } },
+            }),
+            step("end", { type: "end" }),
+        );
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual(
+            [],
+        );
+    });
 });
 
 describe("syntaxValidator", () => {
@@ -450,6 +541,138 @@ describe("variableReferenceValidator", () => {
         expect(
             variableReferenceValidator.validate(
                 workflowWithForEach("loop.nope"),
+                ctx(),
+            ).diagnostics,
+        ).toEqual([
+            {
+                severity: "error",
+                path: ["steps", 3, "params", "output", "expression"],
+                message: "Invalid access: always resolves to null.",
+            },
+        ]);
+    });
+
+    const workflowWithWhile = (finalExpression: string): WorkflowDefinition =>
+        workflow(
+            step("start", { type: "start", nextStepId: "loop" }),
+            step("loop", {
+                type: "while",
+                nextStepId: "finish",
+                params: {
+                    conditionStepId: "cond",
+                    loopBodyStepId: "body",
+                },
+            }),
+            step("cond", {
+                type: "end",
+                params: { output: { type: "literal", value: true } },
+            }),
+            step("body", {
+                type: "end",
+                params: {
+                    output: {
+                        type: "literal",
+                        value: { n: 1 },
+                    },
+                },
+            }),
+            step("finish", {
+                type: "end",
+                params: {
+                    output: {
+                        type: "jmespath",
+                        expression: finalExpression,
+                    },
+                },
+            }),
+        );
+
+    test("treats a while output as an array of loop body outputs", () => {
+        expect(
+            variableReferenceValidator.validate(
+                workflowWithWhile("loop[0].n"),
+                ctx(),
+            ).diagnostics,
+        ).toEqual([]);
+        expect(
+            variableReferenceValidator.validate(
+                workflowWithWhile("loop[0].nope"),
+                ctx(),
+            ).diagnostics,
+        ).toEqual([
+            {
+                severity: "error",
+                path: ["steps", 4, "params", "output", "expression"],
+                message: "Invalid access: always resolves to null.",
+            },
+        ]);
+    });
+
+    test("flags a field access on a while output (it is an array)", () => {
+        expect(
+            variableReferenceValidator.validate(
+                workflowWithWhile("loop.nope"),
+                ctx(),
+            ).diagnostics,
+        ).toEqual([
+            {
+                severity: "error",
+                path: ["steps", 4, "params", "output", "expression"],
+                message: "Invalid access: always resolves to null.",
+            },
+        ]);
+    });
+
+    const workflowWithForEachAccumulator = (
+        finalExpression: string,
+    ): WorkflowDefinition =>
+        workflow(
+            step("start", { type: "start", nextStepId: "loop" }),
+            step("loop", {
+                type: "for-each",
+                nextStepId: "finish",
+                params: {
+                    target: {
+                        type: "literal",
+                        value: [{ n: 1 }, { n: 2 }],
+                    },
+                    itemName: "item",
+                    loopBodyStepId: "body",
+                    accumulatorName: "acc",
+                    accumulatorInitialValue: {
+                        type: "literal",
+                        value: { total: 0 },
+                    },
+                },
+            }),
+            step("body", {
+                type: "end",
+                params: { output: { type: "jmespath", expression: "acc" } },
+            }),
+            step("finish", {
+                type: "end",
+                params: {
+                    output: {
+                        type: "jmespath",
+                        expression: finalExpression,
+                    },
+                },
+            }),
+        );
+
+    test("for-each body can reference the accumulator name", () => {
+        expect(
+            variableReferenceValidator.validate(
+                workflowWithForEachAccumulator("loop.total"),
+                ctx(),
+            ).diagnostics,
+        ).toEqual([]);
+    });
+
+    test("for-each with accumulator output is not an array", () => {
+        expect(
+            variableReferenceValidator.validate(
+                workflowWithForEachAccumulator("loop[0]"),
                 ctx(),
             ).diagnostics,
         ).toEqual([
@@ -710,8 +933,8 @@ describe("block steps with nested chains", () => {
                     intervalMs: {
                         type: "literal",
                         value:
-                            defaultOptions.duration
-                                .minPollIntervalSeconds * 1000,
+                            defaultOptions.duration.minPollIntervalSeconds *
+                            1000,
                     },
                     ...overrides,
                 },
@@ -730,9 +953,14 @@ describe("block steps with nested chains", () => {
 
     test("a condition chain is reachable and its bindings resolve in `condition`", () => {
         const wf = waitWorkflow();
-        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual(
-            [],
-        );
+        expect(controlFlowValidator.validate(wf, ctx()).diagnostics).toEqual([
+            {
+                severity: "warning",
+                path: ["initialStepId"],
+                message:
+                    'The initial step "wait" is of type "wait-for-condition", not "start". A "start" step is recommended as the entry point.',
+            },
+        ]);
         // `condition` reads `check.ready`, which the condition chain binds —
         // nothing in scope at the wait step itself provides it.
         expect(
@@ -783,8 +1011,8 @@ describe("block steps with nested chains", () => {
                     intervalMs: {
                         type: "literal",
                         value:
-                            defaultOptions.duration
-                                .minPollIntervalSeconds * 1000,
+                            defaultOptions.duration.minPollIntervalSeconds *
+                            1000,
                     },
                 },
             }),
@@ -798,7 +1026,10 @@ describe("block steps with nested chains", () => {
             controlFlowValidator
                 .validate(cyclic, ctx())
                 .diagnostics.map((d) => d.message),
-        ).toEqual([expect.stringContaining("contains a cycle")]);
+        ).toEqual([
+            'The initial step "wait" is of type "wait-for-condition", not "start". A "start" step is recommended as the entry point.',
+            expect.stringContaining("contains a cycle"),
+        ]);
     });
 });
 

@@ -21,6 +21,9 @@ and another during a run.
   granting itself a fresh budget.
 - Every step now carries a `maxStepExecutionSeconds` timeout.
 - Poll intervals below `minPollIntervalSeconds` are raised to it.
+- A `DURATION_LIMIT_EXCEEDED` error carries a `path` naming the step the run
+  halted on, like every other execution error, so a viewer can mark the failing
+  node instead of only reporting that the run ended.
 
 Breaking changes to `ExecutionOptions`:
 

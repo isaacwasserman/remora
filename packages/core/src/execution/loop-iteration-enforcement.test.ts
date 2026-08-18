@@ -85,7 +85,8 @@ function run(
     };
     return executeWorkflow({
         workflowDefinition,
-        tools, model: createMockModel([]),
+        tools,
+        model: createMockModel([]),
         executionOptions: { settings: policy, silenceLogs: true },
     });
 }
@@ -135,5 +136,88 @@ describe("maxLoopIterations enforcement", () => {
         // The inner loop, not the outer one that forwarded the error.
         expect(result.error?.path).toEqual(["steps", 1]);
         expect(calls).toEqual([]);
+    });
+});
+
+describe("maxLoopIterations enforcement (while)", () => {
+    function whileRun(trueCount: number, maxLoopIterations: number) {
+        let condCalls = 0;
+        const bodyCalls: unknown[] = [];
+        const check = tool({
+            inputSchema: type({}),
+            outputSchema: type({ go: "boolean" }),
+            execute: () => ({ go: ++condCalls <= trueCount }),
+        });
+        const touch = tool({
+            inputSchema: type({ item: "unknown" }),
+            outputSchema: type({ ok: "boolean" }),
+            execute: ({ item }: { item: unknown }) => {
+                bodyCalls.push(item);
+                return { ok: true };
+            },
+        });
+        const wf = workflow(
+            step("loop", {
+                type: "while",
+                params: {
+                    conditionStepId: "cond",
+                    loopBodyStepId: "body",
+                },
+            }),
+            step("cond", {
+                type: "tool-call",
+                nextStepId: "condEnd",
+                params: { toolName: "check", toolInput: {} },
+            }),
+            step("condEnd", {
+                type: "end",
+                params: {
+                    output: { type: "jmespath", expression: "cond.go" },
+                },
+            }),
+            step("body", {
+                type: "tool-call",
+                nextStepId: "bodyEnd",
+                params: {
+                    toolName: "touch",
+                    toolInput: {
+                        item: { type: "literal", value: true },
+                    },
+                },
+            }),
+            step("bodyEnd", {
+                type: "end",
+                params: {
+                    output: { type: "jmespath", expression: "body.ok" },
+                },
+            }),
+        );
+        return {
+            result: run(wf, maxLoopIterations, { check, touch }),
+            bodyCalls,
+        };
+    }
+
+    test("a while loop that exceeds the iteration limit fails the run", async () => {
+        const { result, bodyCalls } = whileRun(10, 3);
+        const r = await result;
+        expect(r.status).toBe("error");
+        expect(r.error?.code).toBe("LOOP_ITERATION_LIMIT_EXCEEDED");
+        expect(r.error?.path).toEqual(["steps", 0]);
+        expect(bodyCalls).toHaveLength(3);
+    });
+
+    test("a while loop exactly at the limit is allowed", async () => {
+        const { result, bodyCalls } = whileRun(3, 3);
+        const r = await result;
+        expect(r.status).toBe("success");
+        expect(bodyCalls).toHaveLength(3);
+    });
+
+    test("a limit of 0 means unlimited for while loops", async () => {
+        const { result, bodyCalls } = whileRun(5, 0);
+        const r = await result;
+        expect(r.status).toBe("success");
+        expect(bodyCalls).toHaveLength(5);
     });
 });

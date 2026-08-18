@@ -1,7 +1,8 @@
 import type { WorkflowDefinition } from "../schema";
-import { remoraflowSettingsSchema, type ToolSet } from "../types";
+import { remoraflowSettingsSchema, type StubbedToolSet } from "../types";
 import { controlFlowValidator } from "./control-flow-validation";
-import { controlFlowValidator as structuralLimitValidator } from "./structural-limit-validation";
+import { outputSchemaValidator } from "./output-schema-validation";
+import { structuralLimitValidator } from "./structural-limit-validation";
 import { syntaxValidator } from "./syntax-validation";
 import { createToolDefinitionValidator } from "./tool-definition-validation";
 import { toolInputValidator } from "./tool-input-validation";
@@ -25,7 +26,7 @@ export function validateWorkflowDefinition(
     {
         tools,
         options = remoraflowSettingsSchema.assert({}),
-    }: { tools: ToolSet; options?: ValidationContext["options"] },
+    }: { tools: StubbedToolSet; options?: ValidationContext["options"] },
     toolAssertions: {
         assertToolsHaveExecutionFunctions: boolean;
         assertToolsHaveOutputSchemas: boolean;
@@ -44,6 +45,7 @@ export function validateWorkflowDefinition(
         structuralLimitValidator,
         toolReferenceValidator,
         variableReferenceValidator,
+        outputSchemaValidator,
         toolInputValidator,
         createToolDefinitionValidator(toolAssertions),
     ];

@@ -1,20 +1,16 @@
 import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
-import {
-    type DurationLimits,
-    resolveDurationLimits,
-} from "./duration-policy";
 import { remoraflowSettingsSchema } from "../../types";
 import { createCheckpointingExecutionEngine } from "./checkpointing";
 import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
 import type { CheckpointStore } from "./checkpointing/types";
 import { createDurationBudget } from "./duration-budget";
+import { type DurationLimits, resolveDurationLimits } from "./duration-policy";
 import { DurationLimitExceededError } from "./errors";
 import { createInMemoryExecutionEngine } from "./in-memory";
 
 function limits(overrides: Record<string, number> = {}): DurationLimits {
     return resolveDurationLimits(
-        remoraflowSettingsSchema.assert({ duration: overrides })
-            .duration,
+        remoraflowSettingsSchema.assert({ duration: overrides }).duration,
     );
 }
 

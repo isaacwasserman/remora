@@ -7,7 +7,7 @@ import type { ExecutionContext, StepPath } from "../execution-engine/types";
 import type {
     ExecutionScope,
     PendingApproval,
-    StepExecutionUpdate,
+    StepExecutorOutput,
 } from "../types";
 import type { UserInterventionContext } from "../user-intervention/types";
 
@@ -32,7 +32,7 @@ export async function* assertApprovalOfToolCallStep({
     executionContext: ExecutionContext;
     userInterventionContext: UserInterventionContext;
     uniqueStepIdPath: StepPath;
-}): AsyncGenerator<StepExecutionUpdate> {
+}): AsyncGenerator<StepExecutorOutput> {
     if (approvalPolicies.length > 0) {
         const outcome = await executionContext.step(
             [...uniqueStepIdPath, RESERVED_SEGMENT, "approvalDecision"],
@@ -129,7 +129,7 @@ export async function* resolveApprovalRequests({
     userInterventionContext: UserInterventionContext;
     basePath: StepPath;
 }): AsyncGenerator<
-    StepExecutionUpdate,
+    StepExecutorOutput,
     Array<{
         type: "tool-approval-response";
         approvalId: string;

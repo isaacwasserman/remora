@@ -1,4 +1,5 @@
 import { asSchema } from "ai";
+import type { JSONSchema7 } from "json-schema";
 import type {
     Expression,
     WorkflowDefinition,
@@ -11,6 +12,8 @@ import {
     inferQueryOutputSchema,
     unionSchemas,
 } from "../../schemistry";
+import { expressionReferences } from "../../step-registry";
+import { assertNeverStep } from "../../step-types";
 import type { ToolSet } from "../../types";
 import { buildStepIndex, nestedChainEntryPoints } from "../../utils";
 import type {
@@ -147,6 +150,7 @@ export function getStepOutputType(
     step: WorkflowStep,
     scope: TypeScope,
     tools: ToolSet,
+    inputSchema?: JSONSchema7,
 ): RemoraflowType {
     switch (step.type) {
         case "agent-loop": {
@@ -164,9 +168,12 @@ export function getStepOutputType(
             return step.params.outputFormat;
         }
         case "for-each": {
-            // Refined to `{ type: "array", items: <loop body output type> }` by
-            // the for-each entry in `blockScopeProcessors`, which has walked the
-            // loop body and so knows its output type.
+            if (step.params.accumulatorInitialValue) {
+                return getExpressionType(
+                    step.params.accumulatorInitialValue,
+                    scope,
+                );
+            }
             return { type: "array" };
         }
         case "llm-prompt": {
@@ -176,7 +183,7 @@ export function getStepOutputType(
             return { type: "null" };
         }
         case "start": {
-            return { type: "null" };
+            return inputSchema ?? { type: "null" };
         }
         case "switch-case": {
             return { type: "null" };
@@ -203,6 +210,18 @@ export function getStepOutputType(
             // expression is evaluated against the condition chain's scope, whose
             // bindings are not in `scope` here, so its type cannot be inferred.
             return true;
+        }
+        case "while": {
+            if (step.params.accumulatorInitialValue) {
+                return getExpressionType(
+                    step.params.accumulatorInitialValue,
+                    scope,
+                );
+            }
+            return { type: "array" };
+        }
+        default: {
+            return assertNeverStep(step);
         }
     }
 }
@@ -304,17 +323,32 @@ const blockScopeProcessors: {
         ) as RemoraflowType;
         const loopBindings = new Map<string, RemoraflowType>();
         loopBindings.set(step.params.itemName, elementType);
+
+        const hasAccumulator = step.params.accumulatorName !== undefined;
+        let accInitType: RemoraflowType | undefined;
+        if (hasAccumulator && step.params.accumulatorInitialValue) {
+            accInitType = getExpressionType(
+                step.params.accumulatorInitialValue,
+                scope,
+            );
+            // biome-ignore lint/style/noNonNullAssertion: <explanation>
+            loopBindings.set(step.params.accumulatorName!, accInitType);
+        }
+
         const loopScope: TypeScope = { parent: scope, bindings: loopBindings };
 
         const [bodyNode] = blockEntranceNodes(node);
         if (!bodyNode) return scope;
         const bodyEndScope = walkChain(bodyNode, loopScope);
 
-        scope.bindings.set(node.stepId, {
-            type: "array",
-            items: innermostBindingType(bodyEndScope),
-        });
-        // Nothing from inside the loop escapes except the output set above.
+        if (hasAccumulator && accInitType) {
+            scope.bindings.set(node.stepId, accInitType);
+        } else {
+            scope.bindings.set(node.stepId, {
+                type: "array",
+                items: innermostBindingType(bodyEndScope),
+            });
+        }
         return scope;
     },
     "switch-case": ({ node, scope, walkChain }) => {
@@ -333,6 +367,44 @@ const blockScopeProcessors: {
             node.stepId,
             walkChain(conditionNode, scope),
         );
+        return scope;
+    },
+    while: ({ node, step, scope, walkChain }) => {
+        const [conditionNode, bodyNode] = blockEntranceNodes(node);
+
+        const hasAccumulator = step.params.accumulatorName !== undefined;
+        let accInitType: RemoraflowType | undefined;
+        if (hasAccumulator && step.params.accumulatorInitialValue) {
+            accInitType = getExpressionType(
+                step.params.accumulatorInitialValue,
+                scope,
+            );
+        }
+
+        const accScope = (): TypeScope => {
+            const bindings = new Map<string, RemoraflowType>();
+            // biome-ignore lint/style/noNonNullAssertion: <explanation>
+            bindings.set(step.params.accumulatorName!, accInitType!);
+            return { parent: scope, bindings };
+        };
+
+        if (conditionNode) {
+            walkChain(conditionNode, hasAccumulator ? accScope() : scope);
+        }
+        if (!bodyNode) return scope;
+        const bodyEndScope = walkChain(
+            bodyNode,
+            hasAccumulator ? accScope() : scope,
+        );
+
+        if (hasAccumulator && accInitType) {
+            scope.bindings.set(node.stepId, accInitType);
+        } else {
+            scope.bindings.set(node.stepId, {
+                type: "array",
+                items: innermostBindingType(bodyEndScope),
+            });
+        }
         return scope;
     },
     "agent-loop": null,
@@ -355,11 +427,15 @@ function processChain(
     scope: TypeScope,
     tools: ToolSet,
     snapshots: ScopeSnapshots,
+    inputSchema?: JSONSchema7,
 ): TypeScope {
     snapshots.byStepId.set(node.stepId, scope);
     const currentStep = stepsById.get(node.stepId) as WorkflowStep;
     const bindings = new Map<string, RemoraflowType>();
-    bindings.set(node.stepId, getStepOutputType(currentStep, scope, tools));
+    bindings.set(
+        node.stepId,
+        getStepOutputType(currentStep, scope, tools, inputSchema),
+    );
     let scopeAfterStep: TypeScope = { parent: scope, bindings };
 
     const processBlock = blockScopeProcessors[
@@ -380,6 +456,7 @@ function processChain(
                     chainScope,
                     tools,
                     snapshots,
+                    inputSchema,
                 ),
         });
     }
@@ -392,6 +469,7 @@ function processChain(
         scopeAfterStep,
         tools,
         snapshots,
+        inputSchema,
     );
 }
 
@@ -421,7 +499,14 @@ export function buildScopeSnapshotsById(
         initialBindings.set("input", workflowDefinition.inputSchema);
     }
     const initialScope = { parent: null, bindings: initialBindings };
-    processChain(stepsById, stepGraph, initialScope, tools, snapshots);
+    processChain(
+        stepsById,
+        stepGraph,
+        initialScope,
+        tools,
+        snapshots,
+        workflowDefinition.inputSchema,
+    );
     return snapshots;
 }
 
@@ -503,144 +588,24 @@ export function validateVariableReferences(
                 }
             }
         }
-        switch (step.type) {
-            case "agent-loop": {
-                validateTemplateStringReferences(step.params.instructions, [
-                    "steps",
-                    stepIndex,
-                    "params",
-                    "instructions",
-                ]);
-                break;
-            }
-            case "end": {
-                if (step.params) {
-                    validateExpressionReferences(step.params.output, [
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "output",
-                    ]);
-                }
-                break;
-            }
-            case "extract-data": {
-                validateExpressionReferences(step.params.sourceData, [
-                    "steps",
-                    stepIndex,
-                    "params",
-                    "sourceData",
-                ]);
-                break;
-            }
-            case "for-each": {
-                validateExpressionReferences(step.params.target, [
-                    "steps",
-                    stepIndex,
-                    "params",
-                    "target",
-                ]);
-                break;
-            }
-            case "llm-prompt": {
-                validateTemplateStringReferences(step.params.prompt, [
-                    "steps",
-                    stepIndex,
-                    "params",
-                    "prompt",
-                ]);
-                break;
-            }
-            case "sleep": {
-                validateExpressionReferences(step.params.durationMs, [
-                    "steps",
-                    stepIndex,
-                    "params",
-                    "durationMs",
-                ]);
-                break;
-            }
-            case "start": {
-                break;
-            }
-            case "switch-case": {
-                validateExpressionReferences(step.params.switchOn, [
-                    "steps",
-                    stepIndex,
-                    "params",
-                    "switchOn",
-                ]);
-                for (const [
-                    branchCaseIndex,
-                    branchCase,
-                ] of step.params.cases.entries()) {
-                    if (branchCase.value.type === "default") continue;
-                    validateExpressionReferences(branchCase.value, [
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "cases",
-                        branchCaseIndex,
-                        "value",
-                    ]);
-                }
-                break;
-            }
-            case "tool-call": {
-                for (const [argName, argExpression] of Object.entries(
-                    step.params.toolInput,
-                )) {
-                    validateExpressionReferences(argExpression, [
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "toolInput",
-                        argName,
-                    ]);
-                }
-                break;
-            }
-            case "wait-for-condition": {
+        for (const ref of expressionReferences(step)) {
+            const refPath: ValidatorDiagnostic["path"] = [
+                "steps",
+                stepIndex,
+                ...ref.path,
+            ];
+            if (ref.against === "nested-chain") {
                 const conditionChainScope =
                     scopeSnapshots.nestedChainScopeByStepId.get(step.id);
                 validateExpressionReferences(
-                    step.params.condition,
-                    ["steps", stepIndex, "params", "condition"],
+                    ref.expression,
+                    refPath,
                     conditionChainScope
                         ? scopeToJsonSchema(conditionChainScope)
                         : scopeJsonSchema,
                 );
-                if (step.params.backoffMultiplier) {
-                    validateExpressionReferences(
-                        step.params.backoffMultiplier,
-                        ["steps", stepIndex, "params", "backoffMultiplier"],
-                    );
-                }
-                if (step.params.intervalMs) {
-                    validateExpressionReferences(step.params.intervalMs, [
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "intervalMs",
-                    ]);
-                }
-                if (step.params.maxAttempts) {
-                    validateExpressionReferences(step.params.maxAttempts, [
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "maxAttempts",
-                    ]);
-                }
-                if (step.params.timeoutMs) {
-                    validateExpressionReferences(step.params.timeoutMs, [
-                        "steps",
-                        stepIndex,
-                        "params",
-                        "timeoutMs",
-                    ]);
-                }
-                break;
+            } else {
+                validateExpressionReferences(ref.expression, refPath);
             }
         }
     }

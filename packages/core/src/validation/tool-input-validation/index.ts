@@ -5,7 +5,12 @@ import {
     type SubsetDiagnostic,
     schemaSubsetDiagnostics,
 } from "../../schemistry";
-import type { AnyTool } from "../../types";
+import {
+    assertNeverStep,
+    type StepOfType,
+    type StepType,
+} from "../../step-types";
+import type { AnyTool, ToolSet } from "../../types";
 import type {
     RemoraflowType,
     ValidationModule,
@@ -30,9 +35,6 @@ function validateToolInput(
             scope,
         );
     }
-    // The call passes exactly these params, so treat the resolved input as a
-    // closed object: a missing required param or an unexpected param is then a
-    // definite error rather than merely possible.
     const resolvedInputType: JSONSchema7Definition = {
         type: "object",
         properties: resolvedParamTypes,
@@ -51,6 +53,103 @@ function validateToolInput(
     );
 }
 
+type StepInputValidator<T extends StepType> = (args: {
+    step: StepOfType<T>;
+    stepIndex: number;
+    tools: ToolSet;
+    scopeSnapshot?: TypeScope;
+}) => ValidatorDiagnostic[];
+
+const STEP_INPUT_VALIDATORS: { [T in StepType]: StepInputValidator<T> } = {
+    "tool-call": ({ step, stepIndex, tools, scopeSnapshot }) => {
+        if (!scopeSnapshot) return [];
+        const targetTool = tools[step.params.toolName];
+        if (!targetTool) return [];
+        const stepDiagnostics = validateToolInput(
+            scopeSnapshot,
+            targetTool,
+            step.params.toolName,
+            step.params.toolInput,
+        );
+        return stepDiagnostics.map((diagnostic) => ({
+            severity: diagnostic.level,
+            path: [
+                "steps",
+                stepIndex,
+                "params",
+                "toolInput",
+                ...diagnostic.path,
+            ],
+            message: diagnostic.message,
+        }));
+    },
+    "agent-loop": ({ step, stepIndex, tools }) => {
+        const diagnostics: ValidatorDiagnostic[] = [];
+        for (const [toolName, inputConstraint] of Object.entries(
+            step.params.inputConstraints ?? [],
+        )) {
+            const targetTool = tools[toolName];
+            if (!targetTool) continue;
+            const toolSchema = asSchema(targetTool.inputSchema).jsonSchema;
+            if (toolSchema instanceof Promise || "then" in toolSchema) {
+                diagnostics.push({
+                    severity: "error",
+                    path: [
+                        "steps",
+                        stepIndex,
+                        "params",
+                        "inputConstraints",
+                        toolName,
+                    ],
+                    message: `Input schema for tool "${toolName}" is defined asynchronously. All tools must use synchronously defined schemas.`,
+                });
+                continue;
+            }
+            const subsetDiagnostics = schemaSubsetDiagnostics(
+                inputConstraint,
+                toolSchema as JSONSchema7,
+            );
+            diagnostics.push(
+                ...subsetDiagnostics.map((subsetDiagnostic) => ({
+                    severity: subsetDiagnostic.level,
+                    path: [
+                        "steps",
+                        stepIndex,
+                        "params",
+                        "inputConstraints",
+                        toolName,
+                        ...subsetDiagnostic.path,
+                    ],
+                    message: subsetDiagnostic.message,
+                })),
+            );
+        }
+        return diagnostics;
+    },
+    end: () => [],
+    "extract-data": () => [],
+    "for-each": () => [],
+    "llm-prompt": () => [],
+    "request-intervention": () => [],
+    sleep: () => [],
+    start: () => [],
+    "switch-case": () => [],
+    "wait-for-condition": () => [],
+    while: () => [],
+};
+
+function validateStepInputs(
+    step: WorkflowStep,
+    stepIndex: number,
+    tools: ToolSet,
+    scopeSnapshot: TypeScope | undefined,
+): ValidatorDiagnostic[] {
+    const validator = STEP_INPUT_VALIDATORS[
+        step.type
+    ] as StepInputValidator<StepType>;
+    return validator({ step, stepIndex, tools, scopeSnapshot });
+}
+
 export const toolInputValidator: ValidationModule = {
     id: "tool-input",
     failureMode: "continue",
@@ -62,62 +161,15 @@ export const toolInputValidator: ValidationModule = {
         const diagnostics: ValidatorDiagnostic[] = [];
 
         for (const [stepIndex, step] of workflowDefinition.steps.entries()) {
-            if (step.type === "tool-call") {
-                const targetTool = tools[step.params.toolName];
-                const scopeSnapshot = scopeSnapshots.byStepId.get(step.id);
-                if (!targetTool || !scopeSnapshot) {
-                    continue;
-                }
-                const stepDiagnostics = validateToolInput(
-                    scopeSnapshot,
-                    targetTool,
-                    step.params.toolName,
-                    step.params.toolInput,
-                );
-                for (const diagnostic of stepDiagnostics) {
-                    diagnostics.push({
-                        severity: diagnostic.level,
-                        path: [
-                            "steps",
-                            stepIndex,
-                            "params",
-                            "toolInput",
-                            ...diagnostic.path,
-                        ],
-                        message: diagnostic.message,
-                    });
-                }
-            } else if (step.type === "agent-loop") {
-                for (const [toolName, inputConstraint] of Object.entries(
-                    step.params.inputConstraints ?? [],
-                )) {
-                    const targetTool = tools[toolName];
-                    if (targetTool) {
-                        const toolSchema = asSchema(
-                            targetTool.inputSchema,
-                        ).jsonSchema;
-                        if ("then" in toolSchema) {
-                            diagnostics.push({
-                                severity: "error",
-                                message: `Input schema for tool "${toolName}" is defined asynchronously. All tools must use synchronously defined schemas.`,
-                            });
-                        }
-                        const subsetDiagnostics = schemaSubsetDiagnostics(
-                            inputConstraint,
-                            toolSchema as JSONSchema7,
-                        );
-                        diagnostics.push(
-                            ...subsetDiagnostics.map((subsetDiagnostic) => ({
-                                severity: subsetDiagnostic.level,
-                                path: subsetDiagnostic.path,
-                                message: subsetDiagnostic.message,
-                            })),
-                        );
-                    }
-                }
-            }
+            if (!step) continue;
+            const scopeSnapshot = scopeSnapshots.byStepId.get(step.id);
+            diagnostics.push(
+                ...validateStepInputs(step, stepIndex, tools, scopeSnapshot),
+            );
         }
 
         return { diagnostics };
     },
 };
+
+void assertNeverStep;

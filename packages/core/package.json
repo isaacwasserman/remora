@@ -14,14 +14,7 @@
     "license": "GPL-3.0",
     "type": "module",
     "exports": {
-        ".": {
-            "import": "./dist/lib.js",
-            "types": "./dist/lib.d.ts"
-        },
-        "./adapters/aws-lambda": {
-            "import": "./dist/executor/adapters/aws-lambda.js",
-            "types": "./dist/executor/adapters/aws-lambda.d.ts"
-        }
+        ".": "./src/index.ts"
     },
     "files": [
         "dist",
@@ -29,16 +22,11 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "bun scripts/build.ts",
-        "prepublishOnly": "bun run build",
-        "test": "bun test",
-        "test:e2e": "bun test src/e2e.ts",
         "typecheck": "bun tsc --noEmit",
         "fix": "biome check --fix --unsafe ."
     },
     "dependencies": {
         "@ark/json-schema": "^0.0.7",
-        "@cfworker/json-schema": "^4.1.1",
         "@standard-schema/spec": "^1.1.0",
         "@types/capture-console": "^1.0.5",
         "@types/jmespath": "^0.15.2",
@@ -47,12 +35,11 @@
         "capture-console": "^1.0.2",
         "dedent": "^1.7.2",
         "jmespath": "^0.16.0",
-        "json-schema-faker": "0.6.2",
         "tokenx": "^1.3.0",
         "zod": "^4.4.3"
     },
     "peerDependencies": {
-        "ai": "^6.0.0",
+        "ai": "^7.0.0",
         "@ai-sdk/provider-utils": "^5.0.11",
         "@dbos-inc/dbos-sdk": "^4.0.0"
     },
@@ -73,7 +60,6 @@
         "@ai-sdk/provider-utils": "5.0.11",
         "@aws/durable-execution-sdk-js": "^1.1.0",
         "@aws/durable-execution-sdk-js-testing": "^1.1.1",
-        "@dbos-inc/dbos-sdk": "^4.24.16",
         "@types/bun": "^1.3.14",
         "ai": "7",
         "ajv": "^8.20.0",
