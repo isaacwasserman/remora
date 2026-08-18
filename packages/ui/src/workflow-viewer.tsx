@@ -1,10 +1,8 @@
 import {
-    compileWorkflow,
-    type Diagnostic,
-    type ExecutionGraph,
+    type ValidatorDiagnostic,
     type ExecutionState,
     extractToolSchemas,
-    getExpressionScope,
+    validateWorkflowDefinition,
     type ToolDefinitionMap,
     type WorkflowDefinition,
     type WorkflowStep,
@@ -123,11 +121,11 @@ export interface WorkflowViewerProps {
     /** The workflow definition to visualize. Pass `null` to start with an empty canvas (requires `isEditing`). */
     workflow: WorkflowDefinition | null;
     /** Compiler diagnostics to display on affected nodes. */
-    diagnostics?: Diagnostic[];
+    diagnostics?: ValidatorDiagnostic[];
     /** Called when a step node is clicked (with the step and its diagnostics) or when the selection is cleared (with `null`). */
     onStepSelect?: (
         step: WorkflowStep | null,
-        diagnostics: Diagnostic[],
+        diagnostics: ValidatorDiagnostic[],
     ) => void;
     /** Execution state to visualize on the workflow DAG. */
     executionState?: ExecutionState;
@@ -239,28 +237,25 @@ export function WorkflowViewer({
     }, [tools, toolSchemasProp]);
 
     // --- Live diagnostics ---
-    const [editDiagnostics, setEditDiagnostics] = useState<Diagnostic[]>([]);
-    // Latest compiled graph from edit-mode compilation, used to power
-    // expression autocomplete in the step editor panel.
-    const [editGraph, setEditGraph] = useState<ExecutionGraph | null>(null);
+    const [editDiagnostics, setEditDiagnostics] = useState<ValidatorDiagnostic[]>([]);
     useEffect(() => {
         if (!isEditing || !activeWorkflow) {
             setEditDiagnostics([]);
-            setEditGraph(null);
             return;
         }
-        let cancelled = false;
         const timer = setTimeout(() => {
-            compileWorkflow(activeWorkflow, { tools }).then((result) => {
-                if (cancelled) return;
-                setEditDiagnostics(result.diagnostics);
-                setEditGraph(result.graph);
-            });
+            const { diagnostics } = validateWorkflowDefinition(
+                activeWorkflow,
+                // biome-ignore lint/suspicious/noExplicitAny: ToolSet is structurally compatible with StubbedToolSet
+                { tools: tools as any },
+                {
+                    assertToolsHaveExecutionFunctions: false,
+                    assertToolsHaveOutputSchemas: false,
+                },
+            );
+            setEditDiagnostics(diagnostics);
         }, 300);
-        return () => {
-            cancelled = true;
-            clearTimeout(timer);
-        };
+        return () => clearTimeout(timer);
     }, [isEditing, activeWorkflow, tools]);
 
     const activeDiagnostics = isEditing ? editDiagnostics : diagnostics;
@@ -549,7 +544,6 @@ export function WorkflowViewer({
         selectedStep,
         selectedDiagnostics,
         selectedExecutionSummary,
-        selectedExecutionRecords,
         clearSelection,
         onNodeClick,
         selectStepForEditing,
@@ -994,10 +988,10 @@ export function WorkflowViewer({
                                 availableToolNames={availableToolNames}
                                 allStepIds={allStepIds}
                                 toolSchemas={toolSchemas}
-                                diagnostics={editDiagnostics.filter(
-                                    (d) =>
-                                        d.location.stepId === selectedStep.id,
-                                )}
+                                diagnostics={editDiagnostics.filter((d) => {
+                                    if (!d.path || d.path[0] !== "steps" || typeof d.path[1] !== "number") return false;
+                                    return activeWorkflow?.steps[d.path[1] as number]?.id === selectedStep.id;
+                                })}
                                 workflowInputSchema={
                                     activeWorkflow?.inputSchema as
                                         | object
@@ -1008,16 +1002,7 @@ export function WorkflowViewer({
                                         | object
                                         | undefined
                                 }
-                                expressionScope={
-                                    activeWorkflow && editGraph
-                                        ? getExpressionScope(
-                                              activeWorkflow,
-                                              editGraph,
-                                              toolSchemas ?? null,
-                                              selectedStep.id,
-                                          )
-                                        : undefined
-                                }
+                                expressionScope={undefined}
                                 onChange={(updates) =>
                                     updateStep(selectedStep.id, updates)
                                 }
@@ -1029,7 +1014,6 @@ export function WorkflowViewer({
                                 step={selectedStep}
                                 diagnostics={selectedDiagnostics}
                                 executionSummary={selectedExecutionSummary}
-                                executionRecords={selectedExecutionRecords}
                                 onClose={clearSelection}
                             />
                         ))}

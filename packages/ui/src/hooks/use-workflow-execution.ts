@@ -77,15 +77,19 @@ export function useWorkflowExecution(
     stateHistoryRef.current = stateHistory;
     replayIndexRef.current = replayIndex;
 
-    // Clear paused state when workflow changes and hash no longer matches.
+    // Clear paused state when the workflow definition changes.
+    const prevWorkflowHashRef = useRef<string | null>(
+        workflow ? hashWorkflow(workflow) : null,
+    );
     useEffect(() => {
-        if (!workflow || !pausedState) return;
+        if (!workflow) return;
         const hash = hashWorkflow(workflow);
-        if (pausedState.workflowHash !== hash) {
+        if (prevWorkflowHashRef.current && prevWorkflowHashRef.current !== hash) {
             setPausedState(null);
-            options.persist?.clear(hash);
+            options.persist?.clear(prevWorkflowHashRef.current);
         }
-    }, [workflow, pausedState, options.persist]);
+        prevWorkflowHashRef.current = hash;
+    }, [workflow, options.persist]);
 
     const startStreaming = useCallback(
         async (
@@ -171,17 +175,11 @@ export function useWorkflowExecution(
 
     const resume = useCallback(() => {
         if (!workflow || !pausedState || isRunning) return;
-        const wfHash = hashWorkflow(workflow);
-        if (pausedState.workflowHash !== wfHash) {
-            setPausedState(null);
-            options.persist?.clear(wfHash);
-            return;
-        }
         setPausedState(null);
         setReplayIndex(null);
         setIsRunning(true);
         startStreaming(lastInputsRef.current, pausedState);
-    }, [workflow, pausedState, isRunning, startStreaming, options]);
+    }, [workflow, pausedState, isRunning, startStreaming]);
 
     const reset = useCallback(() => {
         abortRef.current?.abort();

@@ -118,6 +118,26 @@ export function createDefaultStep(
                     },
                 },
             };
+        case "request-intervention":
+            return {
+                ...base,
+                type: "request-intervention",
+                params: {
+                    type: "multiple-choice",
+                    question: { type: "literal", value: "" },
+                    choices: { type: "literal", value: [] },
+                    allowFreeResponse: false,
+                },
+            };
+        case "while":
+            return {
+                ...base,
+                type: "while",
+                params: {
+                    conditionStepId: "",
+                    loopBodyStepId: "",
+                },
+            };
     }
 }
 
@@ -133,6 +153,8 @@ function defaultName(type: WorkflowStep["type"]): string {
         sleep: "Sleep",
         "wait-for-condition": "Wait for Condition",
         "agent-loop": "Agent Loop",
+        "request-intervention": "Request Intervention",
+        while: "While",
     };
     return names[type];
 }

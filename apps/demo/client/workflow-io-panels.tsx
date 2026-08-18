@@ -255,17 +255,17 @@ export interface WorkflowOutputPanelProps {
 export function WorkflowOutputPanel({
     executionState,
 }: WorkflowOutputPanelProps) {
-    const { status, output, durationMs, error } = executionState;
+    const { status, output, error } = executionState;
     const [expanded, setExpanded] = useState(true);
 
-    const visible = status === "completed" || status === "failed";
+    const visible = status === "success" || status === "error";
 
     const statusColor =
-        status === "completed"
+        status === "success"
             ? "text-green-700 dark:text-green-400"
             : "text-red-700 dark:text-red-400";
     const statusBg =
-        status === "completed"
+        status === "success"
             ? "bg-green-50 dark:bg-green-950/30"
             : "bg-red-50 dark:bg-red-950/30";
 
@@ -294,13 +294,6 @@ export function WorkflowOutputPanel({
                 >
                     {status}
                 </span>
-                {durationMs !== undefined && (
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {durationMs < 1000
-                            ? `${durationMs}ms`
-                            : `${(durationMs / 1000).toFixed(1)}s`}
-                    </span>
-                )}
                 <span className="ml-auto text-muted-foreground text-xs">
                     {expanded ? "\u25B2" : "\u25BC"}
                 </span>

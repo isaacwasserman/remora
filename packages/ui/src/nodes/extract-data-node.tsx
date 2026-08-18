@@ -32,10 +32,7 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
         ? Object.keys(outputFormat.properties)
         : [];
 
-    const resolved = executionSummary?.latestResolvedInputs as
-        | Record<string, unknown>
-        | undefined;
-    const hasSourceResolved = resolved?.sourceData !== undefined;
+    const hasSourceResolved = false;
 
     return (
         <BaseNode
@@ -63,11 +60,7 @@ export function ExtractDataNode({ data, selected }: NodeProps) {
                             : undefined
                     }
                 >
-                    {hasSourceResolved
-                        ? typeof resolved.sourceData === "string"
-                            ? resolved.sourceData
-                            : JSON.stringify(resolved.sourceData)
-                        : renderExpr(step.params.sourceData)}
+                    {renderExpr(step.params.sourceData)}
                 </span>
             </div>
             {outputKeys.length > 0 && (

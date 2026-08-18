@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateWorkflow } from "@remoraflow/core";
-import { EXAMPLE_TASKS } from "./example-tasks";
+import { generateWorkflowStream } from "@remoraflow/core";
+import { DEMO_TOOLS } from "./server/tools";
 
 const openrouter = createOpenAI({
     baseURL: "https://openrouter.ai/api/v1",
@@ -11,35 +11,37 @@ const openrouter = createOpenAI({
 const model = openrouter("anthropic/claude-haiku-4.5");
 
 async function main() {
-    for (const [taskName, { availableTools, task }] of Object.entries(
-        EXAMPLE_TASKS,
-    )) {
-        const result = await generateWorkflow({
+    const tasks: Record<string, string> = {
+        "pokemon-lookup": "Look up a pokemon by name and get its stats",
+    };
+
+    for (const [taskName, task] of Object.entries(tasks)) {
+        const stream = generateWorkflowStream({
+            taskDescription: task,
+            tools: DEMO_TOOLS,
+            options: {},
             model,
-            tools: availableTools,
-            task,
+            maxGenerationSteps: 20,
         });
 
-        if (!result.workflow) {
-            console.error(
-                `Failed to generate workflow for ${taskName} after ${result.attempts} attempts`,
-            );
-            for (const d of result.diagnostics) {
-                console.error(`  [${d.severity}] ${d.message}`);
-            }
+        let result: Awaited<ReturnType<typeof stream.return>> | undefined;
+        for await (const partial of stream) {
+            result = partial;
+        }
+
+        if (!result) {
+            console.error(`Failed to generate workflow for ${taskName}`);
             continue;
         }
 
-        console.log(
-            `Generated workflow for ${taskName} (${result.attempts} attempt${result.attempts > 1 ? "s" : ""})`,
-        );
+        console.log(`Generated workflow for ${taskName}`);
 
         const directory = `generated-workflows/${taskName}`;
         await fs.mkdir(directory, { recursive: true });
 
         await fs.writeFile(
             `${directory}/workflow.json`,
-            JSON.stringify(result.workflow, null, 2),
+            JSON.stringify(result, null, 2),
         );
     }
 }

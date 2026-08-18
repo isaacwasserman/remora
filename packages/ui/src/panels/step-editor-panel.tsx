@@ -1,9 +1,9 @@
 import type {
-    Diagnostic,
-    ScopeEntry,
+    ValidatorDiagnostic,
     ToolDefinitionMap,
     WorkflowStep,
 } from "@remoraflow/core";
+import type { ScopeEntry } from "../editors/expression-scope-context";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { ExpressionScopeProvider } from "../editors/expression-scope-context";
@@ -25,7 +25,7 @@ export interface StepEditorPanelProps {
     availableToolNames: string[];
     allStepIds: string[];
     toolSchemas?: ToolDefinitionMap;
-    diagnostics?: Diagnostic[];
+    diagnostics?: ValidatorDiagnostic[];
     workflowInputSchema?: object;
     workflowOutputSchema?: object;
     /** In-scope root identifiers and their schemas, used to power expression autocomplete. */
@@ -122,7 +122,7 @@ function StepParamsEditor({
     }
 }
 
-function DiagnosticsSection({ diagnostics }: { diagnostics: Diagnostic[] }) {
+function DiagnosticsSection({ diagnostics }: { diagnostics: ValidatorDiagnostic[] }) {
     if (diagnostics.length === 0) return null;
     const errors = diagnostics.filter((d) => d.severity === "error");
     const warnings = diagnostics.filter((d) => d.severity === "warning");
@@ -131,7 +131,7 @@ function DiagnosticsSection({ diagnostics }: { diagnostics: Diagnostic[] }) {
         <div className="space-y-1.5">
             {errors.map((d, i) => (
                 <div
-                    key={`err-${d.code}-${i}`}
+                    key={`err-${i}`}
                     className="flex gap-2 items-start text-[11px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded-md px-2.5 py-2 border border-red-200/80 dark:border-red-900/60"
                 >
                     <span className="shrink-0 font-semibold bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded text-[10px]">
@@ -142,7 +142,7 @@ function DiagnosticsSection({ diagnostics }: { diagnostics: Diagnostic[] }) {
             ))}
             {warnings.map((d, i) => (
                 <div
-                    key={`warn-${d.code}-${i}`}
+                    key={`warn-${i}`}
                     className="flex gap-2 items-start text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-md px-2.5 py-2 border border-amber-200/80 dark:border-amber-900/60"
                 >
                     <span className="shrink-0 font-semibold bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px]">

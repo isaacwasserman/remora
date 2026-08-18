@@ -1,4 +1,4 @@
-import type { ExpressionSuggestion } from "@remoraflow/core";
+import type { ExpressionSuggestion } from "./expression-scope-context";
 import { Braces } from "lucide-react";
 import { useRef, useState } from "react";
 import {

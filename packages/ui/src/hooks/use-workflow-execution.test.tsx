@@ -16,28 +16,28 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────
 
 const WORKFLOW: WorkflowDefinition = {
-    name: "test",
     initialStepId: "start",
     steps: [
-        { id: "start", type: "start", nextStepId: "end" },
-        { id: "end", type: "end", params: {} },
+        { id: "start", type: "start", name: "Start", description: "", nextStepId: "end" },
+        { id: "end", type: "end", name: "End", description: "" },
     ],
 };
 
 const WORKFLOW_HASH = hashWorkflow(WORKFLOW);
 
 function makeState(
-    status: "pending" | "running" | "completed" | "failed",
+    status: ExecutionState["status"],
     extra?: Partial<ExecutionState>,
 ): ExecutionState {
     return {
-        runId: "run-1",
         status,
-        startedAt: new Date().toISOString(),
-        stepRecords: [],
-        workflowHash: WORKFLOW_HASH,
+        output: status === "success" ? null : null,
+        error: status === "error" ? { code: "UNKNOWN", message: "test error" } : null,
+        logs: [],
+        scope: {},
+        executionPath: [],
         ...extra,
-    };
+    } as ExecutionState;
 }
 
 /**
@@ -61,7 +61,7 @@ function createControllableStream() {
                             resolve = r;
                         });
                     }
-                    return { done: false as const, value: states[cursor++] };
+                    return { done: false as const, value: states[cursor++]! };
                 },
             };
         },
@@ -121,15 +121,15 @@ describe("useWorkflowExecution", () => {
 
         expect(result.current.isRunning).toBe(true);
 
-        const runningState = makeState("running");
+        const runningState = makeState("in-progress");
         await act(async () => {
             stream.push(runningState);
         });
 
         expect(result.current.stateHistory).toHaveLength(1);
-        expect(result.current.executionState?.status).toBe("running");
+        expect(result.current.executionState?.status).toBe("in-progress");
 
-        const completedState = makeState("completed");
+        const completedState = makeState("success");
         await act(async () => {
             stream.push(completedState);
             stream.done();
@@ -141,7 +141,7 @@ describe("useWorkflowExecution", () => {
         });
 
         expect(result.current.stateHistory).toHaveLength(2);
-        expect(result.current.executionState?.status).toBe("completed");
+        expect(result.current.executionState?.status).toBe("success");
         expect(result.current.isRunning).toBe(false);
     });
 
@@ -159,7 +159,7 @@ describe("useWorkflowExecution", () => {
         });
 
         await act(async () => {
-            stream.push(makeState("running"));
+            stream.push(makeState("in-progress"));
         });
 
         await act(async () => {
@@ -184,7 +184,7 @@ describe("useWorkflowExecution", () => {
         });
 
         await act(async () => {
-            stream.push(makeState("running"));
+            stream.push(makeState("in-progress"));
         });
 
         await act(async () => {
@@ -211,9 +211,9 @@ describe("useWorkflowExecution", () => {
             result.current.run({});
         });
 
-        const state0 = makeState("running", { runId: "s0" });
-        const state1 = makeState("running", { runId: "s1" });
-        const state2 = makeState("completed", { runId: "s2" });
+        const state0 = makeState("in-progress", { scope: { tag: "s0" } });
+        const state1 = makeState("in-progress", { scope: { tag: "s1" } });
+        const state2 = makeState("success", { scope: { tag: "s2" } });
 
         await act(async () => {
             stream.push(state0);
@@ -234,7 +234,7 @@ describe("useWorkflowExecution", () => {
         });
 
         expect(result.current.replayIndex).toBe(0);
-        expect(result.current.executionState?.runId).toBe("s0");
+        expect(result.current.executionState?.scope).toEqual({ tag: "s0" });
     });
 
     test("goLive returns to latest state", async () => {
@@ -251,8 +251,8 @@ describe("useWorkflowExecution", () => {
         });
 
         await act(async () => {
-            stream.push(makeState("running", { runId: "s0" }));
-            stream.push(makeState("completed", { runId: "s1" }));
+            stream.push(makeState("in-progress", { scope: { tag: "s0" } }));
+            stream.push(makeState("success", { scope: { tag: "s1" } }));
             stream.done();
         });
 
@@ -272,7 +272,7 @@ describe("useWorkflowExecution", () => {
         });
 
         expect(result.current.replayIndex).toBeNull();
-        expect(result.current.executionState?.runId).toBe("s1");
+        expect(result.current.executionState?.scope).toEqual({ tag: "s1" });
     });
 
     test("persist.save is called on pause", async () => {
@@ -297,7 +297,7 @@ describe("useWorkflowExecution", () => {
             result.current.run({});
         });
 
-        const runningState = makeState("running");
+        const runningState = makeState("in-progress");
         await act(async () => {
             stream.push(runningState);
         });
@@ -308,11 +308,11 @@ describe("useWorkflowExecution", () => {
 
         expect(saved).toHaveLength(1);
         expect(saved[0]?.hash).toBe(WORKFLOW_HASH);
-        expect(saved[0]?.state.status).toBe("running");
+        expect(saved[0]?.state.status).toBe("in-progress");
     });
 
     test("persist.load restores paused state on mount", () => {
-        const pausedState = makeState("running");
+        const pausedState = makeState("in-progress");
 
         const { result } = renderHook(() =>
             useWorkflowExecution(
@@ -331,7 +331,7 @@ describe("useWorkflowExecution", () => {
     });
 
     test("resume calls execute with initialState", async () => {
-        const pausedState = makeState("running");
+        const pausedState = makeState("in-progress");
         const stream = createControllableStream();
         const executeCalls: Array<{ initialState?: ExecutionState }> = [];
 
@@ -363,7 +363,7 @@ describe("useWorkflowExecution", () => {
         expect(result.current.isRunning).toBe(true);
         expect(result.current.isPaused).toBe(false);
         expect(executeCalls).toHaveLength(1);
-        expect(executeCalls[0]?.initialState?.status).toBe("running");
+        expect(executeCalls[0]?.initialState?.status).toBe("in-progress");
 
         // Clean up
         stream.done();
@@ -389,7 +389,7 @@ describe("useWorkflowExecution", () => {
         });
 
         await act(async () => {
-            stream.push(makeState("completed"));
+            stream.push(makeState("success"));
             stream.done();
         });
 
@@ -397,6 +397,6 @@ describe("useWorkflowExecution", () => {
             await new Promise((r) => setTimeout(r, 10));
         });
 
-        expect(result.current.executionState?.status).toBe("completed");
+        expect(result.current.executionState?.status).toBe("success");
     });
 });

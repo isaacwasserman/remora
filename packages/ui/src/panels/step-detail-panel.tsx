@@ -1,8 +1,5 @@
 import type {
-    Diagnostic,
-    ExecutionPathSegment,
-    StepExecutionRecord,
-    TraceEntry,
+    ValidatorDiagnostic,
     WorkflowStep,
 } from "@remoraflow/core";
 import type React from "react";
@@ -17,9 +14,8 @@ function jsonString(value: unknown): string {
 
 export interface StepDetailPanelProps {
     step: WorkflowStep;
-    diagnostics: Diagnostic[];
+    diagnostics: ValidatorDiagnostic[];
     executionSummary?: StepExecutionSummary;
-    executionRecords?: StepExecutionRecord[];
     onClose: () => void;
 }
 
@@ -40,7 +36,6 @@ function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
         running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
         completed: "bg-green-500/10 text-green-600 border border-green-500/20",
         failed: "bg-destructive/10 text-destructive border border-destructive/20",
-        skipped: "bg-muted text-muted-foreground border border-border",
     };
     return (
         <span
@@ -426,119 +421,11 @@ function Code({ children }: { children: React.ReactNode }) {
     );
 }
 
-function formatPathSegment(seg: ExecutionPathSegment): string {
-    switch (seg.type) {
-        case "for-each":
-            return `Iteration ${seg.iterationIndex}: ${formatValue(seg.itemValue)}`;
-        case "switch-case":
-            return `Case ${seg.matchedCaseIndex}: ${formatValue(seg.matchedValue)}`;
-        case "wait-for-condition":
-            return `Poll attempt ${seg.pollAttempt}`;
-    }
-}
-
-function formatValue(value: unknown): string {
-    if (typeof value === "string") return value;
-    return JSON.stringify(value);
-}
-
-const recordStatusColors: Record<string, string> = {
-    pending: "bg-muted text-muted-foreground border border-border",
-    running: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
-    completed: "bg-green-500/10 text-green-600 border border-green-500/20",
-    failed: "bg-destructive/10 text-destructive border border-destructive/20",
-    skipped: "bg-muted text-muted-foreground border border-border",
-};
-
-function TraceSection({ trace }: { trace: TraceEntry[] }) {
-    if (trace.length === 0) return null;
-
-    return (
-        <details className="text-xs group">
-            <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
-                Agent Trace ({trace.length}{" "}
-                {trace.length === 1 ? "entry" : "entries"})
-            </summary>
-            <div className="mt-1.5">
-                <JsonViewer value={JSON.stringify(trace, null, 2)} />
-            </div>
-        </details>
-    );
-}
-
-function ExecutionRecordCard({ record }: { record: StepExecutionRecord }) {
-    const pathLabel =
-        record.path.length > 0
-            ? record.path.map(formatPathSegment).join(" > ")
-            : null;
-
-    return (
-        <div className="border border-border rounded-lg p-3 space-y-2 bg-card">
-            {pathLabel && (
-                <div className="text-[11px] font-medium text-muted-foreground">
-                    {pathLabel}
-                </div>
-            )}
-            <div className="flex items-center gap-2">
-                <span
-                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${recordStatusColors[record.status]}`}
-                >
-                    {record.status}
-                </span>
-                {record.durationMs !== undefined && (
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {record.durationMs}ms
-                    </span>
-                )}
-                {record.retries.length > 0 && (
-                    <span className="text-[11px] font-medium text-amber-600">
-                        {record.retries.length}{" "}
-                        {record.retries.length === 1 ? "retry" : "retries"}
-                    </span>
-                )}
-            </div>
-            {record.resolvedInputs !== undefined && (
-                <details className="text-xs group">
-                    <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
-                        Resolved Inputs
-                    </summary>
-                    <div className="mt-1.5">
-                        <ResolvedCode value={record.resolvedInputs} />
-                    </div>
-                </details>
-            )}
-            {record.output !== undefined && (
-                <details className="text-xs group">
-                    <summary className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors py-0.5">
-                        Output
-                    </summary>
-                    <div className="mt-1.5">
-                        <JsonViewer value={jsonString(record.output)} />
-                    </div>
-                </details>
-            )}
-            {record.trace && record.trace.length > 0 && (
-                <TraceSection trace={record.trace} />
-            )}
-            {record.error && (
-                <div className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-                    <div className="font-semibold font-mono">
-                        {record.error.code}
-                    </div>
-                    <div className="mt-1 leading-relaxed">
-                        {record.error.message}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
 
 export function StepDetailPanel({
     step,
     diagnostics,
     executionSummary,
-    executionRecords,
     onClose,
 }: StepDetailPanelProps) {
     return (
@@ -588,16 +475,7 @@ export function StepDetailPanel({
                 <div className="border-t pt-4 border-border">
                     <SectionHeader>Parameters</SectionHeader>
                     <div className="mt-2">
-                        <StepParams
-                            step={step}
-                            resolvedInputs={
-                                executionRecords?.length
-                                    ? executionRecords[
-                                          executionRecords.length - 1
-                                      ]?.resolvedInputs
-                                    : undefined
-                            }
-                        />
+                        <StepParams step={step} />
                     </div>
                 </div>
 
@@ -607,17 +485,10 @@ export function StepDetailPanel({
                         <div className="mt-2 space-y-3">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <StatusBadge summary={executionSummary} />
-                                {executionSummary.latestDurationMs !==
-                                    undefined && (
-                                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                                        {executionSummary.latestDurationMs}ms
-                                    </span>
-                                )}
                                 {executionSummary.executionCount > 1 && (
                                     <span className="text-[11px] text-muted-foreground">
-                                        ({executionSummary.completedCount}/
-                                        {executionSummary.executionCount}{" "}
-                                        iterations)
+                                        ({executionSummary.executionCount}{" "}
+                                        executions)
                                     </span>
                                 )}
                             </div>
@@ -636,13 +507,6 @@ export function StepDetailPanel({
                                 />
                             </div>
 
-                            {executionSummary.latestTrace &&
-                                executionSummary.latestTrace.length > 0 && (
-                                    <TraceSection
-                                        trace={executionSummary.latestTrace}
-                                    />
-                                )}
-
                             {executionSummary.latestError && (
                                 <div className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
                                     <div className="font-semibold font-mono">
@@ -653,30 +517,6 @@ export function StepDetailPanel({
                                     </div>
                                 </div>
                             )}
-
-                            {executionSummary.totalRetries > 0 && (
-                                <div className="text-[11px] font-medium text-amber-600">
-                                    {executionSummary.totalRetries}{" "}
-                                    {executionSummary.totalRetries === 1
-                                        ? "retry"
-                                        : "retries"}{" "}
-                                    attempted
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {executionRecords && executionRecords.length > 0 && (
-                    <div className="border-t border-border pt-4">
-                        <SectionHeader>Execution History</SectionHeader>
-                        <div className="space-y-2 mt-2">
-                            {executionRecords.map((record, i) => (
-                                <ExecutionRecordCard
-                                    key={`${record.stepId}-${i}`}
-                                    record={record}
-                                />
-                            ))}
                         </div>
                     </div>
                 )}
@@ -685,9 +525,9 @@ export function StepDetailPanel({
                     <div className="border-t pt-4 border-border">
                         <SectionHeader>Diagnostics</SectionHeader>
                         <div className="space-y-2 mt-2">
-                            {diagnostics.map((d) => (
+                            {diagnostics.map((d, i) => (
                                 <div
-                                    key={`${d.code}-${d.message}`}
+                                    key={`${d.severity}-${i}-${d.message}`}
                                     className={`text-xs p-2.5 rounded-md ${
                                         d.severity === "error"
                                             ? "bg-destructive/10 text-destructive border border-destructive/20"
@@ -695,7 +535,7 @@ export function StepDetailPanel({
                                     }`}
                                 >
                                     <div className="font-semibold font-mono">
-                                        {d.code}
+                                        {d.severity}
                                     </div>
                                     <div className="mt-1 leading-relaxed">
                                         {d.message}

@@ -15,7 +15,7 @@ export default defineConfig({
         alias: {
             "@remoraflow/core": path.resolve(
                 __dirname,
-                "../../packages/core/src/lib.ts",
+                "../../packages/core/src/index.ts",
             ),
             "@remoraflow/ui": path.resolve(
                 __dirname,

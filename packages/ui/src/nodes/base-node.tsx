@@ -1,4 +1,4 @@
-import type { Diagnostic } from "@remoraflow/core";
+import type { ValidatorDiagnostic } from "@remoraflow/core";
 import { Handle, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { useEditContext } from "../edit-context";
@@ -12,7 +12,7 @@ interface BaseNodeProps {
     typeLabelColor: string;
     accent: string;
     description: string;
-    diagnostics: Diagnostic[];
+    diagnostics: ValidatorDiagnostic[];
     icon?: ReactNode;
     children?: ReactNode;
     selected?: boolean;
@@ -116,7 +116,7 @@ export function BaseNode({
             case "failed":
                 ringClass = "ring-2 ring-red-500";
                 break;
-            case "skipped":
+            case "pending":
                 opacityClass = "opacity-50";
                 break;
         }
@@ -172,15 +172,6 @@ export function BaseNode({
                         </span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                        {executionSummary &&
-                            executionSummary.totalRetries > 0 && (
-                                <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 font-medium">
-                                    {executionSummary.totalRetries}{" "}
-                                    {executionSummary.totalRetries === 1
-                                        ? "retry"
-                                        : "retries"}
-                                </span>
-                            )}
                         {executionSummary && (
                             <StatusIcon
                                 status={executionSummary.status}

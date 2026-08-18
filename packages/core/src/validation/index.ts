@@ -77,3 +77,9 @@ export function validateWorkflowDefinition(
         correctedDefinition: workingDefinition,
     };
 }
+
+export type {
+    ValidatorDiagnostic,
+    ValidatorError,
+    ValidatorWarning,
+} from "./types";

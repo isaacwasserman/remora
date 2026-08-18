@@ -21,10 +21,7 @@ export function LlmPromptNode({ data, selected }: NodeProps) {
         ? Object.keys(outputFormat.properties)
         : [];
 
-    const resolved = executionSummary?.latestResolvedInputs as
-        | Record<string, unknown>
-        | undefined;
-    const resolvedPrompt = resolved?.prompt as string | undefined;
+    const resolvedPrompt = undefined as string | undefined;
 
     return (
         <BaseNode

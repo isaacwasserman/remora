@@ -1,7 +1,6 @@
 import type {
-    Diagnostic,
     ExecutionState,
-    StepExecutionRecord,
+    ValidatorDiagnostic,
     WorkflowDefinition,
     WorkflowStep,
 } from "@remoraflow/core";
@@ -10,41 +9,33 @@ import { useCallback, useMemo, useState } from "react";
 import type { StepExecutionSummary } from "../execution-state";
 import type { StepNodeData } from "../graph-layout";
 
-export const EMPTY_DIAGNOSTICS: Diagnostic[] = [];
+export const EMPTY_DIAGNOSTICS: ValidatorDiagnostic[] = [];
 
 export interface SelectionState {
     selectedStep: WorkflowStep | null;
-    selectedDiagnostics: Diagnostic[];
+    selectedDiagnostics: ValidatorDiagnostic[];
     selectedExecutionSummary: StepExecutionSummary | undefined;
-    selectedExecutionRecords: StepExecutionRecord[] | undefined;
 }
 
 export function useSelectionState(opts: {
     activeWorkflow: WorkflowDefinition | null;
-    activeDiagnostics: Diagnostic[];
+    activeDiagnostics: ValidatorDiagnostic[];
     executionState: ExecutionState | undefined;
     onStepSelect?: (
         step: WorkflowStep | null,
-        diagnostics: Diagnostic[],
+        diagnostics: ValidatorDiagnostic[],
     ) => void;
 }) {
     const { activeWorkflow, activeDiagnostics, executionState, onStepSelect } =
         opts;
 
-    // Store only the selected step ID. The step object is derived from the
-    // workflow so it updates in the same render cycle as workflow edits,
-    // avoiding a second render that would reset input cursor positions.
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
     const [selectedDiagnostics, setSelectedDiagnostics] =
-        useState<Diagnostic[]>(EMPTY_DIAGNOSTICS);
+        useState<ValidatorDiagnostic[]>(EMPTY_DIAGNOSTICS);
     const [selectedExecutionSummary, setSelectedExecutionSummary] = useState<
         StepExecutionSummary | undefined
     >();
-    const [selectedExecutionRecords, setSelectedExecutionRecords] = useState<
-        StepExecutionRecord[] | undefined
-    >();
 
-    // Derive the full step object from the workflow.
     const selectedStep = useMemo(
         () =>
             selectedStepId
@@ -54,7 +45,6 @@ export function useSelectionState(opts: {
         [selectedStepId, activeWorkflow],
     );
 
-    // Public setter that accepts a step object (for API compatibility).
     const setSelectedStep = useCallback((step: WorkflowStep | null) => {
         setSelectedStepId(step?.id ?? null);
     }, []);
@@ -63,7 +53,6 @@ export function useSelectionState(opts: {
         setSelectedStepId(null);
         setSelectedDiagnostics([]);
         setSelectedExecutionSummary(undefined);
-        setSelectedExecutionRecords(undefined);
         onStepSelect?.(null, []);
     }, [onStepSelect]);
 
@@ -74,14 +63,9 @@ export function useSelectionState(opts: {
             setSelectedStepId(data.step.id);
             setSelectedDiagnostics(data.diagnostics);
             setSelectedExecutionSummary(data.executionSummary);
-            setSelectedExecutionRecords(
-                executionState?.stepRecords.filter(
-                    (r: StepExecutionRecord) => r.stepId === data.step.id,
-                ),
-            );
             onStepSelect?.(data.step, data.diagnostics);
         },
-        [onStepSelect, executionState],
+        [onStepSelect],
     );
 
     const selectStepForEditing = useCallback(
@@ -91,7 +75,7 @@ export function useSelectionState(opts: {
                 setSelectedStepId(stepId);
                 setSelectedDiagnostics(
                     activeDiagnostics.filter(
-                        (d) => d.location.stepId === stepId,
+                        (d) => "path" in d && d.path?.includes(stepId),
                     ),
                 );
             }
@@ -103,7 +87,6 @@ export function useSelectionState(opts: {
         selectedStep,
         selectedDiagnostics,
         selectedExecutionSummary,
-        selectedExecutionRecords,
         clearSelection,
         onNodeClick,
         selectStepForEditing,

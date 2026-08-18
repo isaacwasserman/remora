@@ -50,13 +50,13 @@ export function ReplaySlider({
                 Live
             </span>
         );
-    } else if (latestStatus === "completed") {
+    } else if (latestStatus === "success") {
         badge = (
             <span className={`${base} text-green-600 dark:text-green-400`}>
                 Complete
             </span>
         );
-    } else if (latestStatus === "failed") {
+    } else if (latestStatus === "error") {
         badge = (
             <span className={`${base} text-red-600 dark:text-red-400`}>
                 Failed

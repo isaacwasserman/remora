@@ -1,4 +1,4 @@
-import type { ExpressionSuggestion } from "@remoraflow/core";
+import type { ExpressionSuggestion } from "./expression-scope-context";
 import { Command as CommandPrimitive } from "cmdk";
 import { useId, useRef, useState } from "react";
 import {

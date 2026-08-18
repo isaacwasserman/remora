@@ -110,13 +110,12 @@ export function App() {
     );
 
     const execution = useWorkflowExecution(workflow, {
-        execute: ({ workflow, inputs, initialState }) =>
+        execute: ({ workflow, inputs }) =>
             orpc.workflow.execute.call({
                 workflow,
                 inputs,
                 apiKey: apiKey || undefined,
                 modelId,
-                initialState,
             }) as Promise<AsyncIterable<ExecutionState>>,
         persist,
     });
@@ -251,32 +250,28 @@ export function App() {
             setIsGenerating(true);
             setGenerateError(null);
             try {
-                const result = await orpc.workflow.generate.call({
+                const result = (await orpc.workflow.generate.call({
                     task,
                     apiKey,
                     modelId,
-                    maxRetries: 3,
-                });
-                if (result.workflow) {
+                })) as unknown as {
+                    gaveUp: boolean;
+                    reason: string | null;
+                    workflowDefinition: WorkflowDefinition | null;
+                } | null;
+                if (result?.gaveUp) {
+                    posthog.capture("workflow_generation_failed");
+                    setGenerateError(
+                        `Generation gave up: ${result.reason}`,
+                    );
+                } else if (result?.workflowDefinition) {
                     posthog.capture("workflow_generated", {
-                        workflow: result.workflow,
-                        attempts: result.attempts,
+                        workflow: result.workflowDefinition,
                     });
                     handleReset();
-                    setWorkflow(result.workflow);
-                    saveWorkflow(result.workflow);
+                    setWorkflow(result.workflowDefinition);
+                    saveWorkflow(result.workflowDefinition);
                     setShowNewDialog(false);
-                } else {
-                    posthog.capture("workflow_generation_failed", {
-                        attempts: result.attempts,
-                    });
-                    const errors = result.diagnostics
-                        .filter((d) => d.severity === "error")
-                        .map((d) => d.message)
-                        .join("; ");
-                    setGenerateError(
-                        `Failed to generate a valid workflow after ${result.attempts} attempt(s). ${errors}`,
-                    );
                 }
             } catch (err) {
                 posthog.capture("workflow_generation_failed");
@@ -291,8 +286,8 @@ export function App() {
     );
 
     const isDone =
-        execution.executionState?.status === "completed" ||
-        execution.executionState?.status === "failed";
+        execution.executionState?.status === "success" ||
+        execution.executionState?.status === "error";
 
     return (
         <div className="h-full flex flex-col bg-background text-foreground">

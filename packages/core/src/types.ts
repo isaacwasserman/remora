@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: Needed for proper inference. */
 import type { Schema } from "@ai-sdk/provider-utils";
-import type { LanguageModel as AnyLanguageModel } from "ai";
+import { asSchema, type LanguageModel as AnyLanguageModel } from "ai";
 import { type } from "arktype";
 import type * as z3 from "zod/v3";
 import type * as z4 from "zod/v4";
@@ -313,3 +313,33 @@ export type ResolvedRemoraflowSettings =
     typeof remoraflowSettingsSchema.inferOut;
 
 export type { ExecutionState } from "./execution/types";
+
+export interface ToolSchemaDefinition {
+    displayName?: string;
+    description?: string;
+    inputSchema: {
+        required?: string[];
+        properties?: Record<string, unknown>;
+    };
+    outputSchema?: Record<string, unknown>;
+}
+
+export type ToolDefinitionMap = Record<string, ToolSchemaDefinition>;
+
+export async function extractToolSchemas(
+    tools: ToolSet,
+): Promise<ToolDefinitionMap> {
+    const schemas: ToolDefinitionMap = {};
+    for (const [name, toolDef] of Object.entries(tools)) {
+        schemas[name] = {
+            description: toolDef.description,
+            inputSchema: asSchema(toolDef.inputSchema)
+                .jsonSchema as ToolSchemaDefinition["inputSchema"],
+        };
+        if (toolDef.outputSchema) {
+            schemas[name].outputSchema = asSchema(toolDef.outputSchema)
+                .jsonSchema as Record<string, unknown>;
+        }
+    }
+    return schemas;
+}

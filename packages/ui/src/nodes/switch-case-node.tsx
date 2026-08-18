@@ -123,10 +123,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
     }
 
     // Non-group fallback
-    const resolved = executionSummary?.latestResolvedInputs as
-        | Record<string, unknown>
-        | undefined;
-    const hasSwitchResolved = resolved?.switchOn !== undefined;
+    const hasSwitchResolved = false;
 
     return (
         <BaseNode
@@ -154,9 +151,7 @@ export function SwitchCaseNode({ data, selected }: NodeProps) {
                             : undefined
                     }
                 >
-                    {hasSwitchResolved
-                        ? JSON.stringify(resolved.switchOn)
-                        : renderExpr(step.params.switchOn)}
+                    {renderExpr(step.params.switchOn)}
                 </span>
             </div>
             <div className="mt-1.5 space-y-0.5">

@@ -2,10 +2,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
 import {
-    compileWorkflow,
     executeWorkflowStream,
     extractToolSchemas,
-    generateWorkflow,
+    generateWorkflowStream,
+    type StubbedToolSet,
+    type ToolSet,
+    validateWorkflowDefinition,
 } from "@remoraflow/core";
 import { z } from "zod";
 import { logger } from "./logger";
@@ -26,17 +28,16 @@ const executeProc = os
             inputs: z.record(z.unknown()).default({}),
             apiKey: z.string().optional(),
             modelId: z.string().default("anthropic/claude-haiku-4.5"),
-            initialState: z.any().optional(),
         }),
     )
     .handler(async function* ({ input }) {
-        const { workflow, inputs, apiKey, modelId, initialState } = input;
+        const { workflow, inputs, apiKey, modelId } = input;
 
-        const compiled = await compileWorkflow(workflow, { tools: DEMO_TOOLS });
-        const errors = compiled.diagnostics.filter(
-            (d) => d.severity === "error",
-        );
-        if (errors.length > 0) {
+        const { isValid, diagnostics, correctedDefinition } =
+            validateWorkflowDefinition(workflow, { tools: DEMO_TOOLS as unknown as StubbedToolSet });
+
+        const errors = diagnostics.filter((d) => d.severity === "error");
+        if (!isValid) {
             logger.warn(
                 {
                     errorCount: errors.length,
@@ -48,18 +49,17 @@ const executeProc = os
                 message: `Invalid workflow: ${errors.map((e) => e.message).join("; ")}`,
             });
         }
-        const validatedWorkflow = compiled.workflow ?? workflow;
 
         logger.info(
             { modelId, hasApiKey: !!apiKey, inputKeys: Object.keys(inputs) },
             "workflow execution started",
         );
 
-        yield* executeWorkflowStream(validatedWorkflow, {
-            tools: DEMO_TOOLS,
-            model: apiKey ? createModel(apiKey, modelId) : undefined,
-            inputs,
-            initialState,
+        yield* executeWorkflowStream({
+            workflowDefinition: correctedDefinition,
+            tools: DEMO_TOOLS as unknown as ToolSet,
+            model: createModel(apiKey ?? "", modelId),
+            input: inputs,
         });
     });
 
@@ -69,19 +69,19 @@ const generateProc = os
             task: z.string(),
             apiKey: z.string(),
             modelId: z.string().default("anthropic/claude-haiku-4.5"),
-            maxRetries: z.number().default(3),
         }),
     )
-    .handler(async ({ input }) => {
-        const { task, apiKey, modelId, maxRetries } = input;
-        logger.info({ modelId, maxRetries }, "workflow generation started");
+    .handler(async function* ({ input }) {
+        const { task, apiKey, modelId } = input;
+        logger.info({ modelId }, "workflow generation started");
 
         const model = createModel(apiKey, modelId);
-        const result = await generateWorkflow({
+        const result = yield* generateWorkflowStream({
+            taskDescription: task,
+            tools: DEMO_TOOLS as unknown as StubbedToolSet,
+            options: {},
             model,
-            tools: DEMO_TOOLS,
-            task,
-            maxRetries,
+            maxGenerationSteps: 20,
         });
 
         logger.info("workflow generation completed");
@@ -89,7 +89,7 @@ const generateProc = os
     });
 
 const listToolsProc = os.handler(async () => {
-    const schemas = await extractToolSchemas(DEMO_TOOLS);
+    const schemas = await extractToolSchemas(DEMO_TOOLS as unknown as ToolSet);
     for (const [name, displayName] of Object.entries(DEMO_TOOL_DISPLAY_NAMES)) {
         const schema = schemas[name];
         if (schema) schema.displayName = displayName;

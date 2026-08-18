@@ -1,6 +1,16 @@
-import type { ExpressionSuggestion, ScopeEntry } from "@remoraflow/core";
-import { enumerateSuggestions } from "@remoraflow/core";
 import { createContext, useContext, useMemo } from "react";
+
+export type ExpressionSuggestion = {
+    path: string;
+    rootKind: "input" | "stepOutput" | "loopVar";
+    type?: string;
+    description?: string;
+};
+export type ScopeEntry = { key: string; type?: string };
+
+function enumerateSuggestions(_scope: ScopeEntry[]): ExpressionSuggestion[] {
+    return [];
+}
 
 interface ExpressionScopeContextValue {
     scope: ScopeEntry[];

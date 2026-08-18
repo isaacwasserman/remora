@@ -4,16 +4,18 @@ import { deriveStepSummaries } from "./execution-state";
 
 function makeState(overrides: Partial<ExecutionState> = {}): ExecutionState {
     return {
-        runId: "run-1",
-        status: "completed",
-        startedAt: "t0",
-        stepRecords: [],
+        status: "success",
+        output: null,
+        error: null,
+        logs: [],
+        scope: {},
+        executionPath: [],
         ...overrides,
-    };
+    } as ExecutionState;
 }
 
 describe("deriveStepSummaries", () => {
-    test("returns empty map for no records", () => {
+    test("returns empty map when executionPath is empty", () => {
         const result = deriveStepSummaries(makeState());
         expect(result.size).toBe(0);
     });
@@ -21,267 +23,96 @@ describe("deriveStepSummaries", () => {
     test("single completed step", () => {
         const result = deriveStepSummaries(
             makeState({
-                stepRecords: [
-                    {
-                        stepId: "s1",
-                        status: "completed",
-                        startedAt: "t1",
-                        completedAt: "t2",
-                        durationMs: 100,
-                        output: { result: "ok" },
-                        retries: [],
-                        path: [],
-                    },
-                ],
+                status: "success",
+                executionPath: [["s1"]],
+                scope: { s1: { result: "ok" } },
             }),
         );
         expect(result.size).toBe(1);
         const s = result.get("s1");
         expect(s?.status).toBe("completed");
         expect(s?.executionCount).toBe(1);
-        expect(s?.completedCount).toBe(1);
-        expect(s?.failedCount).toBe(0);
         expect(s?.latestOutput).toEqual({ result: "ok" });
-        expect(s?.latestDurationMs).toBe(100);
     });
 
-    test("filters to latest iteration for loop-body steps", () => {
+    test("step is running when it is the last leaf and status is not terminal", () => {
         const result = deriveStepSummaries(
             makeState({
-                stepRecords: [
-                    {
-                        stepId: "s1",
-                        status: "completed",
-                        startedAt: "t1",
-                        completedAt: "t2",
-                        durationMs: 10,
-                        output: "first",
-                        retries: [],
-                        path: [
-                            {
-                                type: "for-each",
-                                stepId: "loop",
-                                iterationIndex: 0,
-                                itemValue: "a",
-                            },
-                        ],
-                    },
-                    {
-                        stepId: "s1",
-                        status: "failed",
-                        startedAt: "t5",
-                        completedAt: "t6",
-                        durationMs: 5,
-                        error: {
-                            code: "ERR",
-                            category: "external",
-                            message: "boom",
-                        },
-                        retries: [],
-                        path: [
-                            {
-                                type: "for-each",
-                                stepId: "loop",
-                                iterationIndex: 1,
-                                itemValue: "b",
-                            },
-                        ],
-                    },
-                ],
+                status: "in-progress",
+                executionPath: [["s1"], ["s2"]],
+                scope: { s1: "done" },
             }),
         );
-
-        const s = result.get("s1");
-        // Only latest iteration (1) is shown
-        expect(s?.executionCount).toBe(1);
-        expect(s?.completedCount).toBe(0);
-        expect(s?.failedCount).toBe(1);
-        expect(s?.status).toBe("failed");
-        expect(s?.latestError?.code).toBe("ERR");
+        expect(result.get("s1")?.status).toBe("completed");
+        expect(result.get("s2")?.status).toBe("running");
     });
 
-    test("excludes steps that only ran in previous iterations", () => {
-        // Simulates a switch-case inside a for-each:
-        // iteration 0: branch_a runs, branch_b does not
-        // iteration 1: branch_b runs, branch_a does not
+    test("step is failed when it is the last leaf, status is error, and not in scope", () => {
         const result = deriveStepSummaries(
             makeState({
-                stepRecords: [
-                    {
-                        stepId: "branch_a",
-                        status: "completed",
-                        startedAt: "t1",
-                        completedAt: "t2",
-                        durationMs: 10,
-                        output: "done-a",
-                        retries: [],
-                        path: [
-                            {
-                                type: "for-each",
-                                stepId: "loop",
-                                iterationIndex: 0,
-                                itemValue: "x",
-                            },
-                        ],
-                    },
-                    {
-                        stepId: "branch_b",
-                        status: "completed",
-                        startedAt: "t3",
-                        completedAt: "t4",
-                        durationMs: 10,
-                        output: "done-b",
-                        retries: [],
-                        path: [
-                            {
-                                type: "for-each",
-                                stepId: "loop",
-                                iterationIndex: 1,
-                                itemValue: "y",
-                            },
-                        ],
-                    },
-                ],
+                status: "error",
+                output: null,
+                error: { code: "TOOL_ERROR", message: "tool broke" },
+                executionPath: [["s1"], ["s2"]],
+                scope: { s1: "done" },
             }),
         );
-
-        // branch_a only ran in iteration 0 (not latest) → excluded
-        expect(result.has("branch_a")).toBe(false);
-        // branch_b ran in iteration 1 (latest) → included
-        expect(result.get("branch_b")?.status).toBe("completed");
-    });
-
-    test("counts, retries and worst status are aggregated across executions", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                stepRecords: [
-                    {
-                        stepId: "s1",
-                        status: "completed",
-                        startedAt: "t1",
-                        completedAt: "t2",
-                        durationMs: 50,
-                        output: "ok",
-                        retries: [
-                            {
-                                attempt: 1,
-                                startedAt: "t1",
-                                failedAt: "t1.5",
-                                errorCode: "ERR",
-                                errorMessage: "fail1",
-                            },
-                            {
-                                attempt: 2,
-                                startedAt: "t1.5",
-                                failedAt: "t1.8",
-                                errorCode: "ERR",
-                                errorMessage: "fail2",
-                            },
-                        ],
-                        path: [],
-                    },
-                    {
-                        stepId: "s1",
-                        status: "failed",
-                        startedAt: "t3",
-                        completedAt: "t4",
-                        durationMs: 70,
-                        error: { code: "BOOM", message: "second run failed" },
-                        retries: [
-                            {
-                                attempt: 1,
-                                startedAt: "t3",
-                                failedAt: "t3.5",
-                                errorCode: "ERR",
-                                errorMessage: "fail3",
-                            },
-                        ],
-                        path: [],
-                    },
-                ],
-            }),
-        );
-
-        const s = result.get("s1");
-        expect(s?.executionCount).toBe(2);
-        expect(s?.completedCount).toBe(1);
-        expect(s?.failedCount).toBe(1);
-        expect(s?.totalRetries).toBe(3);
-        expect(s?.status).toBe("failed");
-        expect(s?.latestError).toEqual({
-            code: "BOOM",
-            message: "second run failed",
+        expect(result.get("s1")?.status).toBe("completed");
+        const s2 = result.get("s2");
+        expect(s2?.status).toBe("failed");
+        expect(s2?.latestError).toEqual({
+            code: "TOOL_ERROR",
+            message: "tool broke",
         });
-        expect(s?.latestDurationMs).toBe(70);
     });
 
-    test("latest iteration shows running while previous is filtered out", () => {
+    test("counts executions by occurrence in executionPath", () => {
         const result = deriveStepSummaries(
             makeState({
-                stepRecords: [
-                    {
-                        stepId: "s1",
-                        status: "completed",
-                        startedAt: "t1",
-                        completedAt: "t2",
-                        durationMs: 10,
-                        retries: [],
-                        path: [
-                            {
-                                type: "for-each",
-                                stepId: "loop",
-                                iterationIndex: 0,
-                                itemValue: 0,
-                            },
-                        ],
-                    },
-                    {
-                        stepId: "s1",
-                        status: "running",
-                        startedAt: "t3",
-                        retries: [],
-                        path: [
-                            {
-                                type: "for-each",
-                                stepId: "loop",
-                                iterationIndex: 1,
-                                itemValue: 1,
-                            },
-                        ],
-                    },
-                ],
+                status: "success",
+                executionPath: [["loop", "s1"], ["loop", "s1"], ["loop", "s1"]],
+                scope: { s1: "final" },
             }),
         );
-        // Only latest iteration (1) is shown
-        expect(result.get("s1")?.status).toBe("running");
-        expect(result.get("s1")?.executionCount).toBe(1);
+        const s = result.get("s1");
+        expect(s?.executionCount).toBe(3);
+        expect(s?.status).toBe("completed");
+        expect(s?.latestOutput).toBe("final");
+    });
+
+    test("extracts step ID from the last segment of each path", () => {
+        const result = deriveStepSummaries(
+            makeState({
+                status: "success",
+                executionPath: [["parent", "child"]],
+                scope: { child: 42 },
+            }),
+        );
+        expect(result.has("child")).toBe(true);
+        expect(result.get("child")?.latestOutput).toBe(42);
     });
 
     test("multiple distinct steps", () => {
         const result = deriveStepSummaries(
             makeState({
-                stepRecords: [
-                    {
-                        stepId: "s1",
-                        status: "completed",
-                        startedAt: "t1",
-                        completedAt: "t2",
-                        durationMs: 10,
-                        retries: [],
-                        path: [],
-                    },
-                    {
-                        stepId: "s2",
-                        status: "running",
-                        startedAt: "t3",
-                        retries: [],
-                        path: [],
-                    },
-                ],
+                status: "success",
+                executionPath: [["s1"], ["s2"]],
+                scope: { s1: "a", s2: "b" },
             }),
         );
         expect(result.size).toBe(2);
         expect(result.get("s1")?.status).toBe("completed");
-        expect(result.get("s2")?.status).toBe("running");
+        expect(result.get("s2")?.status).toBe("completed");
+    });
+
+    test("step not in scope and not last is pending", () => {
+        const result = deriveStepSummaries(
+            makeState({
+                status: "success",
+                executionPath: [["s1"], ["s2"], ["s3"]],
+                scope: { s1: "a", s3: "c" },
+            }),
+        );
+        expect(result.get("s2")?.status).toBe("pending");
     });
 });

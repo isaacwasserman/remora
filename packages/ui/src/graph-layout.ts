@@ -1,7 +1,7 @@
 import dagre from "@dagrejs/dagre";
 import type {
-    Diagnostic,
     ExecutionState,
+    ValidatorDiagnostic,
     WorkflowDefinition,
     WorkflowStep,
 } from "@remoraflow/core";
@@ -16,12 +16,21 @@ import {
     isGroupStep,
 } from "./utils/group-refs";
 
+function diagnosticToStepId(
+    d: ValidatorDiagnostic,
+    workflow: WorkflowDefinition,
+): string | undefined {
+    if (!d.path || d.path[0] !== "steps" || typeof d.path[1] !== "number")
+        return undefined;
+    return workflow.steps[d.path[1] as number]?.id;
+}
+
 /** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). */
 export type LayoutDirection = "vertical" | "horizontal";
 
 export interface StepNodeData {
     step: WorkflowStep;
-    diagnostics: Diagnostic[];
+    diagnostics: ValidatorDiagnostic[];
     hasSourceEdge?: boolean;
     inputSchema?: object;
     outputSchema?: object;
@@ -261,7 +270,7 @@ function getNodeDimensions(
 
 export function buildLayout(
     workflow: WorkflowDefinition | null,
-    diagnostics: Diagnostic[] = [],
+    diagnostics: ValidatorDiagnostic[] = [],
     executionState?: ExecutionState,
     nodeDimensions?: Map<string, { width: number; height: number }>,
     paused?: boolean,
@@ -275,12 +284,13 @@ export function buildLayout(
     const stepSummaries = executionState
         ? deriveStepSummaries(executionState)
         : undefined;
-    const diagnosticsByStep = new Map<string, Diagnostic[]>();
+    const diagnosticsByStep = new Map<string, ValidatorDiagnostic[]>();
     for (const d of diagnostics) {
-        if (d.location.stepId) {
-            const existing = diagnosticsByStep.get(d.location.stepId) ?? [];
+        const stepId = diagnosticToStepId(d, workflow);
+        if (stepId) {
+            const existing = diagnosticsByStep.get(stepId) ?? [];
             existing.push(d);
-            diagnosticsByStep.set(d.location.stepId, existing);
+            diagnosticsByStep.set(stepId, existing);
         }
     }
 
@@ -581,7 +591,7 @@ export function buildLayout(
             const step = getOrThrow(stepMap, gid);
 
             const summary = stepSummaries?.get(gid);
-            const resolvedInputs = summary?.latestResolvedInputs as
+            const resolvedInputs = undefined as
                 | Record<string, unknown>
                 | undefined;
 
@@ -774,9 +784,14 @@ const EMPTY_GROUP_HEIGHT = GROUP_HEADER_HEIGHT + GROUP_HEADER + GROUP_PADDING;
 
 function buildGroupHeaderData(
     step: WorkflowStep,
-    diagnostics: Diagnostic[],
+    diagnostics: ValidatorDiagnostic[],
 ): Record<string, unknown> {
-    const stepDiags = diagnostics.filter((d) => d.location.stepId === step.id);
+    const stepDiags = diagnostics.filter(
+        (d) =>
+            d.path &&
+            d.path[0] === "steps" &&
+            typeof d.path[1] === "number",
+    );
 
     if (step.type === "switch-case") {
         return {
@@ -813,7 +828,7 @@ function buildGroupHeaderData(
  */
 export function buildEditableLayout(
     workflow: WorkflowDefinition | null,
-    diagnostics: Diagnostic[] = [],
+    diagnostics: ValidatorDiagnostic[] = [],
     executionState?: ExecutionState,
     positionOverrides?: Map<string, { x: number; y: number }>,
     dimensionOverrides?: Map<string, { width: number; height: number }>,
