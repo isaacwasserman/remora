@@ -1,95 +1,35 @@
-import type { WorkflowStep } from "@remoraflow/core";
 import {
-    Bot,
-    FileOutput,
-    GitBranch,
-    Hand,
-    Moon,
-    Play,
-    Repeat,
-    Sparkles,
-    Timer,
-    Wrench,
-} from "lucide-react";
-import type { ComponentType } from "react";
+    STEP_TYPES as ALL_STEP_TYPES,
+    isStepTypeAllowed,
+    type RemoraflowFeatures,
+    type StepType,
+    type WorkflowStep,
+} from "@remoraflow/core";
 import { useCallback, useState } from "react";
+import { STEP_UI } from "../step-ui/registry";
+import { toneColor } from "../step-ui/tone-styles";
 
 export interface StepPaletteProps {
     onAddStep: (type: WorkflowStep["type"]) => void;
+    features: RemoraflowFeatures;
 }
 
-interface StepTypeEntry {
-    type: WorkflowStep["type"];
-    label: string;
-    color: string;
-    icon: ComponentType<{ className?: string }>;
-}
+const PALETTE_ENTRIES = ALL_STEP_TYPES.map((type) => {
+    const ui = STEP_UI[type as StepType];
+    return {
+        type,
+        label: ui.label,
+        icon: ui.icon,
+        tone: ui.tone,
+        order: ui.paletteOrder,
+    };
+}).sort((a, b) => a.order - b.order);
 
-const STEP_TYPES: StepTypeEntry[] = [
-    {
-        type: "start",
-        label: "Start",
-        color: "text-green-600 dark:text-green-400",
-        icon: Play,
-    },
-    {
-        type: "end",
-        label: "End",
-        color: "text-muted-foreground",
-        icon: Hand,
-    },
-    {
-        type: "tool-call",
-        label: "Tool Call",
-        color: "text-blue-600 dark:text-blue-400",
-        icon: Wrench,
-    },
-    {
-        type: "llm-prompt",
-        label: "LLM Prompt",
-        color: "text-violet-600 dark:text-violet-400",
-        icon: Sparkles,
-    },
-    {
-        type: "extract-data",
-        label: "Extract Data",
-        color: "text-purple-600 dark:text-purple-400",
-        icon: FileOutput,
-    },
-    {
-        type: "switch-case",
-        label: "Switch Case",
-        color: "text-amber-600 dark:text-amber-400",
-        icon: GitBranch,
-    },
-    {
-        type: "for-each",
-        label: "For Each",
-        color: "text-emerald-600 dark:text-emerald-400",
-        icon: Repeat,
-    },
-    {
-        type: "sleep",
-        label: "Sleep",
-        color: "text-yellow-600 dark:text-yellow-400",
-        icon: Moon,
-    },
-    {
-        type: "wait-for-condition",
-        label: "Wait",
-        color: "text-orange-600 dark:text-orange-400",
-        icon: Timer,
-    },
-    {
-        type: "agent-loop",
-        label: "Agent Loop",
-        color: "text-teal-600 dark:text-teal-400",
-        icon: Bot,
-    },
-];
-
-export function StepPalette({ onAddStep }: StepPaletteProps) {
+export function StepPalette({ onAddStep, features }: StepPaletteProps) {
     const [collapsed, setCollapsed] = useState(false);
+    const available = PALETTE_ENTRIES.filter((entry) =>
+        isStepTypeAllowed(entry.type, features),
+    );
 
     const onDragStart = useCallback(
         (event: React.DragEvent, type: WorkflowStep["type"]) => {
@@ -115,7 +55,7 @@ export function StepPalette({ onAddStep }: StepPaletteProps) {
             </button>
             {!collapsed && (
                 <div className="border-t border-border">
-                    {STEP_TYPES.map((entry) => (
+                    {available.map((entry) => (
                         <button
                             type="button"
                             key={entry.type}
@@ -125,10 +65,12 @@ export function StepPalette({ onAddStep }: StepPaletteProps) {
                             className="w-full px-3 py-1 text-left hover:bg-muted/50 transition-colors cursor-grab active:cursor-grabbing flex items-center gap-1.5"
                         >
                             <entry.icon
-                                className={`w-3.5 h-3.5 shrink-0 ${entry.color}`}
+                                className="w-3.5 h-3.5 shrink-0"
+                                style={{ color: toneColor(entry.tone) }}
                             />
                             <span
-                                className={`text-[10px] font-semibold uppercase tracking-wide ${entry.color}`}
+                                className="text-[10px] font-semibold uppercase tracking-wide"
+                                style={{ color: toneColor(entry.tone) }}
                             >
                                 {entry.label}
                             </span>

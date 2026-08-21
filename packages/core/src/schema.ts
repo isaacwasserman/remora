@@ -7,10 +7,16 @@ import {
     type ResolvedRemoraflowSettings,
     remoraflowSettingsSchema,
 } from "./types";
-import dedent from "dedent";
 
 const jsonSchemaArktypeSchema = type("object")
     .narrow((schema, ctx) => {
+        if (Object.keys(schema).length === 0) return true;
+        if (
+            Object.keys(schema).length === 1 &&
+            "type" in schema &&
+            typeof schema.type === "string"
+        )
+            return true;
         try {
             jsonSchemaToType(schema);
             return true;
@@ -414,7 +420,11 @@ export function createWorkflowDefinitionSchema(
 
     /** Schema for validating workflow definitions. */
     const workflowDefinitionArktypeSchema = type({
-        initialStepId: ["string", "@", "the id of the step which serves as the workflow's entry"],
+        initialStepId: [
+            "string",
+            "@",
+            "the id of the step which serves as the workflow's entry",
+        ],
         "inputSchema?": [
             jsonSchemaArktypeSchema,
             "@",

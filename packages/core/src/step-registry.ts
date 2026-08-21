@@ -159,15 +159,24 @@ type ExpressionReferencesByStepType = {
 };
 
 const expressionReferencesByStepType: ExpressionReferencesByStepType = {
-    "agent-loop": (step) => [
-        {
-            expression: {
-                type: "template",
-                template: step.params.instructions,
+    "agent-loop": (step) => {
+        const refs: ExpressionReference[] = [
+            {
+                expression: {
+                    type: "template",
+                    template: step.params.instructions,
+                },
+                path: ["params", "instructions"],
             },
-            path: ["params", "instructions"],
-        },
-    ],
+        ];
+        if (step.params.maxSteps) {
+            refs.push({
+                expression: step.params.maxSteps,
+                path: ["params", "maxSteps"],
+            });
+        }
+        return refs;
+    },
     end: (step) =>
         step.params?.output
             ? [{ expression: step.params.output, path: ["params", "output"] }]

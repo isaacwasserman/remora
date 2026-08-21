@@ -1,6 +1,11 @@
 import type { WorkflowDefinition } from "../schema";
-import { remoraflowSettingsSchema, type StubbedToolSet } from "../types";
+import {
+    type RemoraflowSettings,
+    remoraflowSettingsSchema,
+    type StubbedToolSet,
+} from "../types";
 import { controlFlowValidator } from "./control-flow-validation";
+import { expressionSyntaxValidator } from "./expression-syntax-validation";
 import { outputSchemaValidator } from "./output-schema-validation";
 import { structuralLimitValidator } from "./structural-limit-validation";
 import { syntaxValidator } from "./syntax-validation";
@@ -26,7 +31,7 @@ export function validateWorkflowDefinition(
     {
         tools,
         options = remoraflowSettingsSchema.assert({}),
-    }: { tools: StubbedToolSet; options?: ValidationContext["options"] },
+    }: { tools: StubbedToolSet; options?: RemoraflowSettings },
     toolAssertions: {
         assertToolsHaveExecutionFunctions: boolean;
         assertToolsHaveOutputSchemas: boolean;
@@ -39,18 +44,20 @@ export function validateWorkflowDefinition(
     diagnostics: ValidatorDiagnostic[];
     correctedDefinition: WorkflowDefinition;
 } {
+    const resolvedOptions = remoraflowSettingsSchema.assert(options);
     const validationPipeline: ValidationModule[] = [
         syntaxValidator,
         controlFlowValidator,
         structuralLimitValidator,
         toolReferenceValidator,
+        expressionSyntaxValidator,
         variableReferenceValidator,
         outputSchemaValidator,
         toolInputValidator,
         createToolDefinitionValidator(toolAssertions),
     ];
 
-    const context: ValidationContext = { tools, options };
+    const context: ValidationContext = { tools, options: resolvedOptions };
     let workingDefinition = workflowDefinition;
     const diagnostics: ValidatorDiagnostic[] = [];
 
@@ -78,6 +85,12 @@ export function validateWorkflowDefinition(
     };
 }
 
+export {
+    type ScopeBinding,
+    scopeAt,
+    scopeSchema,
+    scopesByStepId,
+} from "./scope-api";
 export type {
     ValidatorDiagnostic,
     ValidatorError,

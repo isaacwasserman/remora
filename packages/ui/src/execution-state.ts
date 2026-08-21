@@ -31,25 +31,34 @@ export function deriveStepSummaries(
             : null;
     const lastStepId = lastPath ? extractLeafStepId(lastPath) : null;
 
-    const isTerminal =
-        state.status === "success" || state.status === "error";
+    const isTerminal = state.status === "success" || state.status === "error";
+
+    const runningStepId =
+        "runningStepPath" in state && state.runningStepPath
+            ? extractLeafStepId(state.runningStepPath)
+            : null;
+
+    if (runningStepId && !executionCounts.has(runningStepId)) {
+        executionCounts.set(runningStepId, 0);
+    }
 
     for (const [stepId, count] of executionCounts) {
-        const inScope = stepId in state.scope;
-
         let status: StepStatus;
-        if (inScope) {
-            status = "completed";
-        } else if (
+        if (
             stepId === lastStepId &&
             state.status === "error" &&
-            !inScope
+            !(stepId in state.scope)
         ) {
             status = "failed";
+        } else if (stepId === runningStepId && !isTerminal) {
+            status = "running";
         } else if (stepId === lastStepId && !isTerminal) {
             status = "running";
         } else {
-            status = "pending";
+            // An execution-path entry is emitted after a step has begun. Many
+            // step types (sleep, start, and nested-chain steps) do not leave
+            // an output in the outer scope, but they still completed.
+            status = "completed";
         }
 
         const summary: StepExecutionSummary = {
@@ -57,7 +66,7 @@ export function deriveStepSummaries(
             executionCount: count,
         };
 
-        if (inScope) {
+        if (stepId in state.scope) {
             summary.latestOutput = state.scope[stepId];
         }
 

@@ -1,4 +1,3 @@
-import type { ExpressionSuggestion } from "./expression-scope-context";
 import { Braces } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -16,6 +15,8 @@ import {
 } from "../components/ui/popover";
 import { Textarea } from "../components/ui/textarea";
 import { cn } from "../lib/utils";
+import { CodeInput } from "./code-input";
+import type { ExpressionSuggestion } from "./expression-scope-context";
 
 const ROOT_KIND_LABEL: Record<ExpressionSuggestion["rootKind"], string> = {
     input: "input",
@@ -50,6 +51,18 @@ export function TemplateExpressionInput({
     const [open, setOpen] = useState(false);
 
     const hasSuggestions = !!suggestions && suggestions.length > 0;
+
+    if (!hasSuggestions) {
+        return (
+            <CodeInput
+                value={value}
+                onChange={onChange}
+                multiline
+                placeholder={placeholder}
+                className={className}
+            />
+        );
+    }
 
     function rememberCursor() {
         const el = textareaRef.current;

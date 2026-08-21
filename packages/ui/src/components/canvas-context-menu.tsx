@@ -1,18 +1,12 @@
-import type { WorkflowStep } from "@remoraflow/core";
 import {
-    Bot,
-    FileOutput,
-    GitBranch,
-    Hand,
-    Moon,
-    Play,
-    Repeat,
-    Sparkles,
-    Timer,
-    Wrench,
-} from "lucide-react";
-import type { ComponentType } from "react";
+    STEP_TYPES as ALL_STEP_TYPES,
+    isStepTypeAllowed,
+    type RemoraflowFeatures,
+    type StepType,
+    type WorkflowStep,
+} from "@remoraflow/core";
 import { useEffect, useRef } from "react";
+import { STEP_UI } from "../step-ui/registry";
 
 export interface CanvasContextMenuProps {
     position: { x: number; y: number };
@@ -25,24 +19,15 @@ export interface CanvasContextMenuProps {
     targetNodeId?: string;
     onDeleteNode?: (nodeId: string) => void;
     onEditNode?: (nodeId: string) => void;
+    onSetInitialStep?: (nodeId: string) => void;
+    isInitialStep?: boolean;
+    features: RemoraflowFeatures;
 }
 
-const STEP_TYPES: {
-    type: WorkflowStep["type"];
-    label: string;
-    icon: ComponentType<{ className?: string }>;
-}[] = [
-    { type: "start", label: "Start", icon: Play },
-    { type: "end", label: "End", icon: Hand },
-    { type: "tool-call", label: "Tool Call", icon: Wrench },
-    { type: "llm-prompt", label: "LLM Prompt", icon: Sparkles },
-    { type: "extract-data", label: "Extract Data", icon: FileOutput },
-    { type: "switch-case", label: "Switch Case", icon: GitBranch },
-    { type: "for-each", label: "For Each", icon: Repeat },
-    { type: "sleep", label: "Sleep", icon: Moon },
-    { type: "wait-for-condition", label: "Wait for Condition", icon: Timer },
-    { type: "agent-loop", label: "Agent Loop", icon: Bot },
-];
+const PALETTE_ENTRIES = ALL_STEP_TYPES.map((type) => {
+    const ui = STEP_UI[type as StepType];
+    return { type, label: ui.label, icon: ui.icon, order: ui.paletteOrder };
+}).sort((a, b) => a.order - b.order);
 
 export function CanvasContextMenu({
     position,
@@ -52,8 +37,14 @@ export function CanvasContextMenu({
     targetNodeId,
     onDeleteNode,
     onEditNode,
+    onSetInitialStep,
+    isInitialStep,
+    features,
 }: CanvasContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
+    const available = PALETTE_ENTRIES.filter((entry) =>
+        isStepTypeAllowed(entry.type, features),
+    );
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -99,6 +90,18 @@ export function CanvasContextMenu({
                             Edit Step
                         </button>
                     )}
+                    {onSetInitialStep && !isInitialStep && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onSetInitialStep(targetNodeId);
+                                onClose();
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-foreground hover:bg-muted/50 transition-colors"
+                        >
+                            Set as Entry Point
+                        </button>
+                    )}
                     {onDeleteNode && (
                         <button
                             type="button"
@@ -114,7 +117,7 @@ export function CanvasContextMenu({
             <div className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Add Step
             </div>
-            {STEP_TYPES.map((entry) => (
+            {available.map((entry) => (
                 <button
                     type="button"
                     key={entry.type}

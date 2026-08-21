@@ -1,0 +1,155 @@
+{
+    "initialStepId": "start",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "pokemon": {
+                "type": "string",
+                "description": "Name of the Pokémon to analyze"
+            }
+        },
+        "required": ["pokemon"]
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "pokemon": { "type": "string" },
+            "rating": { "type": "number" },
+            "role": { "type": "string" },
+            "insights": { "type": "object" },
+            "strategy": { "type": "object" }
+        }
+    },
+    "steps": [
+        {
+            "id": "start",
+            "name": "Start",
+            "description": "Begin the analysis workflow",
+            "type": "start",
+            "nextStepId": "fetch_pokemon"
+        },
+        {
+            "id": "fetch_pokemon",
+            "name": "Fetch Pokémon",
+            "description": "Get the target Pokémon's stats and details",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon",
+                "toolInput": {
+                    "pokemon": {
+                        "type": "jmespath",
+                        "expression": "input.pokemon"
+                    }
+                }
+            },
+            "nextStepId": "fetch_type"
+        },
+        {
+            "id": "fetch_type",
+            "name": "Fetch Primary Type",
+            "description": "Look up type matchups for the Pokémon's primary type",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon-type",
+                "toolInput": {
+                    "typeName": {
+                        "type": "jmespath",
+                        "expression": "fetch_pokemon.types[0]"
+                    }
+                }
+            },
+            "nextStepId": "describe"
+        },
+        {
+            "id": "describe",
+            "name": "LLM Analysis",
+            "description": "Use an LLM to analyze the Pokémon's competitive viability",
+            "type": "llm-prompt",
+            "params": {
+                "prompt": "Analyze the Pokémon ${fetch_pokemon.name} (types: ${fetch_pokemon.types}). Stats: HP=${fetch_pokemon.stats.hp}, ATK=${fetch_pokemon.stats.attack}, DEF=${fetch_pokemon.stats.defense}, SPD=${fetch_pokemon.stats.speed}. Type matchups — strong against: ${fetch_type.double_damage_to}, weak against: ${fetch_type.double_damage_from}, resists: ${fetch_type.half_damage_from}. Provide a competitive analysis with a rating from 1-10, a recommended role, and key observations.",
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "analysis": { "type": "string" },
+                        "rating": { "type": "number" },
+                        "role": { "type": "string" }
+                    },
+                    "required": ["analysis", "rating", "role"]
+                }
+            },
+            "nextStepId": "extract_insights"
+        },
+        {
+            "id": "extract_insights",
+            "name": "Extract Insights",
+            "description": "Extract structured strengths and weaknesses from the analysis",
+            "type": "extract-data",
+            "params": {
+                "sourceData": {
+                    "type": "jmespath",
+                    "expression": "describe.analysis"
+                },
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "strengths": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "weaknesses": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "tier": { "type": "string" }
+                    },
+                    "required": ["strengths", "weaknesses", "tier"]
+                }
+            },
+            "nextStepId": "strategize"
+        },
+        {
+            "id": "strategize",
+            "name": "Agent: Build Strategy",
+            "description": "Autonomous agent creates a competitive battle strategy using available tools",
+            "type": "agent-loop",
+            "params": {
+                "instructions": "Create a competitive battle strategy for ${fetch_pokemon.name}. It is rated ${describe.rating}/10 as a ${describe.role}. Consider its type matchups and stats. Use the available tools to research counters and team synergies. Output a concrete strategy.",
+                "tools": ["get-pokemon", "get-pokemon-type", "list-pokemon"],
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "moveset_focus": { "type": "string" },
+                        "best_teammates": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "counters_to_watch": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "battle_plan": { "type": "string" }
+                    },
+                    "required": [
+                        "moveset_focus",
+                        "best_teammates",
+                        "counters_to_watch",
+                        "battle_plan"
+                    ]
+                }
+            },
+            "nextStepId": "done"
+        },
+        {
+            "id": "done",
+            "name": "Done",
+            "description": "Output the complete analysis",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "{ pokemon: fetch_pokemon.name, rating: describe.rating, role: describe.role, insights: extract_insights, strategy: strategize }"
+                }
+            }
+        }
+    ]
+}

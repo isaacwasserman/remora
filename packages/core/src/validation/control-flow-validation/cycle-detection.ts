@@ -1,5 +1,6 @@
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
-import { buildStepIndex, nestedChainEntryPoints } from "../../utils";
+import { nestedChainEntryPoints } from "../../step-registry";
+import { buildStepIndex } from "../../utils";
 import type { ValidatorError } from "../types";
 
 type TraverseResult =

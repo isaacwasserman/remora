@@ -367,13 +367,13 @@ function toType(schema: JSONSchema7Definition): ArkType | null {
 
 function describe(schema: JSONSchema7Definition): string {
     if (schema === true || schema === false) {
-        return "a value of unknown type";
+        return "unknown-type";
     }
     const asType = toType(schema);
     if (asType?.expression) {
-        return `\`${asType.expression.slice(0, 40)}\``;
+        return `\`${asType.expression.slice(0, 60)}\``;
     }
-    return schema.type ? `a \`${String(schema.type)}\`` : "a value";
+    return schema.type ? `\`${String(schema.type)}\`` : "unconstrained";
 }
 
 /** Object keywords fully handled by the structural walk in `objectDiagnostics`. */

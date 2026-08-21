@@ -1,4 +1,13 @@
-import { asSchema, type DeepPartial, hasToolCall, Output, stepCountIs, streamText, tool } from "ai";
+import {
+    asSchema,
+    type DeepPartial,
+    type FlexibleSchema,
+    Output,
+    stepCountIs,
+    streamText,
+} from "ai";
+import { type } from "arktype";
+import dedent from "dedent";
 import {
     createWorkflowDefinitionSchema,
     type WorkflowDefinition,
@@ -9,20 +18,20 @@ import {
     remoraflowSettingsSchema,
     type StubbedToolSet,
 } from "../types";
-import dedent from "dedent";
 import { validateWorkflowDefinition } from "../validation";
-import { type } from "arktype";
 
 export type GenerationOptions = RemoraflowSettings & {};
 
-export type GenerationOutput = {gaveUp: true, reason: string, workflowDefinition: null} | {gaveUp: false, reason: null, workflowDefinition: WorkflowDefinition} 
+export type GenerationOutput =
+    | { gaveUp: true; reason: string; workflowDefinition: null }
+    | { gaveUp: false; reason: null; workflowDefinition: WorkflowDefinition };
 
 export async function* generateWorkflowStream({
     taskDescription,
     tools,
     options,
     model,
-    maxGenerationSteps = 20
+    maxGenerationSteps = 20,
 }: {
     taskDescription: string;
     tools: StubbedToolSet;
@@ -34,17 +43,25 @@ export async function* generateWorkflowStream({
     const { workflowDefinitionArktypeSchema } =
         createWorkflowDefinitionSchema(resolvedOptions);
 
-    const validationNarrowedSchema = workflowDefinitionArktypeSchema.narrow((definition, ctx) => {
-        const {isValid, diagnostics} = validateWorkflowDefinition(definition, {tools, options: resolvedOptions})
-        if (!isValid) {
-            return ctx.reject(JSON.stringify(diagnostics))
-        }
-        else {
-            return true
-        }
-    })
+    const validationNarrowedSchema = workflowDefinitionArktypeSchema.narrow(
+        (definition, ctx) => {
+            const { isValid, diagnostics } = validateWorkflowDefinition(
+                definition,
+                { tools, options: resolvedOptions },
+            );
+            if (!isValid) {
+                return ctx.reject(JSON.stringify(diagnostics));
+            } else {
+                return true;
+            }
+        },
+    );
 
-    const outputSchema = validationNarrowedSchema.or(type({type: "'give-up'", reason: "string"}).describe("use this if the requested workflow is simply not possible for you to create for some reason"))
+    const outputSchema = validationNarrowedSchema.or(
+        type({ type: "'give-up'", reason: "string" }).describe(
+            "use this if the requested workflow is simply not possible for you to create for some reason",
+        ),
+    );
 
     const resultStream = streamText({
         model,
@@ -56,7 +73,7 @@ export async function* generateWorkflowStream({
 
                     Notes:
                     - Workflows undergo a validation step after submission. If your workflow fails this validation, remediate and resubmit.
-                `
+                `,
             },
             {
                 role: "user",
@@ -64,20 +81,24 @@ export async function* generateWorkflowStream({
                     You have the following tools at your disposal:
 
                     <AvailableTools>
-                    ${Object.entries(tools).map(([toolName, tool]) => dedent`
+                    ${Object.entries(tools)
+                        .map(
+                            ([toolName, tool]) => dedent`
                         <Tool>
                             <ToolName>${toolName}</ToolName>
                             <ToolDescription>
                                 ${tool.description}
                             </ToolDescription>
                             <ToolInputSchema>
-                                ${JSON.stringify(asSchema(tool.inputSchema).jsonSchema)}
+                                ${JSON.stringify(asSchema(tool.inputSchema as FlexibleSchema).jsonSchema)}
                             </ToolInputSchema>
                             <ToolOutputSchema>
-                                ${tool.outputSchema ? JSON.stringify(asSchema(tool.outputSchema).jsonSchema) : "{}"}
+                                ${tool.outputSchema ? JSON.stringify(asSchema(tool.inputSchema as FlexibleSchema).jsonSchema) : "{}"}
                             </ToolOutputSchema>
                         </Tool>
-                    `).join("\n\n")}
+                    `,
+                        )
+                        .join("\n\n")}
                     </AvailableTools>
 
                     Generate a workflow based on the following task description:
@@ -85,8 +106,8 @@ export async function* generateWorkflowStream({
                     <TaskDescription>
                     ${taskDescription}
                     </TaskDescription>
-                `
-            }
+                `,
+            },
         ],
         stopWhen: [stepCountIs(maxGenerationSteps)],
         output: Output.object({ schema: outputSchema }),
@@ -96,24 +117,28 @@ export async function* generateWorkflowStream({
 
     for await (const partialOutput of partialOutputStream) {
         if (!("type" in partialOutput && partialOutput.type === "give-up")) {
-            yield partialOutput as typeof validationNarrowedSchema.inferOut
+            yield partialOutput as typeof validationNarrowedSchema.inferOut;
         }
     }
 
-    const finalGenerationOutput = await resultStream.output
+    const finalGenerationOutput = await resultStream.output;
 
-    if (!("type" in finalGenerationOutput && finalGenerationOutput.type === "give-up")) {
+    if (
+        !(
+            "type" in finalGenerationOutput &&
+            finalGenerationOutput.type === "give-up"
+        )
+    ) {
         return {
             gaveUp: false,
             reason: null,
-            workflowDefinition: finalGenerationOutput as WorkflowDefinition
-        }
-    }
-    else {
+            workflowDefinition: finalGenerationOutput as WorkflowDefinition,
+        };
+    } else {
         return {
             gaveUp: true,
             reason: finalGenerationOutput.reason,
-            workflowDefinition: null
-        }
+            workflowDefinition: null,
+        };
     }
 }

@@ -77,6 +77,7 @@ export type ExecutionState =
           logs: LogLine[];
           scope: ExecutionScope;
           executionPath: StepPath[];
+          runningStepPath?: StepPath;
       }
     | {
           status: "success";
@@ -110,7 +111,7 @@ export type StepExecutorOutput = (
           lastEndStepId?: string;
       }
     | { scope: ExecutionScope | null; output: null; error: ExecutionError }
-) & { currentUniqueStepIdPath?: StepPath };
+) & { currentUniqueStepIdPath?: StepPath; started?: boolean };
 
 export type StepExecutionUpdate = StepExecutorOutput & {
     currentUniqueStepIdPath: StepPath;

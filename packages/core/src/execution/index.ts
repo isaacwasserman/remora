@@ -22,7 +22,28 @@ import type {
 import { defaultUserInterventionAdapter } from "./user-intervention/default-adapter";
 import { createUserInverventionContext } from "./user-intervention/types";
 
+export type {
+    DurationLimits,
+    DurationPolicy,
+} from "./execution-engine/duration-policy";
+export { resolveDurationLimits } from "./execution-engine/duration-policy";
+export { evaluateExpressionAgainstScope } from "./expressions/expression";
 export { _executeWorkflow } from "./run-workflow";
+export type {
+    ExecutionOptions,
+    ExecutionState,
+    LogLine,
+    StepExecutionUpdate,
+} from "./types";
+export { defaultUserInterventionAdapter } from "./user-intervention/default-adapter";
+export type {
+    InterventionRequest,
+    InterventionResponse,
+    RequestInterventionInput,
+    UserInterventionAdapter,
+    UserInterventionContext,
+} from "./user-intervention/types";
+export { createUserInverventionContext } from "./user-intervention/types";
 
 export async function* executeWorkflowStream({
     workflowDefinition,
@@ -134,10 +155,13 @@ export async function* executeWorkflowStream({
         )) {
             latestUpdate = captured.objective;
             latestLogs = captured.logs.logs;
-            executionPath = [
-                ...executionPath,
-                latestUpdate.currentUniqueStepIdPath,
-            ];
+            const isStarted = latestUpdate.started === true;
+            if (!isStarted) {
+                executionPath = [
+                    ...executionPath,
+                    latestUpdate.currentUniqueStepIdPath,
+                ];
+            }
             if (latestUpdate.error) {
                 yield {
                     status: "error",
@@ -157,6 +181,11 @@ export async function* executeWorkflowStream({
                 logs: latestLogs,
                 scope: latestUpdate.scope,
                 executionPath,
+                ...(isStarted
+                    ? {
+                          runningStepPath: latestUpdate.currentUniqueStepIdPath,
+                      }
+                    : {}),
             };
         }
     } catch (error) {

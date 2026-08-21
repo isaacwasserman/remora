@@ -1,0 +1,76 @@
+{
+    "initialStepId": "start",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "pokemon": {
+                "type": "string",
+                "description": "Name or ID of the Pokémon to look up"
+            }
+        },
+        "required": ["pokemon"]
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "types": { "type": "array", "items": { "type": "string" } },
+            "stats": { "type": "object" },
+            "type_matchups": { "type": "object" }
+        },
+        "required": ["name", "types", "stats", "type_matchups"]
+    },
+    "steps": [
+        {
+            "id": "start",
+            "name": "Start",
+            "description": "Begin the Pokémon lookup",
+            "type": "start",
+            "nextStepId": "fetch_pokemon"
+        },
+        {
+            "id": "fetch_pokemon",
+            "name": "Fetch Pokémon",
+            "description": "Get the target Pokémon's stats and details",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon",
+                "toolInput": {
+                    "pokemon": {
+                        "type": "jmespath",
+                        "expression": "input.pokemon"
+                    }
+                }
+            },
+            "nextStepId": "fetch_type"
+        },
+        {
+            "id": "fetch_type",
+            "name": "Fetch Primary Type",
+            "description": "Look up type matchups for the Pokémon's primary type",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon-type",
+                "toolInput": {
+                    "typeName": {
+                        "type": "jmespath",
+                        "expression": "fetch_pokemon.types[0]"
+                    }
+                }
+            },
+            "nextStepId": "done"
+        },
+        {
+            "id": "done",
+            "name": "Done",
+            "description": "Output the complete analysis",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "{ name: fetch_pokemon.name, types: fetch_pokemon.types, stats: fetch_pokemon.stats, type_matchups: fetch_type }"
+                }
+            }
+        }
+    ]
+}

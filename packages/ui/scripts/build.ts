@@ -53,3 +53,6 @@ console.log("Declaration emit complete");
 
 await $`bunx postcss src/styles.css -o dist/styles.css`;
 console.log("CSS build complete");
+
+await $`bunx postcss src/theme.css -o dist/theme.css`;
+console.log("Theme CSS build complete");

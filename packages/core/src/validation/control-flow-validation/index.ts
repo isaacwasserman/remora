@@ -1,9 +1,6 @@
 import type { WorkflowDefinition, WorkflowStep } from "../../schema";
-import {
-    buildStepIndex,
-    nestedChainEntryPoints,
-    nestedChains,
-} from "../../utils";
+import { nestedChainEntryPoints, nestedChains } from "../../step-registry";
+import { buildStepIndex } from "../../utils";
 import type { ValidationModule, ValidatorDiagnostic } from "../types";
 import { workflowHasCycles } from "./cycle-detection";
 import { validateStepReferences } from "./step-reference-validation";

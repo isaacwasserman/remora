@@ -1,28 +1,23 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remora Flow Demo</title>
-  <link rel="icon" type="image/svg+xml" href="/client/favicon.svg" />
-  <link rel="stylesheet" href="/client/styles.css" />
-</head>
-<body>
-  <div id="root"></div>
-  <script>
-    // Patch ResizeObserver to defer callbacks via requestAnimationFrame.
-    // This prevents the "ResizeObserver loop completed with undelivered notifications"
-    // error by breaking the synchronous observation cycle that React Flow's node
-    // measurement triggers.
-    // biome-ignore: must be a regular function (not arrow) so it works with `new`
-    var _RO = ResizeObserver;
-    window.ResizeObserver = function PatchedResizeObserver(callback) {
-      return new _RO(function(entries, observer) {
-        requestAnimationFrame(function() { callback(entries, observer); });
-      });
-    };
-    window.ResizeObserver.prototype = _RO.prototype;
-  </script>
-  <script type="module" src="/client/main.tsx"></script>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>RemoraFlow Demo</title>
+        <script>
+            // ResizeObserver loop error suppression (React Flow triggers this benignly)
+            const ro = window.ResizeObserver;
+            window.ResizeObserver = class extends ro {
+                constructor(cb) {
+                    super((entries, observer) => {
+                        requestAnimationFrame(() => cb(entries, observer));
+                    });
+                }
+            };
+        </script>
+    </head>
+    <body class="min-h-screen bg-background text-foreground antialiased">
+        <div id="root"></div>
+        <script type="module" src="/app/main.tsx"></script>
+    </body>
 </html>

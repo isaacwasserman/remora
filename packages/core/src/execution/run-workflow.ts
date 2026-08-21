@@ -66,6 +66,14 @@ export async function* _executeWorkflow({
         let lastUpdate: StepExecutionUpdate | undefined;
         try {
             await executionContext.assertWithinDurationBudget();
+            yield {
+                scope,
+                output: null,
+                error: null,
+                currentUniqueStepIdPath: stepPath,
+                status: "in-progress",
+                started: true,
+            };
             for await (const rawUpdate of stepExecutor.execute({
                 uniqueStepIdPath: stepPath,
                 step: currentStep,

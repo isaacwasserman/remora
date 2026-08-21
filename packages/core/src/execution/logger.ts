@@ -1,4 +1,3 @@
-import * as capcon from "capture-console";
 import type { LogLine } from "./types";
 
 class LogRingBuffer {
@@ -66,6 +65,7 @@ export async function* withLogCapture<TObjective>(
     }: { silence?: boolean; maxLogLines: number; maxLogLineLength: number },
 ) {
     const logBuffer = new LogRingBuffer({ maxLogLineLength, maxLogLines });
+    const capcon = await import("capture-console");
     capcon.startCapture(process.stdout, { quiet: silence }, (line) => {
         logBuffer.addLogLine(line);
     });

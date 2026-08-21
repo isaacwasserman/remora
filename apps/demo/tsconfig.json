@@ -1,18 +1,11 @@
 {
+    "extends": ["nitro/tsconfig"],
     "compilerOptions": {
-        "lib": ["ESNext", "DOM"],
-        "target": "ESNext",
-        "module": "ESNext",
-        "moduleResolution": "bundler",
         "jsx": "react-jsx",
-        "strict": true,
-        "skipLibCheck": true,
-        "noEmit": true,
-        "verbatimModuleSyntax": true,
-        "noFallthroughCasesInSwitch": true,
-        "noUncheckedIndexedAccess": true,
-        "noImplicitOverride": true,
-        "types": ["vite/client"]
-    },
-    "include": ["client", "server", "routes"]
+        "paths": {
+            "~/*": ["./*"],
+            "@remoraflow/core": ["../../packages/core/src/index.ts"],
+            "@remoraflow/ui": ["../../packages/ui/src/index.ts"]
+        }
+    }
 }

@@ -18,7 +18,13 @@ import {
 const WORKFLOW: WorkflowDefinition = {
     initialStepId: "start",
     steps: [
-        { id: "start", type: "start", name: "Start", description: "", nextStepId: "end" },
+        {
+            id: "start",
+            type: "start",
+            name: "Start",
+            description: "",
+            nextStepId: "end",
+        },
         { id: "end", type: "end", name: "End", description: "" },
     ],
 };
@@ -32,7 +38,10 @@ function makeState(
     return {
         status,
         output: status === "success" ? null : null,
-        error: status === "error" ? { code: "UNKNOWN", message: "test error" } : null,
+        error:
+            status === "error"
+                ? { code: "UNKNOWN", message: "test error" }
+                : null,
         logs: [],
         scope: {},
         executionPath: [],

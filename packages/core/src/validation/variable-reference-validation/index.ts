@@ -12,10 +12,13 @@ import {
     inferQueryOutputSchema,
     unionSchemas,
 } from "../../schemistry";
-import { expressionReferences } from "../../step-registry";
+import {
+    expressionReferences,
+    nestedChainEntryPoints,
+} from "../../step-registry";
 import { assertNeverStep } from "../../step-types";
 import type { ToolSet } from "../../types";
-import { buildStepIndex, nestedChainEntryPoints } from "../../utils";
+import { buildStepIndex } from "../../utils";
 import type {
     RemoraflowType,
     ValidationModule,
@@ -93,8 +96,8 @@ function continuationNode(node: StepGraphNode): StepGraphNode | null {
 
 export function scopeToJsonSchema(scope: TypeScope): RemoraflowType {
     const resolvedBindings = new Map<string, RemoraflowType>();
-    let scopeCursor = scope;
-    while (scopeCursor.parent) {
+    let scopeCursor: TypeScope | null = scope;
+    while (scopeCursor) {
         for (const [name, value] of scopeCursor.bindings.entries()) {
             if (!resolvedBindings.get(name)) {
                 resolvedBindings.set(name, value);

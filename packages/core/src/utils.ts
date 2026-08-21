@@ -1,12 +1,5 @@
 import type { WorkflowDefinition, WorkflowStep } from "./schema";
 
-export {
-    isBlockStep,
-    type NestedChain,
-    nestedChainEntryPoints,
-    nestedChains,
-} from "./step-registry";
-
 export function buildStepIndex(
     workflowDefinition: WorkflowDefinition,
 ): Map<string, WorkflowStep & { index: number }> {

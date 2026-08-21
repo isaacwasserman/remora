@@ -1,11 +1,8 @@
-import type {
-    ValidatorDiagnostic,
-    WorkflowStep,
-} from "@remoraflow/core";
-import type React from "react";
+import type { ValidatorDiagnostic, WorkflowStep } from "@remoraflow/core";
+import { ReadOnlyStepParams } from "../editors/fields/read-only-step-params";
 import { JsonViewer } from "../editors/json-viewer";
 import type { StepExecutionSummary } from "../execution-state";
-import { useToolDisplayName, useToolSchemas } from "../tool-schemas-context";
+import { stepLevelDiagnostics } from "../utils/diagnostic-matching";
 import { Label, SectionHeader, TypeBadge } from "./shared";
 
 function jsonString(value: unknown): string {
@@ -16,18 +13,10 @@ export interface StepDetailPanelProps {
     step: WorkflowStep;
     diagnostics: ValidatorDiagnostic[];
     executionSummary?: StepExecutionSummary;
+    renderedParams?: Record<string, unknown>;
+    workflowInputSchema?: object;
+    workflowOutputSchema?: object;
     onClose: () => void;
-}
-
-function renderExpression(
-    expr:
-        | { type: "literal"; value: unknown }
-        | { type: "jmespath"; expression: string }
-        | { type: "template"; template: string },
-): string {
-    if (expr.type === "literal") return JSON.stringify(expr.value);
-    if (expr.type === "template") return expr.template;
-    return expr.expression;
 }
 
 function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
@@ -46,386 +35,13 @@ function StatusBadge({ summary }: { summary: StepExecutionSummary }) {
     );
 }
 
-function ResolvedCode({
-    value,
-    expression,
-}: {
-    value: unknown;
-    expression?: string;
-}) {
-    const display = jsonString(value);
-    if (typeof value === "string") {
-        return (
-            <pre
-                className="text-xs text-emerald-600 bg-emerald-500/10 rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] cursor-default border border-emerald-500/20"
-                title={expression}
-            >
-                {display}
-            </pre>
-        );
-    }
-    return <JsonViewer value={display} />;
-}
-
-function StepParams({
-    step,
-    resolvedInputs,
-}: {
-    step: WorkflowStep;
-    resolvedInputs?: unknown;
-}) {
-    const resolved = resolvedInputs as Record<string, unknown> | undefined;
-    const toolSchemas = useToolSchemas();
-    const toolCallDisplayName = useToolDisplayName(
-        step.type === "tool-call" ? step.params.toolName : "",
-    );
-
-    switch (step.type) {
-        case "tool-call":
-            return (
-                <div className="space-y-3">
-                    <div>
-                        <Label>Tool</Label>
-                        <div className="text-xs font-mono font-medium text-foreground bg-muted/40 rounded px-2 py-1 inline-block">
-                            {toolCallDisplayName}
-                        </div>
-                    </div>
-                    {Object.keys(step.params.toolInput).length > 0 && (
-                        <div>
-                            <Label>Inputs</Label>
-                            <div className="space-y-1.5">
-                                {Object.entries(step.params.toolInput).map(
-                                    ([key, val]) => {
-                                        const resolvedVal = resolved?.[key];
-                                        const hasResolved =
-                                            resolvedVal !== undefined;
-                                        return (
-                                            <div
-                                                key={key}
-                                                className="flex gap-2 text-xs items-baseline"
-                                            >
-                                                <span className="font-mono font-medium text-muted-foreground shrink-0">
-                                                    {key}
-                                                </span>
-                                                <span className="text-muted-foreground/40">
-                                                    =
-                                                </span>
-                                                <span
-                                                    className={`font-mono ${hasResolved ? "text-emerald-600" : "text-foreground"}`}
-                                                    title={
-                                                        hasResolved
-                                                            ? renderExpression(
-                                                                  val,
-                                                              )
-                                                            : undefined
-                                                    }
-                                                >
-                                                    {hasResolved
-                                                        ? typeof resolvedVal ===
-                                                          "string"
-                                                            ? resolvedVal
-                                                            : JSON.stringify(
-                                                                  resolvedVal,
-                                                              )
-                                                        : renderExpression(val)}
-                                                </span>
-                                            </div>
-                                        );
-                                    },
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-
-        case "llm-prompt":
-            return (
-                <div className="space-y-2">
-                    <div>
-                        <Label>Prompt</Label>
-                        {resolved?.prompt ? (
-                            <ResolvedCode
-                                value={resolved.prompt}
-                                expression={step.params.prompt}
-                            />
-                        ) : (
-                            <pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
-                                {step.params.prompt}
-                            </pre>
-                        )}
-                    </div>
-                    <div>
-                        <Label>Output Format</Label>
-                        <JsonViewer
-                            value={JSON.stringify(
-                                step.params.outputFormat,
-                                null,
-                                2,
-                            )}
-                        />
-                    </div>
-                </div>
-            );
-
-        case "extract-data":
-            return (
-                <div className="space-y-2">
-                    <div>
-                        <Label>Source</Label>
-                        {resolved?.sourceData !== undefined ? (
-                            <ResolvedCode
-                                value={resolved.sourceData}
-                                expression={renderExpression(
-                                    step.params.sourceData,
-                                )}
-                            />
-                        ) : (
-                            <Code>
-                                {renderExpression(step.params.sourceData)}
-                            </Code>
-                        )}
-                    </div>
-                    <div>
-                        <Label>Output Format</Label>
-                        <JsonViewer
-                            value={JSON.stringify(
-                                step.params.outputFormat,
-                                null,
-                                2,
-                            )}
-                        />
-                    </div>
-                </div>
-            );
-
-        case "switch-case":
-            return (
-                <div className="space-y-3">
-                    <div>
-                        <Label>Switch On</Label>
-                        {resolved?.switchOn !== undefined ? (
-                            <ResolvedCode
-                                value={resolved.switchOn}
-                                expression={renderExpression(
-                                    step.params.switchOn,
-                                )}
-                            />
-                        ) : (
-                            <Code>
-                                {renderExpression(step.params.switchOn)}
-                            </Code>
-                        )}
-                    </div>
-                    <div>
-                        <Label>Cases</Label>
-                        <div className="space-y-1.5">
-                            {step.params.cases.map((c) => (
-                                <div
-                                    key={c.branchBodyStepId}
-                                    className="text-xs flex items-center gap-2 bg-muted/30 rounded-md px-2.5 py-1.5"
-                                >
-                                    <span className="font-mono font-medium text-muted-foreground">
-                                        {c.value.type === "default"
-                                            ? "default"
-                                            : renderExpression(c.value)}
-                                    </span>
-                                    <span className="text-muted-foreground/40">
-                                        &rarr;
-                                    </span>
-                                    <span className="font-mono font-medium text-foreground">
-                                        {c.branchBodyStepId}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            );
-
-        case "for-each":
-            return (
-                <div className="space-y-2">
-                    <div>
-                        <Label>Target</Label>
-                        {resolved?.target !== undefined ? (
-                            <ResolvedCode
-                                value={resolved.target}
-                                expression={renderExpression(
-                                    step.params.target,
-                                )}
-                            />
-                        ) : (
-                            <Code>{renderExpression(step.params.target)}</Code>
-                        )}
-                    </div>
-                    <div>
-                        <Label>Item Variable</Label>
-                        <Code>{step.params.itemName}</Code>
-                    </div>
-                    <div>
-                        <Label>Loop Body</Label>
-                        <Code>{step.params.loopBodyStepId}</Code>
-                    </div>
-                </div>
-            );
-
-        case "sleep":
-            return (
-                <div className="space-y-2">
-                    <div>
-                        <Label>Duration</Label>
-                        {resolved?.durationMs !== undefined ? (
-                            <ResolvedCode
-                                value={`${resolved.durationMs}ms`}
-                                expression={renderExpression(
-                                    step.params.durationMs,
-                                )}
-                            />
-                        ) : (
-                            <Code>
-                                {renderExpression(step.params.durationMs)}ms
-                            </Code>
-                        )}
-                    </div>
-                </div>
-            );
-
-        case "wait-for-condition":
-            return (
-                <div className="space-y-2">
-                    <div>
-                        <Label>Condition</Label>
-                        {resolved?.condition !== undefined ? (
-                            <ResolvedCode
-                                value={resolved.condition}
-                                expression={renderExpression(
-                                    step.params.condition,
-                                )}
-                            />
-                        ) : (
-                            <Code>
-                                {renderExpression(step.params.condition)}
-                            </Code>
-                        )}
-                    </div>
-                    <div>
-                        <Label>Condition Step</Label>
-                        <Code>{step.params.conditionStepId}</Code>
-                    </div>
-                    {step.params.maxAttempts && (
-                        <div>
-                            <Label>Max Attempts</Label>
-                            <Code>
-                                {renderExpression(step.params.maxAttempts)}
-                            </Code>
-                        </div>
-                    )}
-                    {step.params.intervalMs && (
-                        <div>
-                            <Label>Interval</Label>
-                            <Code>
-                                {renderExpression(step.params.intervalMs)}ms
-                            </Code>
-                        </div>
-                    )}
-                    {step.params.timeoutMs && (
-                        <div>
-                            <Label>Timeout</Label>
-                            <Code>
-                                {renderExpression(step.params.timeoutMs)}ms
-                            </Code>
-                        </div>
-                    )}
-                </div>
-            );
-
-        case "agent-loop":
-            return (
-                <div className="space-y-2">
-                    <div>
-                        <Label>Instructions</Label>
-                        <pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
-                            {step.params.instructions}
-                        </pre>
-                    </div>
-                    {step.params.tools.length > 0 && (
-                        <div>
-                            <Label>Tools</Label>
-                            <Code>
-                                {step.params.tools
-                                    .map(
-                                        (name) =>
-                                            toolSchemas?.[name]?.displayName ??
-                                            name,
-                                    )
-                                    .join(", ")}
-                            </Code>
-                        </div>
-                    )}
-                    <div>
-                        <Label>Output Format</Label>
-                        <JsonViewer
-                            value={JSON.stringify(
-                                step.params.outputFormat,
-                                null,
-                                2,
-                            )}
-                        />
-                    </div>
-                    {step.params.maxSteps && (
-                        <div>
-                            <Label>Max Steps</Label>
-                            <Code>
-                                {renderExpression(step.params.maxSteps)}
-                            </Code>
-                        </div>
-                    )}
-                </div>
-            );
-
-        case "start":
-            return null;
-
-        case "end":
-            if (step.params?.output) {
-                return (
-                    <div className="space-y-2">
-                        <div>
-                            <Label>Output</Label>
-                            {resolved?.output !== undefined ? (
-                                <ResolvedCode
-                                    value={resolved.output}
-                                    expression={renderExpression(
-                                        step.params.output,
-                                    )}
-                                />
-                            ) : (
-                                <Code>
-                                    {renderExpression(step.params.output)}
-                                </Code>
-                            )}
-                        </div>
-                    </div>
-                );
-            }
-            return null;
-    }
-}
-
-function Code({ children }: { children: React.ReactNode }) {
-    return (
-        <pre className="text-xs rounded-md p-2.5 whitespace-pre-wrap font-mono overflow-auto max-h-[200px] text-foreground bg-muted/60 border border-border/50">
-            {children}
-        </pre>
-    );
-}
-
-
 export function StepDetailPanel({
     step,
     diagnostics,
     executionSummary,
+    renderedParams,
+    workflowInputSchema,
+    workflowOutputSchema,
     onClose,
 }: StepDetailPanelProps) {
     return (
@@ -475,9 +91,42 @@ export function StepDetailPanel({
                 <div className="border-t pt-4 border-border">
                     <SectionHeader>Parameters</SectionHeader>
                     <div className="mt-2">
-                        <StepParams step={step} />
+                        <ReadOnlyStepParams
+                            step={step}
+                            diagnostics={diagnostics}
+                        />
                     </div>
                 </div>
+
+                {step.type === "start" && workflowInputSchema && (
+                    <div className="border-t pt-4 border-border">
+                        <SectionHeader>Input Schema</SectionHeader>
+                        <div className="mt-2">
+                            <JsonViewer
+                                value={JSON.stringify(
+                                    workflowInputSchema,
+                                    null,
+                                    2,
+                                )}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {step.type === "end" && workflowOutputSchema && (
+                    <div className="border-t pt-4 border-border">
+                        <SectionHeader>Output Schema</SectionHeader>
+                        <div className="mt-2">
+                            <JsonViewer
+                                value={JSON.stringify(
+                                    workflowOutputSchema,
+                                    null,
+                                    2,
+                                )}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {executionSummary && (
                     <div className="border-t border-border pt-4">
@@ -492,6 +141,15 @@ export function StepDetailPanel({
                                     </span>
                                 )}
                             </div>
+
+                            {renderedParams && (
+                                <div>
+                                    <Label>Rendered Parameters</Label>
+                                    <JsonViewer
+                                        value={jsonString(renderedParams)}
+                                    />
+                                </div>
+                            )}
 
                             <div>
                                 <Label>Output</Label>
@@ -521,11 +179,11 @@ export function StepDetailPanel({
                     </div>
                 )}
 
-                {diagnostics.length > 0 && (
+                {stepLevelDiagnostics(diagnostics).length > 0 && (
                     <div className="border-t pt-4 border-border">
                         <SectionHeader>Diagnostics</SectionHeader>
                         <div className="space-y-2 mt-2">
-                            {diagnostics.map((d, i) => (
+                            {stepLevelDiagnostics(diagnostics).map((d, i) => (
                                 <div
                                     key={`${d.severity}-${i}-${d.message}`}
                                     className={`text-xs p-2.5 rounded-md ${

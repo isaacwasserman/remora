@@ -5,8 +5,9 @@ import type {
     WorkflowStep,
 } from "@remoraflow/core";
 import type React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StepExecutionSummary } from "../execution-state";
+import { deriveStepSummaries } from "../execution-state";
 import type { StepNodeData } from "../graph-layout";
 
 export const EMPTY_DIAGNOSTICS: ValidatorDiagnostic[] = [];
@@ -48,6 +49,19 @@ export function useSelectionState(opts: {
     const setSelectedStep = useCallback((step: WorkflowStep | null) => {
         setSelectedStepId(step?.id ?? null);
     }, []);
+
+    // Node data is patched as execution updates arrive, but the selected node's
+    // summary was previously only captured at click time. Keep it live so an
+    // open detail panel follows the selected step through its execution.
+    useEffect(() => {
+        if (!selectedStepId || !executionState) {
+            setSelectedExecutionSummary(undefined);
+            return;
+        }
+        setSelectedExecutionSummary(
+            deriveStepSummaries(executionState).get(selectedStepId),
+        );
+    }, [selectedStepId, executionState]);
 
     const clearSelection = useCallback(() => {
         setSelectedStepId(null);

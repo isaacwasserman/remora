@@ -1,3 +1,5 @@
+import { jsonSchemaToType } from "@ark/json-schema";
+import { asSchema, type FlexibleSchema } from "ai";
 import type { JSONSchema7Definition } from "json-schema";
 import { inferJsonSchema } from "..";
 import type { WorkflowDefinition } from "../schema";
@@ -7,28 +9,58 @@ import {
     buildScopeSnapshotsById,
     scopeToJsonSchema,
 } from "../validation/variable-reference-validation";
-import type { WorkflowCapabilities } from "./capability";
+import type {
+    ToolCallProvenance,
+    ToolCallSource,
+    WorkflowCapabilities,
+} from "./capability";
+
+export type {
+    ToolCallProvenance,
+    ToolCallSource,
+    WorkflowCapabilities,
+} from "./capability";
+
 import { templateToRegex } from "./utils";
+
+function simplifyInputSpace(
+    inputSpace: JSONSchema7Definition,
+): JSONSchema7Definition {
+    return jsonSchemaToType(
+        inputSpace as Parameters<typeof jsonSchemaToType>[0],
+    ).toJsonSchema() as JSONSchema7Definition;
+}
 
 export function auditWorkflow(
     workflowDefinition: WorkflowDefinition,
     tools: ToolSet,
 ): { capabilities: WorkflowCapabilities } {
-    const toolInputSpaces: Record<
+    const toolEntries: Record<
         string,
-        WorkflowCapabilities["toolCalls"][number]["inputSpace"]
+        Record<
+            ToolCallProvenance,
+            { inputSpace: JSONSchema7Definition; stepIds: string[] } | undefined
+        >
     > = {};
     function appendInputSpace(
         toolName: string,
-        inputSpace: WorkflowCapabilities["toolCalls"][number]["inputSpace"],
+        inputSpace: JSONSchema7Definition,
+        provenance: ToolCallProvenance,
+        stepId: string,
     ) {
-        if (toolName in toolInputSpaces) {
-            toolInputSpaces[toolName] = {
-                // biome-ignore lint/style/noNonNullAssertion: Known to exist
-                anyOf: [toolInputSpaces[toolName]!, inputSpace],
+        if (!toolEntries[toolName]) {
+            toolEntries[toolName] = {
+                "tool-call": undefined,
+                "agent-loop": undefined,
             };
+        }
+        const entry = toolEntries[toolName];
+        const existing = entry[provenance];
+        if (existing) {
+            existing.inputSpace = { anyOf: [existing.inputSpace, inputSpace] };
+            existing.stepIds.push(stepId);
         } else {
-            toolInputSpaces[toolName] = inputSpace;
+            entry[provenance] = { inputSpace, stepIds: [stepId] };
         }
     }
     const scopeSnapshots = buildScopeSnapshotsById(workflowDefinition, tools);
@@ -71,7 +103,7 @@ export function auditWorkflow(
                     type: "object" as const,
                     properties: paramTypes,
                 };
-                appendInputSpace(toolName, inputSpace);
+                appendInputSpace(toolName, inputSpace, "tool-call", step.id);
                 break;
             }
             case "agent-loop": {
@@ -79,9 +111,38 @@ export function auditWorkflow(
                     if (toolName in (step.params.inputConstraints ?? {})) {
                         // biome-ignore lint/style/noNonNullAssertion: Known to exist
                         const inputConstraint = step.params.inputConstraints!;
-                        appendInputSpace(toolName, inputConstraint);
+                        appendInputSpace(
+                            toolName,
+                            inputConstraint,
+                            "agent-loop",
+                            step.id,
+                        );
                     } else {
-                        appendInputSpace(toolName, true);
+                        const tool = tools[toolName];
+                        if (!tool) {
+                            appendInputSpace(
+                                toolName,
+                                true,
+                                "agent-loop",
+                                step.id,
+                            );
+                        } else {
+                            // biome-ignore lint/suspicious/noExplicitAny: It's ok
+                            const inputSchema = asSchema(
+                                tool.inputSchema as FlexibleSchema<any>,
+                            ).jsonSchema;
+                            if ("then" in inputSchema) {
+                                throw new Error(
+                                    `Input schema for tool "${toolName}" is a promise. All input schemas must be synchronously defined.`,
+                                );
+                            }
+                            appendInputSpace(
+                                toolName,
+                                inputSchema,
+                                "agent-loop",
+                                step.id,
+                            );
+                        }
                     }
                 }
                 break;
@@ -90,9 +151,20 @@ export function auditWorkflow(
     }
     return {
         capabilities: {
-            toolCalls: Object.entries(toolInputSpaces).map(
-                ([toolName, inputSpace]) => ({ toolName, inputSpace }),
-            ),
+            toolCalls: Object.entries(toolEntries).map(([toolName, entry]) => {
+                const sources: ToolCallSource[] = [];
+                for (const provenance of ["tool-call", "agent-loop"] as const) {
+                    const bucket = entry[provenance];
+                    if (bucket !== undefined) {
+                        sources.push({
+                            provenance,
+                            inputSpace: simplifyInputSpace(bucket.inputSpace),
+                            stepIds: bucket.stepIds,
+                        });
+                    }
+                }
+                return { toolName, sources };
+            }),
         },
     };
 }

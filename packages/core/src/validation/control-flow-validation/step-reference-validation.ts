@@ -1,5 +1,6 @@
 import type { WorkflowDefinition } from "../../schema";
-import { buildStepIndex, nestedChains } from "../../utils";
+import { nestedChains } from "../../step-registry";
+import { buildStepIndex } from "../../utils";
 import type { ValidatorError } from "../types";
 
 export function validateStepReferences(

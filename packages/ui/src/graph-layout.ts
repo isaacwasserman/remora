@@ -6,15 +6,27 @@ import type {
     WorkflowStep,
 } from "@remoraflow/core";
 import type { Edge, Node } from "@xyflow/react";
+import { deriveStepSummaries } from "./execution-state";
 import {
-    deriveStepSummaries,
-    type StepExecutionSummary,
-} from "./execution-state";
-import {
-    GROUP_STEP_TYPES,
-    getChildStepIds,
-    isGroupStep,
-} from "./utils/group-refs";
+    EMPTY_GROUP_HEIGHT,
+    EMPTY_GROUP_WIDTH,
+    GROUP_HEADER,
+    GROUP_HEADER_HEIGHT,
+    GROUP_HEADER_WIDTH,
+    GROUP_PADDING,
+    type LayoutDirection,
+    NODE_SEP,
+    RANK_SEP,
+    START_NODE_ID,
+    START_NODE_SIZE,
+    type StepNodeData,
+} from "./layout";
+import { getNodeDimensions } from "./layout/measure";
+import { formatExpression } from "./utils/expression-display";
+import { getChildStepIds, isBlockStep } from "./utils/nested-chain-refs";
+
+export type { LayoutDirection, StepNodeData };
+export { GROUP_HEADER, GROUP_PADDING };
 
 function diagnosticToStepId(
     d: ValidatorDiagnostic,
@@ -25,34 +37,6 @@ function diagnosticToStepId(
     return workflow.steps[d.path[1] as number]?.id;
 }
 
-/** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). */
-export type LayoutDirection = "vertical" | "horizontal";
-
-export interface StepNodeData {
-    step: WorkflowStep;
-    diagnostics: ValidatorDiagnostic[];
-    hasSourceEdge?: boolean;
-    inputSchema?: object;
-    outputSchema?: object;
-    /** Execution summary for this step, when executionState is provided. */
-    executionSummary?: StepExecutionSummary;
-    /** Whether the workflow execution is currently paused. */
-    paused?: boolean;
-    /** Layout direction so node components can orient their handles. */
-    layoutDirection?: LayoutDirection;
-}
-
-const NODE_WIDTH = 300;
-const NODE_HEIGHT = 180;
-const START_NODE_SIZE = 60;
-const GROUP_HEADER_WIDTH = 280;
-const GROUP_HEADER_HEIGHT = 80;
-export const GROUP_PADDING = 30;
-export const GROUP_HEADER = 40;
-
-const RANK_SEP = 60;
-const NODE_SEP = 40;
-
 function dagreGraphOptions(direction: LayoutDirection) {
     return {
         rankdir: direction === "horizontal" ? "LR" : "TB",
@@ -62,95 +46,10 @@ function dagreGraphOptions(direction: LayoutDirection) {
     };
 }
 
-const START_NODE_ID = "__start__";
-
 function getOrThrow<K, V>(map: Map<K, V>, key: K): V {
     const val = map.get(key);
     if (val === undefined) throw new Error(`Missing map key: ${String(key)}`);
     return val;
-}
-
-function stepNodeType(step: WorkflowStep): string | undefined {
-    switch (step.type) {
-        case "tool-call":
-            return "toolCall";
-        case "llm-prompt":
-            return "llmPrompt";
-        case "extract-data":
-            return "extractData";
-        case "switch-case":
-            return "switchCase";
-        case "for-each":
-            return "forEach";
-        case "start":
-            return "startStep";
-        case "end":
-            return "end";
-        case "sleep":
-            return "sleep";
-        case "wait-for-condition":
-            return "waitForCondition";
-        case "agent-loop":
-            return "agentLoop";
-    }
-}
-
-function renderExpression(
-    expr:
-        | { type: "literal"; value: unknown }
-        | { type: "jmespath"; expression: string }
-        | { type: "template"; template: string },
-): string {
-    if (expr.type === "literal") return JSON.stringify(expr.value);
-    if (expr.type === "template") return expr.template;
-    return expr.expression;
-}
-
-const DEFAULT_NODE_SIZE = { w: NODE_WIDTH, h: NODE_HEIGHT };
-
-/**
- * Estimate node height based on step type and content.
- * BaseNode structure: py-2.5 padding top/bottom, header ~24px, name ~18px,
- * description ~16px per line, content varies by type.
- * Handle areas add ~8px total.
- */
-function estimateStepHeight(step: WorkflowStep): number {
-    const BASE = 70; // header + name + padding + handles
-    const DESC_LINE = 16;
-    const descLines = step.description
-        ? Math.min(Math.ceil(step.description.length / 40), 3)
-        : 0;
-
-    switch (step.type) {
-        case "start":
-            return BASE + descLines * DESC_LINE;
-        case "end":
-            return (
-                BASE + descLines * DESC_LINE + (step.params?.output ? 30 : 0)
-            );
-        case "tool-call": {
-            const inputCount = Object.keys(step.params.toolInput).length;
-            // tool name row + each input row
-            return BASE + descLines * DESC_LINE + 28 + inputCount * 20;
-        }
-        case "llm-prompt":
-            // prompt preview is line-clamped to 3 lines
-            return BASE + descLines * DESC_LINE + 60;
-        case "extract-data":
-            return BASE + descLines * DESC_LINE + 50;
-        case "agent-loop":
-            // instructions preview (2 lines) + tools count
-            return (
-                BASE +
-                descLines * DESC_LINE +
-                50 +
-                (step.params.tools.length > 0 ? 20 : 0)
-            );
-        case "sleep":
-            return BASE + descLines * DESC_LINE + 24;
-        default:
-            return NODE_HEIGHT;
-    }
 }
 
 function collectChildSteps(
@@ -185,7 +84,7 @@ function buildParentMap(
     const allGroupChildren = new Map<string, Set<string>>();
 
     for (const step of workflow.steps) {
-        if (isGroupStep(step)) {
+        if (isBlockStep(step)) {
             allGroupChildren.set(step.id, collectChildSteps(step, stepMap));
         }
     }
@@ -247,27 +146,6 @@ function groupHeaderId(groupId: string): string {
     return `__header__${groupId}`;
 }
 
-function getNodeDimensions(
-    nodeId: string,
-    groupIds: Set<string>,
-    computedSizes: Map<string, { w: number; h: number }>,
-    nodeDimensions?: Map<string, { width: number; height: number }>,
-    stepMap?: Map<string, WorkflowStep>,
-): { w: number; h: number } {
-    if (groupIds.has(nodeId)) {
-        return computedSizes.get(nodeId) ?? DEFAULT_NODE_SIZE;
-    }
-    const measured = nodeDimensions?.get(nodeId);
-    if (measured) {
-        return { w: measured.width, h: measured.height };
-    }
-    const step = stepMap?.get(nodeId);
-    if (step) {
-        return { w: NODE_WIDTH, h: estimateStepHeight(step) };
-    }
-    return DEFAULT_NODE_SIZE;
-}
-
 export function buildLayout(
     workflow: WorkflowDefinition | null,
     diagnostics: ValidatorDiagnostic[] = [],
@@ -304,7 +182,7 @@ export function buildLayout(
     // --- Step 2: Identify groups ---
     const groupIds = new Set<string>();
     for (const step of workflow.steps) {
-        if (isGroupStep(step)) {
+        if (isBlockStep(step)) {
             const hasChildren = [...parentMap.values()].some(
                 (pid) => pid === step.id,
             );
@@ -558,7 +436,7 @@ export function buildLayout(
 
             nodes.push({
                 id,
-                type: stepNodeType(step),
+                type: "groupContainer",
                 position: pos,
                 data: {
                     step,
@@ -590,7 +468,7 @@ export function buildLayout(
             const gid = id.replace("__header__", "");
             const step = getOrThrow(stepMap, gid);
 
-            const summary = stepSummaries?.get(gid);
+            const _summary = stepSummaries?.get(gid);
             const resolvedInputs = undefined as
                 | Record<string, unknown>
                 | undefined;
@@ -603,7 +481,7 @@ export function buildLayout(
                     data: {
                         variant: "switch",
                         description: step.description,
-                        expression: renderExpression(step.params.switchOn),
+                        expression: formatExpression(step.params.switchOn),
                         resolvedExpression: resolvedInputs?.switchOn,
                         step,
                         diagnostics: diagnosticsByStep.get(gid) ?? [],
@@ -621,7 +499,7 @@ export function buildLayout(
                     data: {
                         variant: "loop",
                         description: step.description,
-                        target: renderExpression(step.params.target),
+                        target: formatExpression(step.params.target),
                         resolvedTarget: resolvedInputs?.target,
                         itemName: step.params.itemName,
                         step,
@@ -640,7 +518,25 @@ export function buildLayout(
                     data: {
                         variant: "condition",
                         description: step.description,
-                        condition: renderExpression(step.params.condition),
+                        condition: formatExpression(step.params.condition),
+                        layoutDirection: direction,
+                    },
+                    ...(parentId
+                        ? { parentId, extent: "parent" as const }
+                        : {}),
+                });
+            } else if (step.type === "while") {
+                nodes.push({
+                    id,
+                    type: "groupHeader",
+                    position: pos,
+                    data: {
+                        variant: "while",
+                        description: step.description,
+                        conditionStepId: step.params.conditionStepId,
+                        loopBodyStepId: step.params.loopBodyStepId,
+                        step,
+                        diagnostics: diagnosticsByStep.get(gid) ?? [],
                         layoutDirection: direction,
                     },
                     ...(parentId
@@ -660,6 +556,7 @@ export function buildLayout(
                 ...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
                 executionSummary: stepSummaries?.get(id),
                 layoutDirection: direction,
+                isInitial: workflow?.initialStepId === id,
             };
             if (step.type === "start" && workflow?.inputSchema) {
                 nodeData.inputSchema = workflow.inputSchema;
@@ -677,7 +574,7 @@ export function buildLayout(
             );
             nodes.push({
                 id,
-                type: stepNodeType(step),
+                type: "stepNode",
                 position: pos,
                 data: nodeData,
                 measured: { width: nw, height: nh },
@@ -726,7 +623,7 @@ export function buildLayout(
                     const label =
                         c.value.type === "default"
                             ? "default"
-                            : renderExpression(c.value);
+                            : formatExpression(c.value);
                     edges.push({
                         id: `${headerId}->${c.branchBodyStepId}`,
                         source: headerId,
@@ -779,25 +676,19 @@ export function buildLayout(
     return { nodes, edges };
 }
 
-const EMPTY_GROUP_WIDTH = GROUP_HEADER_WIDTH + GROUP_PADDING * 2;
-const EMPTY_GROUP_HEIGHT = GROUP_HEADER_HEIGHT + GROUP_HEADER + GROUP_PADDING;
-
 function buildGroupHeaderData(
     step: WorkflowStep,
     diagnostics: ValidatorDiagnostic[],
 ): Record<string, unknown> {
     const stepDiags = diagnostics.filter(
-        (d) =>
-            d.path &&
-            d.path[0] === "steps" &&
-            typeof d.path[1] === "number",
+        (d) => d.path && d.path[0] === "steps" && typeof d.path[1] === "number",
     );
 
     if (step.type === "switch-case") {
         return {
             variant: "switch",
             description: step.description,
-            expression: renderExpression(step.params.switchOn),
+            expression: formatExpression(step.params.switchOn),
             step,
             diagnostics: stepDiags,
         };
@@ -806,7 +697,7 @@ function buildGroupHeaderData(
         return {
             variant: "loop",
             description: step.description,
-            target: renderExpression(step.params.target),
+            target: formatExpression(step.params.target),
             itemName: step.params.itemName,
             step,
             diagnostics: stepDiags,
@@ -816,7 +707,17 @@ function buildGroupHeaderData(
         return {
             variant: "condition",
             description: step.description,
-            condition: renderExpression(step.params.condition),
+            condition: formatExpression(step.params.condition),
+        };
+    }
+    if (step.type === "while") {
+        return {
+            variant: "while",
+            description: step.description,
+            conditionStepId: step.params.conditionStepId,
+            loopBodyStepId: step.params.loopBodyStepId,
+            step,
+            diagnostics: stepDiags,
         };
     }
     return {};
@@ -864,7 +765,7 @@ export function buildEditableLayout(
                 .map((n) => n.id),
         );
         for (const step of workflow.steps) {
-            if (!GROUP_STEP_TYPES.has(step.type)) continue;
+            if (!isBlockStep(step)) continue;
             if (existingGroupIds.has(step.id)) continue;
             if (!nodes.some((n) => n.id === step.id)) continue;
             emptyGroupIds.add(step.id);
@@ -918,6 +819,7 @@ export function buildEditableLayout(
             const data = n.data as Record<string, unknown>;
             n = {
                 ...n,
+                type: "groupContainer",
                 data: {
                     ...data,
                     isGroup: true,

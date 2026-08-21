@@ -6,7 +6,7 @@ import {
     getChildStepIds,
     replaceChildRef,
     setChildRef,
-} from "../utils/group-refs";
+} from "../utils/nested-chain-refs";
 
 export interface UseEditableWorkflowOptions {
     workflow: WorkflowDefinition | null;

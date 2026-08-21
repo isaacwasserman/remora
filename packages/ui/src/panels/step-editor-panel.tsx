@@ -1,24 +1,23 @@
 import type {
-    ValidatorDiagnostic,
+    ScopeBinding,
+    StepType,
     ToolDefinitionMap,
+    ValidatorDiagnostic,
     WorkflowStep,
 } from "@remoraflow/core";
-import type { ScopeEntry } from "../editors/expression-scope-context";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import type { ScopeEntry } from "../editors/expression-scope-context";
 import { ExpressionScopeProvider } from "../editors/expression-scope-context";
-import { AgentLoopParams } from "../editors/params/agent-loop-params";
-import { EndParams } from "../editors/params/end-params";
-import { ExtractDataParams } from "../editors/params/extract-data-params";
-import { ForEachParams } from "../editors/params/for-each-params";
-import { LlmPromptParams } from "../editors/params/llm-prompt-params";
-import { SleepParams } from "../editors/params/sleep-params";
-import { StartParams } from "../editors/params/start-params";
-import { SwitchCaseParams } from "../editors/params/switch-case-params";
-import { ToolCallParams } from "../editors/params/tool-call-params";
-import { WaitForConditionParams } from "../editors/params/wait-for-condition-params";
+import { WorkflowExtrasEditor } from "../editors/fields/workflow-extras-editor";
 import { StepIdInput } from "../editors/shared-editors";
-import { Label, SectionHeader, TypeBadge } from "./shared";
+import { StepFields } from "../editors/step-fields";
+import { STEP_UI } from "../step-ui/registry";
+import {
+    matchFieldDiagnostics,
+    stepLevelDiagnostics,
+} from "../utils/diagnostic-matching";
+import { FieldDiagnostics, Label, SectionHeader, TypeBadge } from "./shared";
 
 export interface StepEditorPanelProps {
     step: WorkflowStep;
@@ -28,101 +27,67 @@ export interface StepEditorPanelProps {
     diagnostics?: ValidatorDiagnostic[];
     workflowInputSchema?: object;
     workflowOutputSchema?: object;
-    /** In-scope root identifiers and their schemas, used to power expression autocomplete. */
     expressionScope?: ScopeEntry[];
+    expressionBindings?: ScopeBinding[];
     onChange: (updates: Record<string, unknown>) => void;
     onWorkflowMetaChange?: (updates: Record<string, unknown>) => void;
     onClose: () => void;
 }
 
-function StepParamsEditor({
+function ParamsOptionalToggle({
     step,
     onChange,
-    availableToolNames,
-    allStepIds,
-    toolSchemas,
-    workflowInputSchema,
-    workflowOutputSchema,
-    onWorkflowMetaChange,
 }: {
     step: WorkflowStep;
     onChange: StepEditorPanelProps["onChange"];
-    availableToolNames: string[];
-    allStepIds: string[];
-    toolSchemas?: ToolDefinitionMap;
-    workflowInputSchema?: object;
-    workflowOutputSchema?: object;
-    onWorkflowMetaChange?: StepEditorPanelProps["onWorkflowMetaChange"];
 }) {
-    switch (step.type) {
-        case "tool-call":
-            return (
-                <ToolCallParams
-                    step={step}
-                    onChange={onChange}
-                    availableToolNames={availableToolNames}
-                    toolSchemas={toolSchemas}
-                />
-            );
-        case "llm-prompt":
-            return <LlmPromptParams step={step} onChange={onChange} />;
-        case "extract-data":
-            return <ExtractDataParams step={step} onChange={onChange} />;
-        case "switch-case":
-            return (
-                <SwitchCaseParams
-                    step={step}
-                    onChange={onChange}
-                    allStepIds={allStepIds}
-                />
-            );
-        case "for-each":
-            return (
-                <ForEachParams
-                    step={step}
-                    onChange={onChange}
-                    allStepIds={allStepIds}
-                />
-            );
-        case "sleep":
-            return <SleepParams step={step} onChange={onChange} />;
-        case "wait-for-condition":
-            return (
-                <WaitForConditionParams
-                    step={step}
-                    onChange={onChange}
-                    allStepIds={allStepIds}
-                />
-            );
-        case "agent-loop":
-            return (
-                <AgentLoopParams
-                    step={step}
-                    onChange={onChange}
-                    availableToolNames={availableToolNames}
-                    toolSchemas={toolSchemas}
-                />
-            );
-        case "end":
-            return (
-                <EndParams
-                    step={step}
-                    onChange={onChange}
-                    workflowOutputSchema={workflowOutputSchema}
-                    onWorkflowMetaChange={onWorkflowMetaChange}
-                />
-            );
-        case "start":
-            return (
-                <StartParams
-                    workflowInputSchema={workflowInputSchema}
-                    onWorkflowMetaChange={onWorkflowMetaChange}
-                />
-            );
-    }
+    const ui = STEP_UI[step.type as StepType];
+    if (!ui?.paramsOptional) return null;
+
+    const hasParams = !!(step as unknown as { params?: object }).params;
+    return (
+        <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
+            <input
+                type="checkbox"
+                className="rounded border-border accent-foreground"
+                checked={hasParams}
+                onChange={(e) => {
+                    if (e.target.checked) {
+                        const fields = ui.fields as Record<
+                            string,
+                            { initial: unknown }
+                        >;
+                        const order = ui.order as readonly string[];
+                        const params: Record<string, unknown> = {};
+                        for (const key of order) {
+                            const spec = fields[key];
+                            if (spec?.initial != null) {
+                                params[key] = spec.initial;
+                            }
+                        }
+                        onChange({
+                            params:
+                                Object.keys(params).length > 0
+                                    ? params
+                                    : undefined,
+                        });
+                    } else {
+                        onChange({
+                            params: undefined,
+                        } as Record<string, unknown>);
+                    }
+                }}
+            />
+            Has output expression
+        </label>
+    );
 }
 
-function DiagnosticsSection({ diagnostics }: { diagnostics: ValidatorDiagnostic[] }) {
+function DiagnosticsSection({
+    diagnostics,
+}: {
+    diagnostics: ValidatorDiagnostic[];
+}) {
     if (diagnostics.length === 0) return null;
     const errors = diagnostics.filter((d) => d.severity === "error");
     const warnings = diagnostics.filter((d) => d.severity === "warning");
@@ -164,13 +129,22 @@ export function StepEditorPanel({
     workflowInputSchema,
     workflowOutputSchema,
     expressionScope,
+    expressionBindings,
     onChange,
     onWorkflowMetaChange,
     onClose,
 }: StepEditorPanelProps) {
+    const ui = STEP_UI[step.type as StepType];
+    const hasParams = !!(step as unknown as { params?: object }).params;
+    const showParams =
+        ui && ((ui.order as readonly string[]).length > 0 || ui.paramsOptional);
+
     return (
-        <ExpressionScopeProvider scope={expressionScope}>
-            <div className="w-[360px] border-l h-full min-h-0 overflow-y-auto bg-card border-border">
+        <ExpressionScopeProvider
+            scope={expressionScope}
+            bindings={expressionBindings}
+        >
+            <div className="w-[360px] shrink-0 border-l h-full min-h-0 overflow-y-auto overflow-x-hidden bg-card border-border">
                 <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
                     <TypeBadge type={step.type} />
                     <button
@@ -183,7 +157,9 @@ export function StepEditorPanel({
                 </div>
 
                 <div className="px-4 py-4 space-y-5">
-                    <DiagnosticsSection diagnostics={diagnostics} />
+                    <DiagnosticsSection
+                        diagnostics={stepLevelDiagnostics(diagnostics)}
+                    />
 
                     <div>
                         <Label>Name</Label>
@@ -193,11 +169,19 @@ export function StepEditorPanel({
                             className="h-9 text-sm"
                             placeholder="Step name"
                         />
+                        <FieldDiagnostics
+                            diagnostics={matchFieldDiagnostics(diagnostics, [
+                                "name",
+                            ])}
+                        />
                     </div>
 
                     <StepIdInput
                         value={step.id}
                         onChange={(id) => onChange({ id })}
+                    />
+                    <FieldDiagnostics
+                        diagnostics={matchFieldDiagnostics(diagnostics, ["id"])}
                     />
 
                     <div>
@@ -211,21 +195,39 @@ export function StepEditorPanel({
                             className="text-xs resize-y"
                             placeholder="What does this step do?"
                         />
-                    </div>
-
-                    <div className="border-t pt-4 border-border">
-                        <SectionHeader>Parameters</SectionHeader>
-                        <StepParamsEditor
-                            step={step}
-                            onChange={onChange}
-                            availableToolNames={availableToolNames}
-                            allStepIds={allStepIds}
-                            toolSchemas={toolSchemas}
-                            workflowInputSchema={workflowInputSchema}
-                            workflowOutputSchema={workflowOutputSchema}
-                            onWorkflowMetaChange={onWorkflowMetaChange}
+                        <FieldDiagnostics
+                            diagnostics={matchFieldDiagnostics(diagnostics, [
+                                "description",
+                            ])}
                         />
                     </div>
+
+                    {showParams && (
+                        <div className="border-t pt-4 border-border space-y-3">
+                            <SectionHeader>Parameters</SectionHeader>
+                            <ParamsOptionalToggle
+                                step={step}
+                                onChange={onChange}
+                            />
+                            {(!ui.paramsOptional || hasParams) && (
+                                <StepFields
+                                    step={step}
+                                    onChange={onChange}
+                                    diagnostics={diagnostics}
+                                    allStepIds={allStepIds}
+                                    availableToolNames={availableToolNames}
+                                    toolSchemas={toolSchemas}
+                                />
+                            )}
+                        </div>
+                    )}
+
+                    <WorkflowExtrasEditor
+                        stepType={step.type as StepType}
+                        workflowInputSchema={workflowInputSchema}
+                        workflowOutputSchema={workflowOutputSchema}
+                        onWorkflowMetaChange={onWorkflowMetaChange}
+                    />
                 </div>
             </div>
         </ExpressionScopeProvider>

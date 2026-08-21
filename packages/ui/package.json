@@ -20,7 +20,8 @@
             "import": "./dist/index.js",
             "types": "./dist/index.d.ts"
         },
-        "./styles.css": "./dist/styles.css"
+        "./styles.css": "./dist/styles.css",
+        "./theme.css": "./dist/theme.css"
     },
     "files": [
         "dist",
@@ -77,6 +78,7 @@
         "ai": "^6.0.105",
         "happy-dom": "^20.8.4",
         "react": "^19.2.4",
-        "react-dom": "^19.2.4"
+        "react-dom": "^19.2.4",
+        "@types/json-schema": "^7.0.15"
     }
 }

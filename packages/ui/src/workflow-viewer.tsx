@@ -1,9 +1,13 @@
 import {
-    type ValidatorDiagnostic,
     type ExecutionState,
     extractToolSchemas,
-    validateWorkflowDefinition,
+    type RemoraflowSettings,
+    remoraflowSettingsSchema,
+    type ScopeBinding,
+    scopeAt,
     type ToolDefinitionMap,
+    type ValidatorDiagnostic,
+    validateWorkflowDefinition,
     type WorkflowDefinition,
     type WorkflowStep,
 } from "@remoraflow/core";
@@ -31,6 +35,7 @@ import { StepPalette } from "./components/step-palette";
 import { WorkflowJsonDialog } from "./components/workflow-json-dialog";
 import { WorkflowEdge } from "./edges/workflow-edge";
 import { EditContext } from "./edit-context";
+import { deriveStepSummaries } from "./execution-state";
 import {
     buildEditableLayout,
     buildLayout,
@@ -41,38 +46,24 @@ import {
 import { useContextMenu } from "./hooks/use-context-menu";
 import { useEditableWorkflow } from "./hooks/use-editable-workflow";
 import { useSelectionState } from "./hooks/use-selection-state";
-import { AgentLoopNode } from "./nodes/agent-loop-node";
-import { EndNode } from "./nodes/end-node";
-import { ExtractDataNode } from "./nodes/extract-data-node";
-import { ForEachNode } from "./nodes/for-each-node";
+import { GroupContainerNode } from "./nodes/group-container-node";
 import { GroupHeaderNode } from "./nodes/group-header-node";
-import { LlmPromptNode } from "./nodes/llm-prompt-node";
-import { SleepNode } from "./nodes/sleep-node";
 import { StartNode } from "./nodes/start-node";
-import { StartStepNode } from "./nodes/start-step-node";
-import { SwitchCaseNode } from "./nodes/switch-case-node";
-import { ToolCallNode } from "./nodes/tool-call-node";
-import { WaitForConditionNode } from "./nodes/wait-for-condition-node";
+import { StepNode } from "./nodes/step-node";
 import { StepDetailPanel } from "./panels/step-detail-panel";
 import { StepEditorPanel } from "./panels/step-editor-panel";
 import { useDarkMode } from "./theme";
 import { ToolSchemasContext } from "./tool-schemas-context";
-import { groupStructuralKey } from "./utils/group-refs";
+import { groupStructuralKey } from "./utils/nested-chain-refs";
+import { renderStepParams } from "./utils/rendered-params";
 import { createDefaultStep } from "./utils/step-defaults";
+import { buildStubTools } from "./utils/stub-tools";
 
 const nodeTypes: NodeTypes = {
-    toolCall: ToolCallNode,
-    llmPrompt: LlmPromptNode,
-    extractData: ExtractDataNode,
-    switchCase: SwitchCaseNode,
+    stepNode: StepNode,
+    groupContainer: GroupContainerNode,
     groupHeader: GroupHeaderNode,
-    forEach: ForEachNode,
-    end: EndNode,
     start: StartNode,
-    startStep: StartStepNode,
-    sleep: SleepNode,
-    waitForCondition: WaitForConditionNode,
-    agentLoop: AgentLoopNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -82,6 +73,13 @@ const edgeTypes: EdgeTypes = {
 import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
 
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 };
+
+function runningStepId(state: ExecutionState | undefined): string | undefined {
+    if (!(state && "runningStepPath" in state && state.runningStepPath)) {
+        return undefined;
+    }
+    return state.runningStepPath.at(-1);
+}
 
 /**
  * Forces React Flow to recalculate handle positions when layout direction
@@ -154,6 +152,24 @@ export interface WorkflowViewerProps {
     hideDetailPanel?: boolean;
     /** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). @see {@link LayoutDirection} */
     layout?: LayoutDirection;
+    /**
+     * A subset of remoraflow settings. The `features` flags gate which step
+     * types are available in the editor palette and are honored by local
+     * validation. Omit to use schema defaults (`allowAgentLoops: true`,
+     * `allowUserIntervention: false`).
+     */
+    settings?: RemoraflowSettings;
+    /**
+     * Controls who owns validation.
+     * - `"internal"` (default): the viewer runs its own validator and merges
+     *   results with any `diagnostics` prop. When internal validation finds
+     *   zero errors, the viewer shows a clean state even if the consumer's
+     *   `diagnostics` prop is stale.
+     * - `"external"`: the viewer does not run its own validator and uses
+     *   `diagnostics` as-is.
+     */
+    validation?: "internal" | "external";
+    onDiagnosticsChange?: (diagnostics: ValidatorDiagnostic[]) => void;
 }
 
 /**
@@ -180,7 +196,15 @@ export function WorkflowViewer({
     toolSchemas: toolSchemasProp,
     hideDetailPanel = false,
     layout: direction = "vertical",
+    settings,
+    validation = "internal",
+    onDiagnosticsChange,
 }: WorkflowViewerProps) {
+    const resolvedSettings = useMemo(
+        () => remoraflowSettingsSchema.assert(settings ?? {}),
+        [settings],
+    );
+    const features = resolvedSettings.features;
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const isDark = useDarkMode();
@@ -237,28 +261,40 @@ export function WorkflowViewer({
     }, [tools, toolSchemasProp]);
 
     // --- Live diagnostics ---
-    const [editDiagnostics, setEditDiagnostics] = useState<ValidatorDiagnostic[]>([]);
+    const [localDiagnostics, setLocalDiagnostics] = useState<
+        ValidatorDiagnostic[]
+    >([]);
     useEffect(() => {
-        if (!isEditing || !activeWorkflow) {
-            setEditDiagnostics([]);
+        if (validation === "external" || !activeWorkflow) {
+            setLocalDiagnostics([]);
             return;
         }
+        const validationTools = tools ?? buildStubTools(toolSchemas);
         const timer = setTimeout(() => {
-            const { diagnostics } = validateWorkflowDefinition(
+            const { diagnostics: result } = validateWorkflowDefinition(
                 activeWorkflow,
                 // biome-ignore lint/suspicious/noExplicitAny: ToolSet is structurally compatible with StubbedToolSet
-                { tools: tools as any },
+                { tools: validationTools as any, options: resolvedSettings },
                 {
                     assertToolsHaveExecutionFunctions: false,
                     assertToolsHaveOutputSchemas: false,
                 },
             );
-            setEditDiagnostics(diagnostics);
+            setLocalDiagnostics(result);
+            onDiagnosticsChange?.(result);
         }, 300);
         return () => clearTimeout(timer);
-    }, [isEditing, activeWorkflow, tools]);
+    }, [
+        activeWorkflow,
+        tools,
+        toolSchemas,
+        resolvedSettings,
+        validation,
+        onDiagnosticsChange,
+    ]);
 
-    const activeDiagnostics = isEditing ? editDiagnostics : diagnostics;
+    const activeDiagnostics =
+        validation === "external" ? diagnostics : localDiagnostics;
 
     // --- Layout computation ---
     const editStructuralKey = useMemo(() => {
@@ -286,9 +322,8 @@ export function WorkflowViewer({
     const prevViewStructuralKeyRef = useRef(viewStructuralKey);
     const prevIsEditingRef = useRef(isEditing);
 
+    const _structuralKey = isEditing ? editStructuralKey : viewStructuralKey;
     const layout = useMemo(() => {
-        // layoutReady transitions false→true when real DOM measurements arrive,
-        // forcing this memo to recompute with accurate dimensions from the ref.
         const dims =
             layoutReady && measuredDimensionsRef.current.size > 0
                 ? measuredDimensionsRef.current
@@ -312,14 +347,17 @@ export function WorkflowViewer({
             paused,
             direction,
         );
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- relayout
+        // only when graph structure changes, not on every diagnostic/execution
+        // update. Node data is patched in-place below.
     }, [
-        activeWorkflow,
-        activeDiagnostics,
-        executionState,
         isEditing,
-        paused,
         direction,
         layoutReady,
+        activeDiagnostics,
+        activeWorkflow,
+        executionState,
+        paused,
     ]);
 
     const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
@@ -343,6 +381,44 @@ export function WorkflowViewer({
         },
         [onNodesChangeBase],
     );
+
+    useEffect(() => {
+        if (!activeWorkflow) return;
+        const stepSummaries = executionState
+            ? deriveStepSummaries(executionState)
+            : undefined;
+        const diagnosticsByStep = new Map<string, ValidatorDiagnostic[]>();
+        for (const d of activeDiagnostics) {
+            if (
+                !d.path ||
+                d.path[0] !== "steps" ||
+                typeof d.path[1] !== "number"
+            )
+                continue;
+            const stepId = activeWorkflow.steps[d.path[1] as number]?.id;
+            if (stepId) {
+                const existing = diagnosticsByStep.get(stepId) ?? [];
+                existing.push(d);
+                diagnosticsByStep.set(stepId, existing);
+            }
+        }
+        setNodes((prev) =>
+            prev.map((n) => {
+                const data = n.data as Record<string, unknown> | undefined;
+                if (!data?.step) return n;
+                const stepId = (data.step as { id: string }).id;
+                return {
+                    ...n,
+                    data: {
+                        ...data,
+                        diagnostics: diagnosticsByStep.get(stepId) ?? [],
+                        executionSummary: stepSummaries?.get(stepId),
+                        paused,
+                    },
+                };
+            }),
+        );
+    }, [activeDiagnostics, executionState, paused, activeWorkflow, setNodes]);
 
     // One-time re-layout with real DOM measurements. Depends on `nodes` so it
     // re-fires when React Flow processes dimension events. Reads from
@@ -555,6 +631,67 @@ export function WorkflowViewer({
         executionState,
         onStepSelect,
     });
+
+    // Preserve the scope that was present when each step began. A later state
+    // can lose loop-local values, but those values are needed to show the
+    // exact parameters that were supplied to a completed step.
+    const [parameterScopes, setParameterScopes] = useState<
+        Map<string, Record<string, unknown>>
+    >(new Map());
+    useEffect(() => {
+        if (!executionState) {
+            setParameterScopes((previous) =>
+                previous.size === 0 ? previous : new Map(),
+            );
+            return;
+        }
+        const stepId = runningStepId(executionState);
+        if (!stepId) return;
+        setParameterScopes((previous) => {
+            if (previous.get(stepId) === executionState.scope) {
+                return previous;
+            }
+            const next = new Map(previous);
+            next.set(stepId, executionState.scope);
+            return next;
+        });
+    }, [executionState]);
+
+    const selectedRenderedParams = useMemo(() => {
+        if (
+            !selectedStep ||
+            !executionState ||
+            !selectedExecutionSummary ||
+            selectedExecutionSummary.status === "pending"
+        ) {
+            return undefined;
+        }
+        const scope =
+            runningStepId(executionState) === selectedStep.id
+                ? executionState.scope
+                : (parameterScopes.get(selectedStep.id) ??
+                  executionState.scope);
+        return renderStepParams(selectedStep, scope);
+    }, [
+        selectedStep,
+        executionState,
+        selectedExecutionSummary,
+        parameterScopes,
+    ]);
+
+    const selectedStepBindings = useMemo<ScopeBinding[]>(() => {
+        if (!selectedStep || !activeWorkflow) return [];
+        const stubTools = tools ?? buildStubTools(toolSchemas);
+        try {
+            return scopeAt(
+                activeWorkflow,
+                selectedStep.id,
+                stubTools as ToolSet,
+            );
+        } catch {
+            return [];
+        }
+    }, [selectedStep, activeWorkflow, tools, toolSchemas]);
 
     // --- Context menu ---
     const {
@@ -848,7 +985,7 @@ export function WorkflowViewer({
             <EditContext.Provider value={editContextValue}>
                 <div
                     role="application"
-                    className="flex h-full w-full min-h-0"
+                    className="flex h-full w-full min-h-0 overflow-hidden"
                     onKeyDown={onKeyDown}
                     tabIndex={-1}
                 >
@@ -934,6 +1071,7 @@ export function WorkflowViewer({
                             {isEditing && (
                                 <StepPalette
                                     onAddStep={(type) => handleAddStep(type)}
+                                    features={features}
                                 />
                             )}
                         </div>
@@ -947,6 +1085,7 @@ export function WorkflowViewer({
                                     x: contextMenu.flowX,
                                     y: contextMenu.flowY,
                                 }}
+                                features={features}
                                 onAddStep={(type, pos) => {
                                     handleAddStep(type, pos);
                                     closeContextMenu();
@@ -969,6 +1108,19 @@ export function WorkflowViewer({
                                           }
                                         : undefined
                                 }
+                                onSetInitialStep={
+                                    contextMenu.nodeId
+                                        ? (id) => {
+                                              updateWorkflowMeta({
+                                                  initialStepId: id,
+                                              });
+                                          }
+                                        : undefined
+                                }
+                                isInitialStep={
+                                    contextMenu.nodeId ===
+                                    activeWorkflow?.initialStepId
+                                }
                             />
                         )}
                         {isEditing && !activeWorkflow?.steps.length && (
@@ -988,9 +1140,18 @@ export function WorkflowViewer({
                                 availableToolNames={availableToolNames}
                                 allStepIds={allStepIds}
                                 toolSchemas={toolSchemas}
-                                diagnostics={editDiagnostics.filter((d) => {
-                                    if (!d.path || d.path[0] !== "steps" || typeof d.path[1] !== "number") return false;
-                                    return activeWorkflow?.steps[d.path[1] as number]?.id === selectedStep.id;
+                                diagnostics={activeDiagnostics.filter((d) => {
+                                    if (
+                                        !d.path ||
+                                        d.path[0] !== "steps" ||
+                                        typeof d.path[1] !== "number"
+                                    )
+                                        return false;
+                                    return (
+                                        activeWorkflow?.steps[
+                                            d.path[1] as number
+                                        ]?.id === selectedStep.id
+                                    );
                                 })}
                                 workflowInputSchema={
                                     activeWorkflow?.inputSchema as
@@ -1002,7 +1163,7 @@ export function WorkflowViewer({
                                         | object
                                         | undefined
                                 }
-                                expressionScope={undefined}
+                                expressionBindings={selectedStepBindings}
                                 onChange={(updates) =>
                                     updateStep(selectedStep.id, updates)
                                 }
@@ -1014,6 +1175,17 @@ export function WorkflowViewer({
                                 step={selectedStep}
                                 diagnostics={selectedDiagnostics}
                                 executionSummary={selectedExecutionSummary}
+                                renderedParams={selectedRenderedParams}
+                                workflowInputSchema={
+                                    activeWorkflow?.inputSchema as
+                                        | object
+                                        | undefined
+                                }
+                                workflowOutputSchema={
+                                    activeWorkflow?.outputSchema as
+                                        | object
+                                        | undefined
+                                }
                                 onClose={clearSelection}
                             />
                         ))}

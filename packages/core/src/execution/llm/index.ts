@@ -1,7 +1,9 @@
 import {
+    APICallError,
     generateText,
     type ModelMessage,
     Output,
+    RetryError,
     stepCountIs,
     type streamText,
     type ToolApprovalConfiguration,
@@ -16,6 +18,38 @@ import {
 } from "./middleware";
 
 export type { PendingApproval } from "../types";
+
+function enrichLLMError(error: unknown): Error {
+    let apiError: unknown = error;
+    let prefix = "";
+    if (RetryError.isInstance(error)) {
+        apiError = error.lastError;
+        prefix = `Failed after ${error.errors.length} attempt(s). `;
+    }
+    if (APICallError.isInstance(apiError)) {
+        const parts: string[] = [];
+        if (apiError.statusCode) {
+            parts.push(`HTTP ${apiError.statusCode}`);
+        }
+        if (apiError.url) {
+            parts.push(`at ${apiError.url}`);
+        }
+        const detail =
+            apiError.responseBody ??
+            (apiError.data !== undefined
+                ? JSON.stringify(apiError.data)
+                : undefined) ??
+            apiError.message;
+        const head = parts.length ? ` (${parts.join(", ")})` : "";
+        return new Error(`${prefix}LLM API call failed${head}: ${detail}`, {
+            cause: error,
+        });
+    }
+    if (error instanceof Error) {
+        return new Error(`${prefix}${error.message}`, { cause: error });
+    }
+    return new Error(`${prefix}${String(error)}`);
+}
 
 export type LanguageModelTurnResult<TOutput> =
     | {
@@ -55,7 +89,7 @@ export async function runLanguageModelTurn<TOutput>({
     messages: ModelMessage[];
     tools: ToolSet;
     outputFormat: StandardSchemaV1<TOutput>;
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    // biome-ignore lint/suspicious/noExplicitAny: provider type is parameterized with any
     toolApproval?: ToolApprovalConfiguration<any, any>;
     maxSteps: number;
     maxInputTokens?: number;
@@ -82,6 +116,8 @@ export async function runLanguageModelTurn<TOutput>({
         output: Output.object({ schema: outputFormat }),
         stopWhen: stepCountIs(maxSteps),
         toolApproval,
+    }).catch((error) => {
+        throw enrichLLMError(error);
     });
 
     const turnMessages = JSON.parse(
@@ -89,7 +125,7 @@ export async function runLanguageModelTurn<TOutput>({
     ) as ModelMessage[];
     const modelStepsUsed = result.steps.length;
 
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    // biome-ignore lint/suspicious/noExplicitAny: provider content is an opaque record
     const contentParts = result.content as Array<Record<string, any>>;
 
     const respondedTo = new Set(

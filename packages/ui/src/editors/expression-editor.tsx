@@ -1,5 +1,5 @@
+import type { Expression, ValidatorDiagnostic } from "@remoraflow/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Input } from "../components/ui/input";
 import {
     Select,
     SelectContent,
@@ -13,20 +13,19 @@ import {
     TabsList,
     TabsTrigger,
 } from "../components/ui/tabs";
+import { FieldDiagnostics } from "../panels/shared";
+import { CodeInput } from "./code-input";
 import { ExpressionInput } from "./expression-input";
 import { useExpressionScope } from "./expression-scope-context";
 import { JsonCodeEditor } from "./json-code-editor";
 import { TemplateExpressionInput } from "./template-expression-input";
 
-type Expression =
-    | { type: "literal"; value: unknown }
-    | { type: "jmespath"; expression: string }
-    | { type: "template"; template: string };
-
 export interface ExpressionEditorProps {
     value: Expression;
     onChange: (value: Expression) => void;
     label?: string;
+    /** Diagnostics for this field's expression (path-level). */
+    diagnostics?: ValidatorDiagnostic[];
     /** Optional JSON Schema hint to constrain literal mode. */
     schemaHint?: {
         type?: string;
@@ -98,6 +97,7 @@ export function ExpressionEditor({
     value,
     onChange,
     label,
+    diagnostics,
     schemaHint,
 }: ExpressionEditorProps) {
     const scopeContext = useExpressionScope();
@@ -260,7 +260,7 @@ export function ExpressionEditor({
                                         });
                                     }}
                                 >
-                                    <SelectTrigger className="h-8 text-xs font-mono w-full">
+                                    <SelectTrigger className="h-8 text-xs w-full">
                                         <SelectValue
                                             placeholder={
                                                 defaultHint !== undefined
@@ -295,106 +295,40 @@ export function ExpressionEditor({
                                     defaultJsonHint={defaultJsonHint}
                                 />
                             ) : (
-                                <Tabs
-                                    value={literalType}
-                                    onValueChange={handleLiteralTypeChange}
-                                >
-                                    <TabsList>
-                                        <TabsTrigger value="string">
-                                            string
-                                        </TabsTrigger>
-                                        <TabsTrigger value="number">
-                                            number
-                                        </TabsTrigger>
-                                        <TabsTrigger value="boolean">
-                                            boolean
-                                        </TabsTrigger>
-                                        <TabsTrigger value="json">
-                                            json
-                                        </TabsTrigger>
-                                    </TabsList>
-
-                                    <TabsContent value="string">
-                                        <Input
-                                            type="text"
-                                            value={String(litVal ?? "")}
-                                            onChange={(e) =>
-                                                handleLiteralChange(
-                                                    e.target.value,
-                                                    "string",
-                                                )
-                                            }
-                                            className="h-8 text-xs font-mono"
-                                            placeholder={
-                                                defaultHint ?? "Enter value..."
-                                            }
-                                        />
-                                    </TabsContent>
-
-                                    <TabsContent value="number">
-                                        <Input
-                                            type="number"
-                                            value={String(litVal ?? "")}
-                                            onChange={(e) =>
-                                                handleLiteralChange(
-                                                    e.target.value,
-                                                    "number",
-                                                )
-                                            }
-                                            className="h-8 text-xs font-mono"
-                                            placeholder={defaultHint ?? "0"}
-                                        />
-                                    </TabsContent>
-
-                                    <TabsContent value="boolean">
-                                        <Select
-                                            value={
-                                                litVal === true
-                                                    ? "true"
-                                                    : "false"
-                                            }
-                                            onValueChange={(val) =>
-                                                onChange({
-                                                    type: "literal",
-                                                    value: val === "true",
-                                                })
-                                            }
-                                        >
-                                            <SelectTrigger className="h-8 text-xs font-mono w-full">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="true">
-                                                    true
-                                                </SelectItem>
-                                                <SelectItem value="false">
-                                                    false
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </TabsContent>
-
-                                    <TabsContent value="json">
-                                        <JsonCodeEditor
-                                            value={
-                                                typeof litVal === "string"
-                                                    ? litVal
-                                                    : JSON.stringify(
-                                                          litVal,
-                                                          null,
-                                                          2,
-                                                      )
-                                            }
-                                            onChange={(val) =>
-                                                handleLiteralChange(val, "json")
-                                            }
-                                            placeholderText={
-                                                defaultJsonHint ??
-                                                '{"key": "value"}'
-                                            }
-                                        />
-                                    </TabsContent>
-                                </Tabs>
+                                <div className="space-y-1.5">
+                                    <Tabs
+                                        value={literalType}
+                                        onValueChange={handleLiteralTypeChange}
+                                    >
+                                        <TabsList>
+                                            <TabsTrigger value="string">
+                                                string
+                                            </TabsTrigger>
+                                            <TabsTrigger value="number">
+                                                number
+                                            </TabsTrigger>
+                                            <TabsTrigger value="boolean">
+                                                boolean
+                                            </TabsTrigger>
+                                            <TabsTrigger value="json">
+                                                json
+                                            </TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
+                                    <LiteralWidget
+                                        type={literalType}
+                                        value={litVal}
+                                        onChange={(raw) =>
+                                            handleLiteralChange(
+                                                raw,
+                                                literalType,
+                                            )
+                                        }
+                                        onValueChange={onChange}
+                                        defaultHint={defaultHint}
+                                        defaultJsonHint={defaultJsonHint}
+                                    />
+                                </div>
                             )}
                         </TabsContent>
 
@@ -432,6 +366,7 @@ export function ExpressionEditor({
                     </Tabs>
                 );
             })()}
+            <FieldDiagnostics diagnostics={diagnostics} />
         </div>
     );
 }
@@ -455,21 +390,17 @@ function LiteralWidget({
     switch (type) {
         case "string":
             return (
-                <Input
-                    type="text"
+                <CodeInput
                     value={String(value ?? "")}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="h-8 text-xs font-mono"
+                    onChange={onChange}
                     placeholder={defaultHint ?? "Enter value..."}
                 />
             );
         case "number":
             return (
-                <Input
-                    type="number"
+                <CodeInput
                     value={String(value ?? "")}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="h-8 text-xs font-mono"
+                    onChange={onChange}
                     placeholder={defaultHint ?? "0"}
                 />
             );

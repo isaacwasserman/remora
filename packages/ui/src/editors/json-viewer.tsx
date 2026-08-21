@@ -1,9 +1,10 @@
 import { json } from "@codemirror/lang-json";
 import { syntaxHighlighting } from "@codemirror/language";
-import { Compartment, EditorState } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { cn } from "../lib/utils";
+import { syncValue, useCodemirror } from "./codemirror/use-codemirror";
 import { buildJsonHighlightStyle } from "./codemirror-theme";
 
 function buildViewerTheme(dark: boolean) {
@@ -23,95 +24,46 @@ function buildViewerTheme(dark: boolean) {
                 color: "var(--color-foreground, var(--foreground))",
                 cursor: "default",
             },
-            ".cm-line": {
-                padding: "0 10px",
-            },
-            ".cm-scroller": {
-                maxHeight: "200px",
-                overflow: "auto",
-            },
-            ".cm-activeLine": {
-                backgroundColor: "transparent",
-            },
-            ".cm-cursor": {
-                display: "none",
-            },
+            ".cm-line": { padding: "0 10px" },
+            ".cm-scroller": { maxHeight: "200px", overflow: "auto" },
+            ".cm-activeLine": { backgroundColor: "transparent" },
+            ".cm-cursor": { display: "none" },
         },
         { dark },
     );
-
     return [viewerTheme, syntaxHighlighting(buildJsonHighlightStyle(dark))];
 }
 
 export interface JsonViewerProps {
-    /** JSON string to display. When empty/undefined the viewer stays mounted but hidden. */
     value: string | undefined;
     className?: string;
 }
 
 export function JsonViewer({ value, className }: JsonViewerProps) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const viewRef = useRef<EditorView | null>(null);
-    const themeCompartmentRef = useRef(new Compartment());
-    const initialValueRef = useRef(value ?? "");
     const hidden = !value;
 
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-        if (viewRef.current) return;
+    const extensions = useCallback(
+        () => [
+            json(),
+            EditorState.readOnly.of(true),
+            EditorView.editable.of(false),
+            EditorView.lineWrapping,
+        ],
+        [],
+    );
 
-        const dark =
-            typeof document !== "undefined" &&
-            document.documentElement.classList.contains("dark");
+    const buildTheme = useCallback(
+        (dark: boolean) => buildViewerTheme(dark),
+        [],
+    );
 
-        const state = EditorState.create({
-            doc: initialValueRef.current,
-            extensions: [
-                json(),
-                EditorState.readOnly.of(true),
-                EditorView.editable.of(false),
-                EditorView.lineWrapping,
-                themeCompartmentRef.current.of(buildViewerTheme(dark)),
-            ],
-        });
+    const { containerRef, viewRef } = useCodemirror({
+        initialValue: value ?? "",
+        extensions,
+        buildTheme,
+    });
 
-        const view = new EditorView({ state, parent: container });
-        viewRef.current = view;
-
-        return () => {
-            view.destroy();
-            viewRef.current = null;
-        };
-    }, []);
-
-    useEffect(() => {
-        const view = viewRef.current;
-        if (!view) return;
-        const doc = value ?? "";
-        const current = view.state.doc.toString();
-        if (current !== doc) {
-            view.dispatch({
-                changes: { from: 0, to: current.length, insert: doc },
-            });
-        }
-    }, [value]);
-
-    useEffect(() => {
-        const el = document.documentElement;
-        const observer = new MutationObserver(() => {
-            const view = viewRef.current;
-            if (!view) return;
-            const dark = el.classList.contains("dark");
-            view.dispatch({
-                effects: themeCompartmentRef.current.reconfigure(
-                    buildViewerTheme(dark),
-                ),
-            });
-        });
-        observer.observe(el, { attributes: true, attributeFilter: ["class"] });
-        return () => observer.disconnect();
-    }, []);
+    useEffect(() => syncValue(viewRef, value ?? ""), [value, viewRef]);
 
     return (
         <div

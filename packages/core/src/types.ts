@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: Needed for proper inference. */
 import type { Schema } from "@ai-sdk/provider-utils";
-import { asSchema, type LanguageModel as AnyLanguageModel } from "ai";
+import { type LanguageModel as AnyLanguageModel, asSchema } from "ai";
 import { type } from "arktype";
 import type * as z3 from "zod/v3";
 import type * as z4 from "zod/v4";
@@ -311,6 +311,10 @@ export const remoraflowSettingsSchema = type({
 export type RemoraflowSettings = typeof remoraflowSettingsSchema.inferIn;
 export type ResolvedRemoraflowSettings =
     typeof remoraflowSettingsSchema.inferOut;
+
+/** The `features` subset of {@link ResolvedRemoraflowSettings} — feature flags
+ * that gate which step types a workflow may contain. */
+export type RemoraflowFeatures = ResolvedRemoraflowSettings["features"];
 
 export type { ExecutionState } from "./execution/types";
 

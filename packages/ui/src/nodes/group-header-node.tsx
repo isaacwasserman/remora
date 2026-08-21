@@ -1,11 +1,11 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
-import { GitBranch, Repeat, Timer } from "lucide-react";
+import { GitBranch, RefreshCw, Repeat, Timer } from "lucide-react";
 import { useEditContext } from "../edit-context";
 import type { LayoutDirection } from "../graph-layout";
 
 interface GroupHeaderData {
-    variant: "switch" | "loop" | "condition";
+    variant: "switch" | "loop" | "condition" | "while";
     description: string;
     // switch
     expression?: string;
@@ -16,6 +16,9 @@ interface GroupHeaderData {
     itemName?: string;
     // condition
     condition?: string;
+    // while
+    conditionStepId?: string;
+    loopBodyStepId?: string;
     layoutDirection?: LayoutDirection;
 }
 
@@ -50,6 +53,16 @@ const variantStyles = {
         handle: "!bg-orange-500",
         ring: "ring-orange-400",
     },
+    while: {
+        container:
+            "bg-indigo-50 dark:bg-indigo-950/50 border-indigo-300 dark:border-indigo-700 hover:border-indigo-500",
+        label: "text-indigo-600 dark:text-indigo-400",
+        mono: "text-indigo-800 dark:text-indigo-300",
+        resolved: "text-emerald-700 dark:text-emerald-400",
+        desc: "text-indigo-700/70 dark:text-indigo-400/60",
+        handle: "!bg-indigo-500",
+        ring: "ring-indigo-400",
+    },
 };
 
 function formatValue(value: unknown): string {
@@ -68,6 +81,8 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
         resolvedTarget,
         itemName,
         condition,
+        conditionStepId,
+        loopBodyStepId,
         layoutDirection,
     } = data as unknown as GroupHeaderData;
     const sourcePosition =
@@ -155,6 +170,25 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
                         >
                             {condition}
                         </span>
+                    </div>
+                )}
+                {variant === "while" && (
+                    <div className="flex items-center gap-1.5">
+                        <RefreshCw
+                            className={`w-3.5 h-3.5 shrink-0 ${s.label}`}
+                        />
+                        <span
+                            className={`text-[10px] font-bold uppercase tracking-wide ${s.label} shrink-0`}
+                        >
+                            while
+                        </span>
+                        {conditionStepId && (
+                            <span
+                                className={`text-xs font-mono font-medium ${s.mono} truncate`}
+                            >
+                                {conditionStepId}
+                            </span>
+                        )}
                     </div>
                 )}
                 {description && (

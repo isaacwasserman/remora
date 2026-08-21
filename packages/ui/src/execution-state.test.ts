@@ -70,7 +70,11 @@ describe("deriveStepSummaries", () => {
         const result = deriveStepSummaries(
             makeState({
                 status: "success",
-                executionPath: [["loop", "s1"], ["loop", "s1"], ["loop", "s1"]],
+                executionPath: [
+                    ["loop", "s1"],
+                    ["loop", "s1"],
+                    ["loop", "s1"],
+                ],
                 scope: { s1: "final" },
             }),
         );
@@ -105,7 +109,7 @@ describe("deriveStepSummaries", () => {
         expect(result.get("s2")?.status).toBe("completed");
     });
 
-    test("step not in scope and not last is pending", () => {
+    test("executed steps without a scope binding are completed", () => {
         const result = deriveStepSummaries(
             makeState({
                 status: "success",
@@ -113,6 +117,6 @@ describe("deriveStepSummaries", () => {
                 scope: { s1: "a", s3: "c" },
             }),
         );
-        expect(result.get("s2")?.status).toBe("pending");
+        expect(result.get("s2")?.status).toBe("completed");
     });
 });
