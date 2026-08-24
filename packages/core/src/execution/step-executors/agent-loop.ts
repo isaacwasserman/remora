@@ -52,6 +52,12 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
             { role: "user", content: resolvedInstructions },
         ];
         let spentSteps = 0;
+        const turns: {
+            turn: number;
+            stepsUsed: number;
+            turnMessages: ModelMessage[];
+            status: string;
+        }[] = [];
 
         for (let turn = 0; ; turn++) {
             const remainingSteps = maxSteps - spentSteps;
@@ -84,6 +90,20 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
 
             spentSteps += record.modelStepsUsed;
             messages = [...messages, ...record.turnMessages];
+
+            turns.push({
+                turn,
+                stepsUsed: spentSteps,
+                turnMessages: record.turnMessages,
+                status: record.status,
+            });
+
+            yield {
+                scope,
+                output: null,
+                error: null,
+                state: { turns, maxSteps },
+            };
 
             if (record.status === "complete") {
                 yield {

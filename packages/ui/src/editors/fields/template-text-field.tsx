@@ -1,5 +1,5 @@
 import type { ValidatorDiagnostic } from "@remoraflow/core";
-import { CodeInput } from "../code-input";
+import { TemplateCodeEditor } from "../template-code-editor";
 import { FieldRow } from "./field-row";
 
 export interface TemplateTextFieldProps {
@@ -17,10 +17,9 @@ export function TemplateTextField({
 }: TemplateTextFieldProps) {
     return (
         <FieldRow label={label} diagnostics={diagnostics}>
-            <CodeInput
+            <TemplateCodeEditor
                 value={value}
                 onChange={onChange}
-                multiline
                 placeholder="Use ${stepId.key} for interpolation"
             />
         </FieldRow>

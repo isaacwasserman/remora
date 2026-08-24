@@ -37,49 +37,59 @@ export interface StepEditorPanelProps {
 function ParamsOptionalToggle({
     step,
     onChange,
+    diagnostics,
 }: {
     step: WorkflowStep;
     onChange: StepEditorPanelProps["onChange"];
+    diagnostics: ValidatorDiagnostic[];
 }) {
     const ui = STEP_UI[step.type as StepType];
     if (!ui?.paramsOptional) return null;
 
     const hasParams = !!(step as unknown as { params?: object }).params;
+    const outputDiagnostics = matchFieldDiagnostics(diagnostics, [
+        "params",
+        "output",
+    ]);
+
     return (
-        <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
-            <input
-                type="checkbox"
-                className="rounded border-border accent-foreground"
-                checked={hasParams}
-                onChange={(e) => {
-                    if (e.target.checked) {
-                        const fields = ui.fields as Record<
-                            string,
-                            { initial: unknown }
-                        >;
-                        const order = ui.order as readonly string[];
-                        const params: Record<string, unknown> = {};
-                        for (const key of order) {
-                            const spec = fields[key];
-                            if (spec?.initial != null) {
-                                params[key] = spec.initial;
+        <div>
+            <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
+                <input
+                    type="checkbox"
+                    className="rounded border-border accent-foreground"
+                    checked={hasParams}
+                    onChange={(e) => {
+                        if (e.target.checked) {
+                            const fields = ui.fields as Record<
+                                string,
+                                { initial: unknown }
+                            >;
+                            const order = ui.order as readonly string[];
+                            const params: Record<string, unknown> = {};
+                            for (const key of order) {
+                                const spec = fields[key];
+                                if (spec?.initial != null) {
+                                    params[key] = spec.initial;
+                                }
                             }
+                            onChange({
+                                params:
+                                    Object.keys(params).length > 0
+                                        ? params
+                                        : {},
+                            });
+                        } else {
+                            onChange({
+                                params: undefined,
+                            } as Record<string, unknown>);
                         }
-                        onChange({
-                            params:
-                                Object.keys(params).length > 0
-                                    ? params
-                                    : undefined,
-                        });
-                    } else {
-                        onChange({
-                            params: undefined,
-                        } as Record<string, unknown>);
-                    }
-                }}
-            />
-            Has output expression
-        </label>
+                    }}
+                />
+                Has output expression
+            </label>
+            {!hasParams && <FieldDiagnostics diagnostics={outputDiagnostics} />}
+        </div>
     );
 }
 
@@ -144,90 +154,101 @@ export function StepEditorPanel({
             scope={expressionScope}
             bindings={expressionBindings}
         >
-            <div className="w-[360px] shrink-0 border-l h-full min-h-0 overflow-y-auto overflow-x-hidden bg-card border-border">
-                <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
-                    <TypeBadge type={step.type} />
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0 rounded-md w-7 h-7 flex items-center justify-center hover:bg-muted transition-colors"
-                    >
-                        &times;
-                    </button>
-                </div>
-
-                <div className="px-4 py-4 space-y-5">
-                    <DiagnosticsSection
-                        diagnostics={stepLevelDiagnostics(diagnostics)}
-                    />
-
-                    <div>
-                        <Label>Name</Label>
-                        <Input
-                            value={step.name}
-                            onChange={(e) => onChange({ name: e.target.value })}
-                            className="h-9 text-sm"
-                            placeholder="Step name"
-                        />
-                        <FieldDiagnostics
-                            diagnostics={matchFieldDiagnostics(diagnostics, [
-                                "name",
-                            ])}
-                        />
+            <div className="w-[360px] shrink-0 border-l h-full min-h-0 flex bg-card border-border">
+                {/* Matches the resize gutter in the read-only detail panel. */}
+                <div className="w-1.5 shrink-0" aria-hidden="true" />
+                <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+                    <div className="sticky top-0 z-10 border-b px-4 py-3 flex items-center justify-between bg-card/95 backdrop-blur-sm border-border">
+                        <TypeBadge type={step.type} />
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="text-lg leading-none text-muted-foreground hover:text-foreground shrink-0 rounded-md w-7 h-7 flex items-center justify-center hover:bg-muted transition-colors"
+                        >
+                            &times;
+                        </button>
                     </div>
 
-                    <StepIdInput
-                        value={step.id}
-                        onChange={(id) => onChange({ id })}
-                    />
-                    <FieldDiagnostics
-                        diagnostics={matchFieldDiagnostics(diagnostics, ["id"])}
-                    />
-
-                    <div>
-                        <Label>Description</Label>
-                        <Textarea
-                            value={step.description}
-                            onChange={(e) =>
-                                onChange({ description: e.target.value })
-                            }
-                            rows={2}
-                            className="text-xs resize-y"
-                            placeholder="What does this step do?"
+                    <div className="px-4 py-4 space-y-5">
+                        <DiagnosticsSection
+                            diagnostics={stepLevelDiagnostics(diagnostics)}
                         />
-                        <FieldDiagnostics
-                            diagnostics={matchFieldDiagnostics(diagnostics, [
-                                "description",
-                            ])}
-                        />
-                    </div>
 
-                    {showParams && (
-                        <div className="border-t pt-4 border-border space-y-3">
-                            <SectionHeader>Parameters</SectionHeader>
-                            <ParamsOptionalToggle
-                                step={step}
-                                onChange={onChange}
+                        <div>
+                            <Label>Name</Label>
+                            <Input
+                                value={step.name}
+                                onChange={(e) =>
+                                    onChange({ name: e.target.value })
+                                }
+                                className="h-9 text-sm"
+                                placeholder="Step name"
                             />
-                            {(!ui.paramsOptional || hasParams) && (
-                                <StepFields
+                            <FieldDiagnostics
+                                diagnostics={matchFieldDiagnostics(
+                                    diagnostics,
+                                    ["name"],
+                                )}
+                            />
+                        </div>
+
+                        <StepIdInput
+                            value={step.id}
+                            onChange={(id) => onChange({ id })}
+                        />
+                        <FieldDiagnostics
+                            diagnostics={matchFieldDiagnostics(diagnostics, [
+                                "id",
+                            ])}
+                        />
+
+                        <div>
+                            <Label>Description</Label>
+                            <Textarea
+                                value={step.description}
+                                onChange={(e) =>
+                                    onChange({ description: e.target.value })
+                                }
+                                rows={2}
+                                className="text-xs resize-y"
+                                placeholder="What does this step do?"
+                            />
+                            <FieldDiagnostics
+                                diagnostics={matchFieldDiagnostics(
+                                    diagnostics,
+                                    ["description"],
+                                )}
+                            />
+                        </div>
+
+                        {showParams && (
+                            <div className="border-t pt-4 border-border space-y-3">
+                                <SectionHeader>Parameters</SectionHeader>
+                                <ParamsOptionalToggle
                                     step={step}
                                     onChange={onChange}
                                     diagnostics={diagnostics}
-                                    allStepIds={allStepIds}
-                                    availableToolNames={availableToolNames}
-                                    toolSchemas={toolSchemas}
                                 />
-                            )}
-                        </div>
-                    )}
+                                {(!ui.paramsOptional || hasParams) && (
+                                    <StepFields
+                                        step={step}
+                                        onChange={onChange}
+                                        diagnostics={diagnostics}
+                                        allStepIds={allStepIds}
+                                        availableToolNames={availableToolNames}
+                                        toolSchemas={toolSchemas}
+                                    />
+                                )}
+                            </div>
+                        )}
 
-                    <WorkflowExtrasEditor
-                        stepType={step.type as StepType}
-                        workflowInputSchema={workflowInputSchema}
-                        workflowOutputSchema={workflowOutputSchema}
-                        onWorkflowMetaChange={onWorkflowMetaChange}
-                    />
+                        <WorkflowExtrasEditor
+                            stepType={step.type as StepType}
+                            workflowInputSchema={workflowInputSchema}
+                            workflowOutputSchema={workflowOutputSchema}
+                            onWorkflowMetaChange={onWorkflowMetaChange}
+                        />
+                    </div>
                 </div>
             </div>
         </ExpressionScopeProvider>

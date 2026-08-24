@@ -1,6 +1,6 @@
 import type { ValidatorDiagnostic } from "@remoraflow/core";
+import { FieldDiagnostics } from "../../panels/shared";
 import { StepIdDropdown } from "../shared-editors";
-import { FieldRow } from "./field-row";
 
 export interface StepRefFieldProps {
     value: string;
@@ -18,7 +18,7 @@ export function StepRefField({
     allStepIds,
 }: StepRefFieldProps) {
     return (
-        <FieldRow label={label} diagnostics={diagnostics}>
+        <div>
             <StepIdDropdown
                 label={label}
                 value={value ?? ""}
@@ -26,6 +26,7 @@ export function StepRefField({
                 stepIds={allStepIds}
                 allowEmpty
             />
-        </FieldRow>
+            <FieldDiagnostics diagnostics={diagnostics} />
+        </div>
     );
 }

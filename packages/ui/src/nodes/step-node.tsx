@@ -50,6 +50,7 @@ export function StepNode({ data, selected }: NodeProps) {
         diagnostics,
         hasSourceEdge,
         executionSummary,
+        pathSequenceIndexes,
         paused,
         layoutDirection,
         isInitial,
@@ -81,6 +82,7 @@ export function StepNode({ data, selected }: NodeProps) {
             hasSourceEdge={hasSourceEdge}
             hasTargetEdge={step.type !== "start"}
             executionSummary={executionSummary}
+            pathSequenceIndexes={pathSequenceIndexes}
             paused={paused}
             layoutDirection={layoutDirection}
             isInitial={isInitial}

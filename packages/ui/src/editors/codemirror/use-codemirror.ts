@@ -8,6 +8,8 @@ export interface UseCodemirrorOptions {
     buildTheme: (dark: boolean) => Extension;
     onChange?: (value: string) => void;
     onBlur?: () => void;
+    onFocus?: () => void;
+    onScroll?: (scrollLeft: number, scrollTop: number) => void;
 }
 
 export function useCodemirror({
@@ -16,16 +18,22 @@ export function useCodemirror({
     buildTheme,
     onChange,
     onBlur,
+    onFocus,
+    onScroll,
 }: UseCodemirrorOptions) {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const themeCompartmentRef = useRef(new Compartment());
     const onChangeRef = useRef(onChange);
     const onBlurRef = useRef(onBlur);
+    const onFocusRef = useRef(onFocus);
+    const onScrollRef = useRef(onScroll);
     const initialValueRef = useRef(initialValue);
 
     onChangeRef.current = onChange;
     onBlurRef.current = onBlur;
+    onFocusRef.current = onFocus;
+    onScrollRef.current = onScroll;
 
     useEffect(() => {
         const container = containerRef.current;
@@ -39,7 +47,7 @@ export function useCodemirror({
         const exts = extensions(themeCompartmentRef.current);
         exts.push(themeCompartmentRef.current.of(buildTheme(dark)));
 
-        if (onChangeRef.current || onBlurRef.current) {
+        if (onChangeRef.current || onBlurRef.current || onFocusRef.current) {
             exts.push(
                 EditorView.updateListener.of((update) => {
                     if (update.docChanged) {
@@ -47,6 +55,9 @@ export function useCodemirror({
                     }
                     if (update.focusChanged && !update.view.hasFocus) {
                         onBlurRef.current?.();
+                    }
+                    if (update.focusChanged && update.view.hasFocus) {
+                        onFocusRef.current?.();
                     }
                 }),
             );
@@ -59,8 +70,15 @@ export function useCodemirror({
 
         const view = new EditorView({ state, parent: container });
         viewRef.current = view;
+        const handleScroll = () =>
+            onScrollRef.current?.(
+                view.scrollDOM.scrollLeft,
+                view.scrollDOM.scrollTop,
+            );
+        view.scrollDOM.addEventListener("scroll", handleScroll);
 
         return () => {
+            view.scrollDOM.removeEventListener("scroll", handleScroll);
             view.destroy();
             viewRef.current = null;
         };

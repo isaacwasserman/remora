@@ -52,6 +52,7 @@ export function buildEditorTheme(
             },
             ".cm-content": {
                 padding: "8px 0",
+                lineHeight: "20px",
                 caretColor: "var(--color-foreground, var(--foreground))",
                 color: "var(--color-foreground, var(--foreground))",
             },
@@ -112,6 +113,53 @@ export function buildEditorTheme(
             ".cm-scroller": {
                 maxHeight: scrollerMaxHeight ?? "300px",
                 overflow: "auto",
+            },
+        },
+        { dark },
+    );
+
+    return [editorTheme, syntaxHighlighting(buildJsonHighlightStyle(dark))];
+}
+
+export function buildJsonEditorTheme(
+    dark: boolean,
+    scrollerMaxHeight = "200px",
+): Extension[] {
+    const editorTheme = EditorView.theme(
+        {
+            "&": {
+                fontSize: "12px",
+                fontFamily:
+                    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+                borderRadius: "calc(var(--radius) - 2px)",
+                border: "1px solid var(--color-border, var(--border))",
+                backgroundColor: "var(--color-muted, var(--muted))",
+            },
+            "&.cm-focused": {
+                outline: "none",
+                borderColor: "var(--color-ring, var(--ring))",
+                boxShadow:
+                    "0 0 0 3px color-mix(in srgb, var(--color-ring, var(--ring)) 50%, transparent)",
+            },
+            ".cm-content": {
+                padding: "8px 0",
+                lineHeight: "20px",
+                caretColor: "var(--color-foreground, var(--foreground))",
+                color: "var(--color-foreground, var(--foreground))",
+            },
+            ".cm-line": { padding: "0 10px" },
+            ".cm-scroller": {
+                maxHeight: scrollerMaxHeight,
+                overflow: "auto",
+            },
+            ".cm-activeLine": { backgroundColor: "transparent" },
+            ".cm-selectionBackground": {
+                backgroundColor: dark
+                    ? "rgba(255,255,255,0.1) !important"
+                    : "rgba(0,0,0,0.1) !important",
+            },
+            ".cm-placeholder": {
+                color: "var(--color-muted-foreground, var(--muted-foreground))",
             },
         },
         { dark },

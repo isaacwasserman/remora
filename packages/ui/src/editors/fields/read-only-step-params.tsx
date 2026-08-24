@@ -8,9 +8,12 @@ import type { JSONSchema7 } from "json-schema";
 import type { SwitchCase } from "../../step-ui/field-kinds";
 import { STEP_UI } from "../../step-ui/registry";
 import type { FieldKind } from "../../step-ui/types";
+import { FIELD_LABEL_TEXT } from "../../text-styles";
 import { matchFieldDiagnostics } from "../../utils/diagnostic-matching";
 import { formatExpression } from "../../utils/expression-display";
+import { JmespathCodeEditor } from "../jmespath-code-editor";
 import { JsonViewer } from "../json-viewer";
+import { TemplateCodeEditor } from "../template-code-editor";
 
 type LooseFieldSpec = {
     kind: FieldKind;
@@ -27,11 +30,7 @@ function Code({ children }: { children: React.ReactNode }) {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-            {children}
-        </div>
-    );
+    return <div className={FIELD_LABEL_TEXT}>{children}</div>;
 }
 
 function ResolvedCode({
@@ -54,6 +53,17 @@ function ResolvedCode({
         );
     }
     return <JsonViewer value={display} />;
+}
+
+function ReadOnlyExpression({ expression }: { expression: Expression }) {
+    switch (expression.type) {
+        case "jmespath":
+            return <JmespathCodeEditor value={expression.expression} />;
+        case "template":
+            return <TemplateCodeEditor value={expression.template} />;
+        case "literal":
+            return <Code>{formatExpression(expression)}</Code>;
+    }
 }
 
 function FieldDiagnostics({ diagnostics }: { diagnostics?: unknown[] }) {
@@ -90,7 +100,8 @@ function renderReadOnlyValue(
     kind: FieldKind,
     value: unknown,
     resolvedValue: unknown,
-    _label: string,
+    fieldPath: PropertyKey[],
+    diagnostics: ValidatorDiagnostic[],
 ): React.ReactNode {
     const hasResolved = resolvedValue !== undefined;
 
@@ -106,18 +117,14 @@ function renderReadOnlyValue(
                     />
                 );
             }
-            return <Code>{formatExpression(expr)}</Code>;
+            return <ReadOnlyExpression expression={expr} />;
         }
         case "template-text": {
             const text = value as string | undefined;
             if (hasResolved) {
                 return <ResolvedCode value={resolvedValue} expression={text} />;
             }
-            return (
-                <pre className="text-xs rounded p-2 whitespace-pre-wrap font-mono text-foreground bg-muted">
-                    {text || "—"}
-                </pre>
-            );
+            return <TemplateCodeEditor value={text || "—"} />;
         }
         case "identifier":
         case "step-ref":
@@ -168,30 +175,31 @@ function renderReadOnlyValue(
                     {Object.entries(inputs).map(([key, val]) => {
                         const rv = resolvedMap?.[key];
                         const hasRv = rv !== undefined;
+                        const inputDiagnostics = matchFieldDiagnostics(
+                            diagnostics,
+                            [...fieldPath, key],
+                        );
                         return (
-                            <div key={key} className="text-xs">
+                            <div
+                                key={key}
+                                className="space-y-1.5 border border-border/70 rounded-lg p-3 bg-muted/20"
+                            >
                                 <div className="flex gap-2 items-baseline">
                                     <span className="font-mono font-medium text-muted-foreground shrink-0">
                                         {key}
                                     </span>
-                                    <span className="text-muted-foreground/40">
-                                        =
-                                    </span>
-                                    <span
-                                        className={`font-mono ${hasRv ? "text-emerald-600" : "text-foreground"}`}
-                                        title={
-                                            hasRv
-                                                ? formatExpression(val)
-                                                : undefined
-                                        }
-                                    >
-                                        {hasRv
-                                            ? typeof rv === "string"
-                                                ? rv
-                                                : JSON.stringify(rv)
-                                            : formatExpression(val)}
-                                    </span>
                                 </div>
+                                {hasRv ? (
+                                    <ResolvedCode
+                                        value={rv}
+                                        expression={formatExpression(val)}
+                                    />
+                                ) : (
+                                    <ReadOnlyExpression expression={val} />
+                                )}
+                                <FieldDiagnostics
+                                    diagnostics={inputDiagnostics}
+                                />
                             </div>
                         );
                     })}
@@ -273,10 +281,17 @@ export function ReadOnlyStepParams({
                 if (value === undefined && !ui.paramsOptional) return null;
 
                 const resolvedValue = resolvedInputs?.[key];
-                const fieldDiag = matchFieldDiagnostics(diagnostics, [
+                const allFieldDiagnostics = matchFieldDiagnostics(diagnostics, [
                     "params",
                     key,
                 ]);
+                const fieldDiag =
+                    spec.kind === "expression-map"
+                        ? allFieldDiagnostics.filter(
+                              (diagnostic) =>
+                                  diagnostic.path?.slice(2).length === 2,
+                          )
+                        : allFieldDiagnostics;
 
                 return (
                     <div key={key}>
@@ -285,7 +300,8 @@ export function ReadOnlyStepParams({
                             spec.kind,
                             value,
                             resolvedValue,
-                            spec.label,
+                            ["params", key],
+                            diagnostics,
                         )}
                         <FieldDiagnostics diagnostics={fieldDiag} />
                     </div>

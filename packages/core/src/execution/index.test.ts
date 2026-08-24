@@ -272,6 +272,26 @@ for (const engine of ENGINES) {
                     { tool: "fileTicket", input: { ticketId: 101 } },
                     { tool: "fileTicket", input: { ticketId: 102 } },
                 ]);
+
+                // Each loop iteration retains its own runtime record, rather
+                // than overwriting the authored step's previous result.
+                const fileExecutions = result.stepExecutions.filter(
+                    (execution) => execution.stepId === "fileOne",
+                );
+                expect(fileExecutions).toHaveLength(2);
+                expect(fileExecutions.map((execution) => execution.output)).toEqual([
+                    { filed: true },
+                    { filed: true },
+                ]);
+                expect(
+                    fileExecutions.map(
+                        (execution) => execution.renderedParams?.toolInput,
+                    ),
+                ).toEqual([{ ticketId: 101 }, { ticketId: 102 }]);
+                expect(fileExecutions.map((execution) => execution.invocationPath)).toEqual([
+                    ["loop", "0", "fileOne"],
+                    ["loop", "1", "fileOne"],
+                ]);
             });
         });
 
@@ -366,6 +386,74 @@ for (const engine of ENGINES) {
                 const toolNames = calls.map((c) => c.tool);
                 expect(toolNames).toContain("escalate");
                 expect(toolNames).not.toContain("fileTicket");
+            });
+
+            test("uses the selected terminal branch output for workflow output validation", async () => {
+                const { tools } = createToolset();
+                const result = await runWorkflow({
+                    workflowDefinition: {
+                        ...workflow(
+                            step("route", {
+                                type: "switch-case",
+                                params: {
+                                    switchOn: {
+                                        type: "literal",
+                                        value: "selected",
+                                    },
+                                    cases: [
+                                        {
+                                            value: { type: "default" },
+                                            branchBodyStepId: "selectedEnd",
+                                        },
+                                        {
+                                            value: {
+                                                type: "literal",
+                                                value: "not-selected",
+                                            },
+                                            branchBodyStepId: "unselectedEnd",
+                                        },
+                                    ],
+                                },
+                            }),
+                            step("selectedEnd", {
+                                type: "end",
+                                params: {
+                                    output: {
+                                        type: "literal",
+                                        value: { result: "selected" },
+                                    },
+                                },
+                            }),
+                            step("unselectedEnd", {
+                                type: "end",
+                                params: {
+                                    output: {
+                                        type: "literal",
+                                        value: {},
+                                    },
+                                },
+                            }),
+                        ),
+                        outputSchema: {
+                            type: "object",
+                            properties: { result: { type: "string" } },
+                            required: ["result"],
+                        },
+                    },
+                    tools,
+                    model: createMockModel([]),
+                    executionOptions: options(),
+                });
+
+                expect(result).toMatchObject({
+                    status: "success",
+                    output: { result: "selected" },
+                });
+                expect(
+                    result.stepExecutions.some(
+                        (execution) => execution.stepId === "unselectedEnd",
+                    ),
+                ).toBeFalse();
             });
         });
 

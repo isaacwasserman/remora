@@ -4,11 +4,13 @@ import {
     type EdgeProps,
     getBezierPath,
 } from "@xyflow/react";
+import { X } from "lucide-react";
 import { useEditContext } from "../edit-context";
 
 export function WorkflowEdge({
     id,
     source,
+    target,
     sourceX,
     sourceY,
     targetX,
@@ -23,8 +25,10 @@ export function WorkflowEdge({
     const { isEditing, onDisconnectStep } = useEditContext();
     const edgeKind = (data?.edgeKind as string) ?? "sequential";
     const isContinuation = edgeKind === "continuation";
+    const branchIndex = data?.branchIndex as number | undefined;
     const isExecuted = data?.executed === true;
     const hasExecutionState = data?.hasExecutionState === true;
+    const isPathHighlighted = data?.pathHighlighted === true;
 
     const [edgePath, labelX, labelY] = getBezierPath({
         sourceX,
@@ -49,6 +53,11 @@ export function WorkflowEdge({
         } else {
             opacity = 0.3;
         }
+    }
+    if (isPathHighlighted) {
+        stroke = "#8b5cf6";
+        strokeWidth = 3;
+        opacity = 1;
     }
 
     return (
@@ -82,17 +91,23 @@ export function WorkflowEdge({
                 {isEditing && source && (
                     <button
                         type="button"
-                        onClick={() => onDisconnectStep(source)}
+                        onClick={() =>
+                            onDisconnectStep(source, target, branchIndex)
+                        }
                         style={{
                             position: "absolute",
                             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + (label ? 16 : 0)}px)`,
                             pointerEvents: "all",
                             zIndex: 10,
                         }}
-                        className="w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center hover:bg-red-600 shadow-sm opacity-0 hover:opacity-100 transition-opacity"
-                        title="Remove connection"
+                        className="absolute z-10 flex size-5 items-center justify-center rounded-full bg-muted-foreground/70 text-white shadow-sm opacity-0 transition-opacity hover:bg-muted-foreground hover:opacity-100"
+                        title={
+                            edgeKind === "branch"
+                                ? "Delete branch"
+                                : "Remove connection"
+                        }
                     >
-                        &times;
+                        <X className="size-3" aria-hidden="true" />
                     </button>
                 )}
             </EdgeLabelRenderer>

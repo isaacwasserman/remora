@@ -127,9 +127,14 @@
     border-color: var(--color-border, var(--border, currentColor));
 }
 
-/* React Flow's minimap node fill; replaces a hardcoded nodeColor prop. */
+/* React Flow's minimap nodes follow the foreground color: translucent black
+ * in light mode and translucent white in dark mode. */
 .react-flow__minimap-node {
-    fill: var(--color-muted, var(--muted));
+    fill: color-mix(
+        in oklab,
+        var(--color-foreground, var(--foreground)) 14%,
+        transparent
+    );
 }
 
 /*

@@ -1,7 +1,6 @@
 import type { WorkflowDefinition, WorkflowStep } from "@remoraflow/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    clearAllChildRefs,
     clearChildRef,
     getChildStepIds,
     replaceChildRef,
@@ -20,7 +19,11 @@ export interface UseEditableWorkflowReturn {
     removeStep: (stepId: string) => void;
     updateStep: (stepId: string, updates: Record<string, unknown>) => void;
     connectSteps: (sourceId: string, targetId: string) => void;
-    disconnectStep: (sourceId: string) => void;
+    disconnectStep: (
+        sourceId: string,
+        targetId: string,
+        branchIndex?: number,
+    ) => void;
     /** Update workflow-level properties (inputSchema, outputSchema). */
     updateWorkflowMeta: (updates: Partial<WorkflowDefinition>) => void;
 }
@@ -302,15 +305,29 @@ export function useEditableWorkflow({
     );
 
     const disconnectStep = useCallback(
-        (sourceId: string) => {
+        (sourceId: string, targetId: string, branchIndex?: number) => {
             if (!workingWorkflow) return;
 
-            // Disconnection from a group header → clear all child refs
+            // Switch-case edges represent an individual case, so remove that
+            // case rather than leaving an empty branch behind. Other group
+            // headers own a fixed child reference, which is simply cleared.
             if (sourceId.startsWith("__header__")) {
                 const groupId = sourceId.replace("__header__", "");
-                const steps = workingWorkflow.steps.map((s) =>
-                    s.id === groupId ? clearAllChildRefs(s) : s,
-                );
+                const steps = workingWorkflow.steps.map((s) => {
+                    if (s.id !== groupId) return s;
+                    if (s.type === "switch-case" && branchIndex !== undefined) {
+                        return {
+                            ...s,
+                            params: {
+                                ...s.params,
+                                cases: s.params.cases.filter(
+                                    (_, index) => index !== branchIndex,
+                                ),
+                            },
+                        };
+                    }
+                    return clearChildRef(s, targetId);
+                });
                 emit({ ...workingWorkflow, steps });
                 return;
             }

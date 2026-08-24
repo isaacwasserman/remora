@@ -61,6 +61,19 @@ export type RunningExecutionStatus =
     /** Question sent; waiting for a supervisor to answer an `request-intervention` step. */
     | "awaiting-input";
 
+/** One concrete invocation of a workflow step, including loop iterations. */
+export type StepExecutionRecord = {
+    /** Stable identity derived from the complete invocation path. */
+    executionId: string;
+    invocationPath: StepPath;
+    stepId: string;
+    status: "running" | "completed" | "failed";
+    renderedParams: Record<string, unknown> | undefined;
+    output: unknown;
+    error: ExecutionError | null;
+    state: unknown;
+};
+
 export type ExecutionState =
     | {
           status: "error";
@@ -69,6 +82,7 @@ export type ExecutionState =
           logs: LogLine[];
           scope: ExecutionScope;
           executionPath: StepPath[];
+          stepExecutions: StepExecutionRecord[];
       }
     | {
           status: RunningExecutionStatus;
@@ -77,6 +91,7 @@ export type ExecutionState =
           logs: LogLine[];
           scope: ExecutionScope;
           executionPath: StepPath[];
+          stepExecutions: StepExecutionRecord[];
           runningStepPath?: StepPath;
       }
     | {
@@ -86,6 +101,7 @@ export type ExecutionState =
           logs: LogLine[];
           scope: ExecutionScope;
           executionPath: StepPath[];
+          stepExecutions: StepExecutionRecord[];
       };
 
 export type ExecutionScope = Record<string, unknown>;
@@ -111,7 +127,7 @@ export type StepExecutorOutput = (
           lastEndStepId?: string;
       }
     | { scope: ExecutionScope | null; output: null; error: ExecutionError }
-) & { currentUniqueStepIdPath?: StepPath; started?: boolean };
+) & { currentUniqueStepIdPath?: StepPath; started?: boolean; state?: unknown };
 
 export type StepExecutionUpdate = StepExecutorOutput & {
     currentUniqueStepIdPath: StepPath;

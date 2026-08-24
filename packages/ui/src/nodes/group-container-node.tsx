@@ -6,8 +6,8 @@ import { STEP_UI } from "../step-ui/registry";
 import { toneColor } from "../step-ui/tone-styles";
 import { HANDLE_CLASS_EDITING } from "./node-shell";
 
-export function GroupContainerNode({ data, selected }: NodeProps) {
-    const { isEditing, onDeleteStep } = useEditContext();
+export function GroupContainerNode({ data }: NodeProps) {
+    const { isEditing } = useEditContext();
     const {
         step,
         diagnostics,
@@ -15,6 +15,7 @@ export function GroupContainerNode({ data, selected }: NodeProps) {
         groupHeight,
         hasSourceEdge,
         executionSummary,
+        pathSequenceIndexes,
         paused,
         layoutDirection,
     } = data as unknown as StepNodeData & {
@@ -56,6 +57,11 @@ export function GroupContainerNode({ data, selected }: NodeProps) {
         else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
     }
 
+    const isPathHighlighted = (pathSequenceIndexes?.length ?? 0) > 0;
+    if (isPathHighlighted) {
+        ringClass = "ring-2 ring-violet-500 shadow-lg shadow-violet-500/20";
+    }
+
     return (
         <div
             className={`rounded-xl border-2 border-dashed transition-colors duration-150 ${ringClass} ${isEditing ? "group" : ""} relative`}
@@ -66,18 +72,13 @@ export function GroupContainerNode({ data, selected }: NodeProps) {
                 backgroundColor: `color-mix(in oklab, ${color} 5%, transparent)`,
             }}
         >
-            {isEditing && (
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteStep(step.id);
-                    }}
-                    className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
-                    title="Delete step"
+            {isPathHighlighted && (
+                <span
+                    className="absolute -top-2 -right-2 z-20 rounded-full bg-violet-600 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white shadow-sm"
+                    title={`Execution sequence position${pathSequenceIndexes?.length === 1 ? "" : "s"}: ${pathSequenceIndexes?.join(", ")}`}
                 >
-                    &times;
-                </button>
+                    {pathSequenceIndexes?.join(", ")}
+                </span>
             )}
             <Handle
                 type="target"

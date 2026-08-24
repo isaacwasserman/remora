@@ -29,6 +29,7 @@ const result = await Bun.build({
         "@codemirror/autocomplete",
         "@codemirror/commands",
         "@lezer/highlight",
+        "react-syntax-highlighter/*",
         "*.css",
     ],
     splitting: true,

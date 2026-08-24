@@ -3,7 +3,11 @@ import { createContext, useContext } from "react";
 interface EditContextValue {
     isEditing: boolean;
     onDeleteStep: (stepId: string) => void;
-    onDisconnectStep: (sourceId: string) => void;
+    onDisconnectStep: (
+        sourceId: string,
+        targetId: string,
+        branchIndex?: number,
+    ) => void;
     onSelectStepForEditing: (stepId: string) => void;
     availableToolNames: string[];
     allStepIds: string[];

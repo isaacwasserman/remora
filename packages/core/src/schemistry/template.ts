@@ -7,24 +7,55 @@ interface InsertMatch {
 }
 
 export function extractTemplateInserts(templateString: string): InsertMatch[] {
-    const regex = /\$\{([^}]*)\}/g;
     const results: InsertMatch[] = [];
-    let match: RegExpExecArray | null;
+    let insertStart = templateString.indexOf("${");
 
-    // biome-ignore lint/suspicious/noAssignInExpressions: Low stakes
-    while ((match = regex.exec(templateString)) !== null) {
-        const insertStart = match.index;
-        const insertEnd = insertStart + match[0].length;
-        const expressionStart = insertStart + 2; // skip past "${"
-        const expressionEnd = expressionStart + (match[1]?.length ?? 0);
+    while (insertStart !== -1) {
+        const expressionStart = insertStart + 2;
+        let cursor = expressionStart;
+        let braceDepth = 0;
+        let quote: "'" | '"' | "`" | null = null;
+        let expressionEnd = -1;
 
+        while (cursor < templateString.length) {
+            const char = templateString[cursor] as string;
+
+            if (quote) {
+                if (char === "\\") {
+                    cursor += 2;
+                    continue;
+                }
+                if (char === quote) quote = null;
+                cursor += 1;
+                continue;
+            }
+
+            if (char === "'" || char === '"' || char === "`") {
+                quote = char;
+            } else if (char === "{") {
+                braceDepth += 1;
+            } else if (char === "}") {
+                if (braceDepth === 0) {
+                    expressionEnd = cursor;
+                    break;
+                }
+                braceDepth -= 1;
+            }
+            cursor += 1;
+        }
+
+        if (expressionEnd === -1) break;
+
+        const insertEnd = expressionEnd + 1;
         results.push({
             expressionStart,
             expressionEnd,
             insertStart,
             insertEnd,
-            expression: match[1] as string,
+            expression: templateString.slice(expressionStart, expressionEnd),
         });
+
+        insertStart = templateString.indexOf("${", insertEnd);
     }
 
     return results;

@@ -153,6 +153,7 @@ export function buildLayout(
     nodeDimensions?: Map<string, { width: number; height: number }>,
     paused?: boolean,
     direction: LayoutDirection = "vertical",
+    pathSequenceIndexes?: ReadonlyMap<string, number[]>,
 ): { nodes: Node[]; edges: Edge[] } {
     if (!workflow || workflow.steps.length === 0) {
         return { nodes: [], edges: [] };
@@ -448,6 +449,7 @@ export function buildLayout(
                         ? { hasSourceEdge: true as const }
                         : {}),
                     executionSummary: stepSummaries?.get(id),
+                    pathSequenceIndexes: pathSequenceIndexes?.get(id),
                     paused,
                     layoutDirection: direction,
                 },
@@ -555,6 +557,7 @@ export function buildLayout(
                 diagnostics: diagnosticsByStep.get(id) ?? [],
                 ...(step.nextStepId ? { hasSourceEdge: true as const } : {}),
                 executionSummary: stepSummaries?.get(id),
+                pathSequenceIndexes: pathSequenceIndexes?.get(id),
                 layoutDirection: direction,
                 isInitial: workflow?.initialStepId === id,
             };
@@ -596,6 +599,10 @@ export function buildLayout(
         return s?.status === "completed" || s?.status === "running";
     }
 
+    function isPathStepHighlighted(stepId: string): boolean {
+        return (pathSequenceIndexes?.get(stepId)?.length ?? 0) > 0;
+    }
+
     // Start → initial step (only when no explicit start step exists)
     if (!hasStartStep) {
         edges.push({
@@ -608,6 +615,7 @@ export function buildLayout(
                 executed:
                     hasExecState && isStepExecuted(workflow.initialStepId),
                 hasExecutionState: hasExecState,
+                pathHighlighted: isPathStepHighlighted(workflow.initialStepId),
             },
         });
     }
@@ -618,24 +626,28 @@ export function buildLayout(
             const headerId = groupHeaderId(step.id);
             if (step.type === "switch-case") {
                 // Switch cases get labeled branch edges
-                for (const c of step.params.cases) {
+                for (const [branchIndex, c] of step.params.cases.entries()) {
                     if (c.branchBodyStepId === "") continue;
                     const label =
                         c.value.type === "default"
                             ? "default"
                             : formatExpression(c.value);
                     edges.push({
-                        id: `${headerId}->${c.branchBodyStepId}`,
+                        id: `${headerId}->${c.branchBodyStepId}:${branchIndex}`,
                         source: headerId,
                         target: c.branchBodyStepId,
                         label,
                         type: "workflow",
                         data: {
                             edgeKind: "branch",
+                            branchIndex,
                             executed:
                                 hasExecState &&
                                 isStepExecuted(c.branchBodyStepId),
                             hasExecutionState: hasExecState,
+                            pathHighlighted:
+                                isPathStepHighlighted(step.id) &&
+                                isPathStepHighlighted(c.branchBodyStepId),
                         },
                     });
                 }
@@ -651,6 +663,9 @@ export function buildLayout(
                             edgeKind: "sequential",
                             executed: hasExecState && isStepExecuted(childId),
                             hasExecutionState: hasExecState,
+                            pathHighlighted:
+                                isPathStepHighlighted(step.id) &&
+                                isPathStepHighlighted(childId),
                         },
                     });
                 }
@@ -668,6 +683,9 @@ export function buildLayout(
                     edgeKind: "sequential",
                     executed: hasExecState && isStepExecuted(step.nextStepId),
                     hasExecutionState: hasExecState,
+                    pathHighlighted:
+                        isPathStepHighlighted(step.id) &&
+                        isPathStepHighlighted(step.nextStepId),
                 },
             });
         }

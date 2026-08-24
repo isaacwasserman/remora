@@ -10,6 +10,8 @@ export interface StepNodeData {
     inputSchema?: object;
     outputSchema?: object;
     executionSummary?: StepExecutionSummary;
+    /** One-based positions where this step appears in the hovered execution trace. */
+    pathSequenceIndexes?: number[];
     paused?: boolean;
     layoutDirection?: LayoutDirection;
     isInitial?: boolean;

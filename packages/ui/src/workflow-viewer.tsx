@@ -35,7 +35,10 @@ import { StepPalette } from "./components/step-palette";
 import { WorkflowJsonDialog } from "./components/workflow-json-dialog";
 import { WorkflowEdge } from "./edges/workflow-edge";
 import { EditContext } from "./edit-context";
-import { deriveStepSummaries } from "./execution-state";
+import {
+    derivePathSequenceIndexes,
+    deriveStepSummaries,
+} from "./execution-state";
 import {
     buildEditableLayout,
     buildLayout,
@@ -55,7 +58,6 @@ import { StepEditorPanel } from "./panels/step-editor-panel";
 import { useDarkMode } from "./theme";
 import { ToolSchemasContext } from "./tool-schemas-context";
 import { groupStructuralKey } from "./utils/nested-chain-refs";
-import { renderStepParams } from "./utils/rendered-params";
 import { createDefaultStep } from "./utils/step-defaults";
 import { buildStubTools } from "./utils/stub-tools";
 
@@ -73,13 +75,6 @@ const edgeTypes: EdgeTypes = {
 import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
 
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 };
-
-function runningStepId(state: ExecutionState | undefined): string | undefined {
-    if (!(state && "runningStepPath" in state && state.runningStepPath)) {
-        return undefined;
-    }
-    return state.runningStepPath.at(-1);
-}
 
 /**
  * Forces React Flow to recalculate handle positions when layout direction
@@ -296,6 +291,20 @@ export function WorkflowViewer({
     const activeDiagnostics =
         validation === "external" ? diagnostics : localDiagnostics;
 
+    const [highlightedExecutionId, setHighlightedExecutionId] = useState<
+        string | undefined
+    >();
+    const pathSequenceIndexes = useMemo(
+        () =>
+            executionState
+                ? derivePathSequenceIndexes(
+                      executionState,
+                      highlightedExecutionId,
+                  )
+                : new Map<string, number[]>(),
+        [executionState, highlightedExecutionId],
+    );
+
     // --- Layout computation ---
     const editStructuralKey = useMemo(() => {
         if (!isEditing || !activeWorkflow) return "";
@@ -346,6 +355,7 @@ export function WorkflowViewer({
             dims,
             paused,
             direction,
+            pathSequenceIndexes,
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps -- relayout
         // only when graph structure changes, not on every diagnostic/execution
@@ -358,6 +368,7 @@ export function WorkflowViewer({
         activeWorkflow,
         executionState,
         paused,
+        pathSequenceIndexes,
     ]);
 
     const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
@@ -413,12 +424,20 @@ export function WorkflowViewer({
                         ...data,
                         diagnostics: diagnosticsByStep.get(stepId) ?? [],
                         executionSummary: stepSummaries?.get(stepId),
+                        pathSequenceIndexes: pathSequenceIndexes.get(stepId),
                         paused,
                     },
                 };
             }),
         );
-    }, [activeDiagnostics, executionState, paused, activeWorkflow, setNodes]);
+    }, [
+        activeDiagnostics,
+        executionState,
+        paused,
+        activeWorkflow,
+        pathSequenceIndexes,
+        setNodes,
+    ]);
 
     // One-time re-layout with real DOM measurements. Depends on `nodes` so it
     // re-fires when React Flow processes dimension events. Reads from
@@ -450,6 +469,7 @@ export function WorkflowViewer({
                 dims,
                 paused,
                 direction,
+                pathSequenceIndexes,
             );
             setNodes(fresh.nodes);
             setEdges(fresh.edges);
@@ -463,6 +483,7 @@ export function WorkflowViewer({
         isEditing,
         paused,
         direction,
+        pathSequenceIndexes,
         setNodes,
         setEdges,
     ]);
@@ -495,6 +516,7 @@ export function WorkflowViewer({
                     freshDims,
                     paused,
                     direction,
+                    pathSequenceIndexes,
                 );
                 setNodes(fresh.nodes);
                 setEdges(fresh.edges);
@@ -578,6 +600,7 @@ export function WorkflowViewer({
         executionState,
         paused,
         direction,
+        pathSequenceIndexes,
     ]);
 
     // --- Container resize ---
@@ -618,7 +641,6 @@ export function WorkflowViewer({
     // --- Selection ---
     const {
         selectedStep,
-        selectedDiagnostics,
         selectedExecutionSummary,
         clearSelection,
         onNodeClick,
@@ -631,53 +653,6 @@ export function WorkflowViewer({
         executionState,
         onStepSelect,
     });
-
-    // Preserve the scope that was present when each step began. A later state
-    // can lose loop-local values, but those values are needed to show the
-    // exact parameters that were supplied to a completed step.
-    const [parameterScopes, setParameterScopes] = useState<
-        Map<string, Record<string, unknown>>
-    >(new Map());
-    useEffect(() => {
-        if (!executionState) {
-            setParameterScopes((previous) =>
-                previous.size === 0 ? previous : new Map(),
-            );
-            return;
-        }
-        const stepId = runningStepId(executionState);
-        if (!stepId) return;
-        setParameterScopes((previous) => {
-            if (previous.get(stepId) === executionState.scope) {
-                return previous;
-            }
-            const next = new Map(previous);
-            next.set(stepId, executionState.scope);
-            return next;
-        });
-    }, [executionState]);
-
-    const selectedRenderedParams = useMemo(() => {
-        if (
-            !selectedStep ||
-            !executionState ||
-            !selectedExecutionSummary ||
-            selectedExecutionSummary.status === "pending"
-        ) {
-            return undefined;
-        }
-        const scope =
-            runningStepId(executionState) === selectedStep.id
-                ? executionState.scope
-                : (parameterScopes.get(selectedStep.id) ??
-                  executionState.scope);
-        return renderStepParams(selectedStep, scope);
-    }, [
-        selectedStep,
-        executionState,
-        selectedExecutionSummary,
-        parameterScopes,
-    ]);
 
     const selectedStepBindings = useMemo<ScopeBinding[]>(() => {
         if (!selectedStep || !activeWorkflow) return [];
@@ -1041,7 +1016,6 @@ export function WorkflowViewer({
                                         width: effectiveMinimapWidth,
                                         height: effectiveMinimapHeight,
                                     }}
-                                    nodeColor={"rgba(0, 0, 0, 0.1)"}
                                 />
                             )}
                         </ReactFlow>
@@ -1173,9 +1147,27 @@ export function WorkflowViewer({
                         ) : (
                             <StepDetailPanel
                                 step={selectedStep}
-                                diagnostics={selectedDiagnostics}
+                                diagnostics={activeDiagnostics.filter((d) => {
+                                    if (
+                                        !d.path ||
+                                        d.path[0] !== "steps" ||
+                                        typeof d.path[1] !== "number"
+                                    )
+                                        return false;
+                                    return (
+                                        activeWorkflow?.steps[
+                                            d.path[1] as number
+                                        ]?.id === selectedStep.id
+                                    );
+                                })}
                                 executionSummary={selectedExecutionSummary}
-                                renderedParams={selectedRenderedParams}
+                                executions={
+                                    selectedExecutionSummary?.executions
+                                }
+                                onExecutionPathHover={setHighlightedExecutionId}
+                                onExecutionPathLeave={() =>
+                                    setHighlightedExecutionId(undefined)
+                                }
                                 workflowInputSchema={
                                     activeWorkflow?.inputSchema as
                                         | object
@@ -1186,7 +1178,10 @@ export function WorkflowViewer({
                                         | object
                                         | undefined
                                 }
-                                onClose={clearSelection}
+                                onClose={() => {
+                                    setHighlightedExecutionId(undefined);
+                                    clearSelection();
+                                }}
                             />
                         ))}
                 </div>

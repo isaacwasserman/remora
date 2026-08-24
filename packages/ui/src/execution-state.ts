@@ -1,84 +1,70 @@
-import type { ExecutionState } from "@remoraflow/core";
+import type { ExecutionState, StepExecutionRecord } from "@remoraflow/core";
 
 export type StepStatus = "pending" | "running" | "completed" | "failed";
 
 export interface StepExecutionSummary {
     status: StepStatus;
     executionCount: number;
+    executions: StepExecutionRecord[];
     latestOutput?: unknown;
     latestError?: { code: string; message: string };
 }
 
-function extractLeafStepId(stepPath: string[]): string | undefined {
-    return stepPath[stepPath.length - 1];
-}
-
+/** Groups the runtime's per-invocation records by their authored step ID. */
 export function deriveStepSummaries(
     state: ExecutionState,
 ): Map<string, StepExecutionSummary> {
+    const grouped = new Map<string, StepExecutionRecord[]>();
+    for (const execution of state.stepExecutions) {
+        const executions = grouped.get(execution.stepId) ?? [];
+        executions.push(execution);
+        grouped.set(execution.stepId, executions);
+    }
+
     const summaries = new Map<string, StepExecutionSummary>();
-    const executionCounts = new Map<string, number>();
-
-    for (const path of state.executionPath) {
-        const stepId = extractLeafStepId(path);
-        if (!stepId) continue;
-        executionCounts.set(stepId, (executionCounts.get(stepId) ?? 0) + 1);
+    for (const [stepId, executions] of grouped) {
+        const latest = executions.at(-1);
+        if (!latest) continue;
+        summaries.set(stepId, {
+            status: latest.status,
+            executionCount: executions.length,
+            executions,
+            ...(latest.output !== undefined
+                ? { latestOutput: latest.output }
+                : {}),
+            ...(latest.error
+                ? {
+                      latestError: {
+                          code: latest.error.code,
+                          message: latest.error.message,
+                      },
+                  }
+                : {}),
+        });
     }
-
-    const lastPath =
-        state.executionPath.length > 0
-            ? state.executionPath[state.executionPath.length - 1]
-            : null;
-    const lastStepId = lastPath ? extractLeafStepId(lastPath) : null;
-
-    const isTerminal = state.status === "success" || state.status === "error";
-
-    const runningStepId =
-        "runningStepPath" in state && state.runningStepPath
-            ? extractLeafStepId(state.runningStepPath)
-            : null;
-
-    if (runningStepId && !executionCounts.has(runningStepId)) {
-        executionCounts.set(runningStepId, 0);
-    }
-
-    for (const [stepId, count] of executionCounts) {
-        let status: StepStatus;
-        if (
-            stepId === lastStepId &&
-            state.status === "error" &&
-            !(stepId in state.scope)
-        ) {
-            status = "failed";
-        } else if (stepId === runningStepId && !isTerminal) {
-            status = "running";
-        } else if (stepId === lastStepId && !isTerminal) {
-            status = "running";
-        } else {
-            // An execution-path entry is emitted after a step has begun. Many
-            // step types (sleep, start, and nested-chain steps) do not leave
-            // an output in the outer scope, but they still completed.
-            status = "completed";
-        }
-
-        const summary: StepExecutionSummary = {
-            status,
-            executionCount: count,
-        };
-
-        if (stepId in state.scope) {
-            summary.latestOutput = state.scope[stepId];
-        }
-
-        if (status === "failed" && state.error) {
-            summary.latestError = {
-                code: state.error.code,
-                message: state.error.message,
-            };
-        }
-
-        summaries.set(stepId, summary);
-    }
-
     return summaries;
+}
+
+/**
+ * Returns the one-based execution order for every step on the trace ending at
+ * the hovered invocation. A repeated step therefore receives every position
+ * at which it appeared, such as `[4, 10]`.
+ */
+export function derivePathSequenceIndexes(
+    state: ExecutionState,
+    executionId: string | undefined,
+): Map<string, number[]> {
+    const endingIndex = executionId
+        ? state.stepExecutions.findIndex(
+              (execution) => execution.executionId === executionId,
+          )
+        : -1;
+    const indexes = new Map<string, number[]>();
+    for (const [index, execution] of state.stepExecutions.entries()) {
+        if (index > endingIndex) break;
+        const stepIndexes = indexes.get(execution.stepId) ?? [];
+        stepIndexes.push(index + 1);
+        indexes.set(execution.stepId, stepIndexes);
+    }
+    return indexes;
 }

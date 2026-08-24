@@ -68,6 +68,19 @@ describe("evaluateExpressionAgainstScope", () => {
         ).toBe('u={"name":"Ann","age":30}');
     });
 
+    test("template supports a JMESPath multi-select hash", () => {
+        expect(
+            evaluateExpressionAgainstScope(
+                {
+                    type: "template",
+                    template:
+                        "result=${{name: user.name, itemCount: length(order.items)}}",
+                } as Expression,
+                scope,
+            ),
+        ).toBe('result={"name":"Ann","itemCount":2}');
+    });
+
     test("template with no inserts returns the string unchanged", () => {
         expect(
             evaluateExpressionAgainstScope(

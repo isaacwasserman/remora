@@ -48,4 +48,29 @@ describe("extractTemplateInserts", () => {
             },
         ]);
     });
+
+    test("keeps JMESPath multi-select hashes within an insert", () => {
+        const template =
+            "Summary: ${{name: user.name, stats: {count: length(items)}}}";
+        const [insert] = extractTemplateInserts(template);
+
+        expect(insert?.expression).toBe(
+            "{name: user.name, stats: {count: length(items)}}",
+        );
+        expect(template.slice(insert?.insertStart, insert?.insertEnd)).toBe(
+            "${{name: user.name, stats: {count: length(items)}}}",
+        );
+    });
+
+    test("does not close an insert at a brace inside a JMESPath string", () => {
+        expect(extractTemplateInserts("${contains(message, '}')}")).toEqual([
+            {
+                expression: "contains(message, '}')",
+                insertStart: 0,
+                insertEnd: 25,
+                expressionStart: 2,
+                expressionEnd: 24,
+            },
+        ]);
+    });
 });

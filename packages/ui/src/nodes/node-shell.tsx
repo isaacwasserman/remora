@@ -1,5 +1,6 @@
 import type { ValidatorDiagnostic } from "@remoraflow/core";
 import { Handle, Position } from "@xyflow/react";
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEditContext } from "../edit-context";
 import type { StepExecutionSummary } from "../execution-state";
@@ -19,6 +20,7 @@ export interface NodeShellProps {
     hasSourceEdge?: boolean;
     hasTargetEdge?: boolean;
     executionSummary?: StepExecutionSummary;
+    pathSequenceIndexes?: number[];
     paused?: boolean;
     layoutDirection?: LayoutDirection;
     isInitial?: boolean;
@@ -91,9 +93,10 @@ export function NodeShell({
     icon,
     children,
     selected,
-    hasSourceEdge = true,
+    hasSourceEdge = false,
     hasTargetEdge = true,
     executionSummary,
+    pathSequenceIndexes,
     paused,
     layoutDirection = "vertical",
     isInitial,
@@ -132,16 +135,33 @@ export function NodeShell({
         else if (selected) ringClass = "ring-2 ring-blue-400";
     }
 
-    const hasRing = hasErrors || hasWarnings || selected || !!executionSummary;
+    const isPathHighlighted = (pathSequenceIndexes?.length ?? 0) > 0;
+    if (isPathHighlighted) {
+        ringClass = "ring-2 ring-violet-500 shadow-lg shadow-violet-500/20";
+    }
+
+    const hasRing =
+        hasErrors ||
+        hasWarnings ||
+        selected ||
+        !!executionSummary ||
+        isPathHighlighted;
     const handleClass = isEditing
         ? HANDLE_CLASS_EDITING
         : HANDLE_CLASS_READONLY;
 
     return (
         <div
-            className={`rounded-lg shadow-md dark:shadow-none border border-border/40 dark:border-border border-l-4 w-[300px] transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"} ${isEditing ? "cursor-grab active:cursor-grabbing group" : ""} relative`}
-            style={{ borderLeftColor: accent }}
+            className={`w-[300px] ${isEditing ? "cursor-grab active:cursor-grabbing group" : ""} relative`}
         >
+            {isPathHighlighted && (
+                <span
+                    className="absolute -top-2 -right-2 z-20 rounded-full bg-violet-600 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white shadow-sm"
+                    title={`Execution sequence position${pathSequenceIndexes?.length === 1 ? "" : "s"}: ${pathSequenceIndexes?.join(", ")}`}
+                >
+                    {pathSequenceIndexes?.join(", ")}
+                </span>
+            )}
             {isEditing && (
                 <button
                     type="button"
@@ -152,7 +172,7 @@ export function NodeShell({
                     className="absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-muted-foreground/70 text-white text-xs flex items-center justify-center hover:bg-muted-foreground shadow-sm transition-opacity opacity-0 group-hover:opacity-100"
                     title="Delete step"
                 >
-                    &times;
+                    <X className="size-3" aria-hidden="true" />
                 </button>
             )}
             {(hasTargetEdge || (isEditing && hasTargetEdge !== false)) && (
@@ -162,30 +182,35 @@ export function NodeShell({
                     className={handleClass}
                 />
             )}
-            <div className="px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        {icon && (
-                            <span
-                                className="shrink-0"
-                                style={{ color: toneColor }}
-                            >
-                                {icon}
-                            </span>
-                        )}
+            <div
+                className={`overflow-hidden rounded-lg shadow-md dark:shadow-none dark:border dark:border-border transition-shadow duration-150 bg-card ${ringClass} ${opacityClass} ${hasRing ? "" : "hover:ring-2 hover:ring-ring"}`}
+            >
+                <div
+                    className="flex min-h-10 items-center gap-2 px-3"
+                    style={{
+                        backgroundColor: `color-mix(in oklab, ${accent} 14%, transparent)`,
+                    }}
+                >
+                    {icon && (
                         <span
-                            className="text-[10px] font-semibold uppercase tracking-wide shrink-0"
-                            style={{ color: toneColor }}
+                            className="flex size-6 shrink-0 items-center justify-center rounded-md text-white shadow-sm"
+                            style={{ backgroundColor: accent }}
                         >
-                            {typeLabel}
+                            {icon}
                         </span>
+                    )}
+                    <span
+                        className="text-xs font-semibold uppercase tracking-wide"
+                        style={{ color: toneColor }}
+                    >
+                        {typeLabel}
+                    </span>
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
                         {isInitial && (
-                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
                                 Entry Point
                             </span>
                         )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
                         {executionSummary && (
                             <StatusIcon
                                 status={executionSummary.status}
@@ -205,20 +230,22 @@ export function NodeShell({
                         )}
                     </div>
                 </div>
-                <div className="font-medium text-sm truncate text-foreground">
-                    {name}
-                </div>
-                <div className="text-[11px] font-mono text-muted-foreground">
-                    {id}
-                </div>
-                <div className="text-[11px] mt-1 text-muted-foreground">
-                    {description}
-                </div>
-                {children && (
-                    <div className="mt-2 border-t pt-2 border-border">
-                        {children}
+                <div className="px-3 py-2.5">
+                    <div className="font-medium text-sm truncate text-foreground">
+                        {name}
                     </div>
-                )}
+                    <div className="text-[11px] font-mono text-muted-foreground">
+                        {id}
+                    </div>
+                    <div className="text-[11px] mt-1 text-muted-foreground">
+                        {description}
+                    </div>
+                    {children && (
+                        <div className="mt-2 border-t pt-2 border-border">
+                            {children}
+                        </div>
+                    )}
+                </div>
             </div>
             {(hasSourceEdge || (isEditing && hasSourceEdge !== false)) && (
                 <Handle

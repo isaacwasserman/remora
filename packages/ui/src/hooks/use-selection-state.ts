@@ -63,6 +63,28 @@ export function useSelectionState(opts: {
         );
     }, [selectedStepId, executionState]);
 
+    // Keep the open detail panel in sync with live validation. Node data is
+    // patched as diagnostics change, but selected diagnostics used to remain
+    // whatever they were when the node was first clicked.
+    useEffect(() => {
+        if (!selectedStepId || !activeWorkflow) {
+            setSelectedDiagnostics(EMPTY_DIAGNOSTICS);
+            return;
+        }
+        const stepIndex = activeWorkflow.steps.findIndex(
+            (step) => step.id === selectedStepId,
+        );
+        setSelectedDiagnostics(
+            stepIndex === -1
+                ? EMPTY_DIAGNOSTICS
+                : activeDiagnostics.filter(
+                      (diagnostic) =>
+                          diagnostic.path?.[0] === "steps" &&
+                          diagnostic.path[1] === stepIndex,
+                  ),
+        );
+    }, [activeDiagnostics, activeWorkflow, selectedStepId]);
+
     const clearSelection = useCallback(() => {
         setSelectedStepId(null);
         setSelectedDiagnostics([]);
@@ -84,12 +106,16 @@ export function useSelectionState(opts: {
 
     const selectStepForEditing = useCallback(
         (stepId: string) => {
-            const step = activeWorkflow?.steps.find((s) => s.id === stepId);
-            if (step) {
+            const stepIndex = activeWorkflow?.steps.findIndex(
+                (step) => step.id === stepId,
+            );
+            if (stepIndex !== undefined && stepIndex !== -1) {
                 setSelectedStepId(stepId);
                 setSelectedDiagnostics(
                     activeDiagnostics.filter(
-                        (d) => "path" in d && d.path?.includes(stepId),
+                        (diagnostic) =>
+                            diagnostic.path?.[0] === "steps" &&
+                            diagnostic.path[1] === stepIndex,
                     ),
                 );
             }

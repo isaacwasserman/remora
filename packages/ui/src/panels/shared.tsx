@@ -2,6 +2,7 @@ import type { StepType } from "@remoraflow/core";
 import type React from "react";
 import { STEP_UI } from "../step-ui/registry";
 import { toneStyle } from "../step-ui/tone-styles";
+import { FIELD_LABEL_TEXT, SECTION_HEADER_TEXT } from "../text-styles";
 
 export function TypeBadge({ type }: { type: string }) {
     const ui = STEP_UI[type as StepType];
@@ -27,17 +28,11 @@ export function TypeBadge({ type }: { type: string }) {
 }
 
 export function SectionHeader({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="text-xs font-semibold text-foreground">{children}</div>
-    );
+    return <div className={SECTION_HEADER_TEXT}>{children}</div>;
 }
 
 export function Label({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-            {children}
-        </div>
-    );
+    return <div className={FIELD_LABEL_TEXT}>{children}</div>;
 }
 
 export function Code({ children }: { children: React.ReactNode }) {
@@ -53,11 +48,11 @@ export function FieldDiagnostics({ diagnostics }: { diagnostics?: unknown[] }) {
     return (
         <div className="space-y-1 mt-1.5 text-left">
             {(diagnostics as Array<{ severity: string; message: string }>).map(
-                (d, i) => {
+                (d) => {
                     const isError = d.severity === "error";
                     return (
                         <div
-                            key={i}
+                            key={`${d.severity}-${d.message}`}
                             className={
                                 isError
                                     ? "flex gap-1.5 items-center text-[10px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded px-1.5 py-1 border border-red-200/80 dark:border-red-900/60 text-left"

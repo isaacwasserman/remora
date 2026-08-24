@@ -1,3 +1,4 @@
+import type { EditorView } from "@codemirror/view";
 import { Braces } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -13,10 +14,8 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "../components/ui/popover";
-import { Textarea } from "../components/ui/textarea";
-import { cn } from "../lib/utils";
-import { CodeInput } from "./code-input";
 import type { ExpressionSuggestion } from "./expression-scope-context";
+import { TemplateCodeEditor } from "./template-code-editor";
 
 const ROOT_KIND_LABEL: Record<ExpressionSuggestion["rootKind"], string> = {
     input: "input",
@@ -29,12 +28,11 @@ interface TemplateExpressionInputProps {
     onChange: (value: string) => void;
     suggestions: ExpressionSuggestion[] | null;
     placeholder?: string;
-    rows?: number;
     className?: string;
 }
 
 /**
- * A textarea for string templates with embedded `${path}` JMESPath
+ * A template editor for string templates with embedded `${path}` JMESPath
  * expressions. When in-scope suggestions are available, an insert button is
  * shown that splices the picked path (wrapped in `${...}`) at the cursor.
  */
@@ -43,74 +41,62 @@ export function TemplateExpressionInput({
     onChange,
     suggestions,
     placeholder,
-    rows = 3,
     className,
 }: TemplateExpressionInputProps) {
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const editorViewRef = useRef<EditorView | null>(null);
     const cursorRef = useRef<number>(value.length);
     const [open, setOpen] = useState(false);
 
     const hasSuggestions = !!suggestions && suggestions.length > 0;
 
-    if (!hasSuggestions) {
-        return (
-            <CodeInput
-                value={value}
-                onChange={onChange}
-                multiline
-                placeholder={placeholder}
-                className={className}
-            />
-        );
-    }
-
     function rememberCursor() {
-        const el = textareaRef.current;
-        if (!el) return;
-        cursorRef.current = el.selectionStart ?? el.value.length;
+        cursorRef.current =
+            editorViewRef.current?.state.selection.main.head ?? value.length;
     }
 
     function insertAtCursor(path: string) {
         const insertion = `\${${path}}`;
         const start = cursorRef.current;
         const next = `${value.slice(0, start)}${insertion}${value.slice(start)}`;
-        onChange(next);
-        // Restore cursor after the inserted text on next tick.
-        queueMicrotask(() => {
-            const el = textareaRef.current;
-            if (!el) return;
+        const editor = editorViewRef.current;
+        if (editor) {
             const pos = start + insertion.length;
-            el.focus();
-            el.setSelectionRange(pos, pos);
+            editor.dispatch({
+                changes: { from: start, to: start, insert: insertion },
+                selection: { anchor: pos },
+            });
+            editor.focus();
             cursorRef.current = pos;
-        });
+        } else {
+            onChange(next);
+        }
     }
 
     return (
         <div className="relative">
-            <Textarea
-                ref={textareaRef}
+            <TemplateCodeEditor
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onSelect={rememberCursor}
-                onKeyUp={rememberCursor}
-                onClick={rememberCursor}
-                rows={rows}
-                className={cn("text-xs font-mono resize-y pr-9", className)}
+                onChange={onChange}
                 placeholder={placeholder}
+                className={className}
+                onEditorViewChange={(view) => {
+                    editorViewRef.current = view;
+                }}
             />
             {hasSuggestions && (
                 <Popover
                     open={open}
                     onOpenChange={(next) => {
-                        if (next) rememberCursor();
+                        if (next) {
+                            rememberCursor();
+                        }
                         setOpen(next);
                     }}
                 >
                     <PopoverTrigger asChild>
                         <button
                             type="button"
-                            className="absolute top-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            className="absolute z-20 top-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                             title="Insert expression"
                             aria-label="Insert expression"
                         >

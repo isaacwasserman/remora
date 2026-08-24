@@ -1,122 +1,89 @@
-import { describe, expect, test } from "bun:test";
-import type { ExecutionState } from "@remoraflow/core";
-import { deriveStepSummaries } from "./execution-state";
+import { expect, test } from "bun:test";
+import type { ExecutionState, StepExecutionRecord } from "@remoraflow/core";
+import {
+    derivePathSequenceIndexes,
+    deriveStepSummaries,
+} from "./execution-state";
 
-function makeState(overrides: Partial<ExecutionState> = {}): ExecutionState {
+function record(
+    stepId: string,
+    iteration: number,
+    output: unknown,
+): StepExecutionRecord {
     return {
+        executionId: JSON.stringify(["loop", String(iteration), stepId]),
+        invocationPath: ["loop", String(iteration), stepId],
+        stepId,
+        status: "completed",
+        renderedParams: { item: iteration },
+        output,
+        error: null,
+        state: undefined,
+    };
+}
+
+test("keeps every loop invocation under its authored step", () => {
+    const state = {
         status: "success",
         output: null,
         error: null,
         logs: [],
         scope: {},
         executionPath: [],
-        ...overrides,
+        stepExecutions: [
+            record("assess_matchup", 0, { threat: "A" }),
+            record("assess_matchup", 1, { threat: "B" }),
+        ],
     } as ExecutionState;
-}
 
-describe("deriveStepSummaries", () => {
-    test("returns empty map when executionPath is empty", () => {
-        const result = deriveStepSummaries(makeState());
-        expect(result.size).toBe(0);
-    });
+    const summary = deriveStepSummaries(state).get("assess_matchup");
+    expect(summary?.executionCount).toBe(2);
+    expect(summary?.executions.map((entry) => entry.output)).toEqual([
+        { threat: "A" },
+        { threat: "B" },
+    ]);
+});
 
-    test("single completed step", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "success",
-                executionPath: [["s1"]],
-                scope: { s1: { result: "ok" } },
-            }),
-        );
-        expect(result.size).toBe(1);
-        const s = result.get("s1");
-        expect(s?.status).toBe("completed");
-        expect(s?.executionCount).toBe(1);
-        expect(s?.latestOutput).toEqual({ result: "ok" });
-    });
+test("keeps output-less completed steps completed", () => {
+    const state = {
+        status: "success",
+        output: null,
+        error: null,
+        logs: [],
+        scope: {},
+        executionPath: [],
+        stepExecutions: [record("rate_limit", 0, undefined)],
+    } as ExecutionState;
 
-    test("step is running when it is the last leaf and status is not terminal", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "in-progress",
-                executionPath: [["s1"], ["s2"]],
-                scope: { s1: "done" },
-            }),
-        );
-        expect(result.get("s1")?.status).toBe("completed");
-        expect(result.get("s2")?.status).toBe("running");
-    });
+    expect(deriveStepSummaries(state).get("rate_limit")?.status).toBe(
+        "completed",
+    );
+});
 
-    test("step is failed when it is the last leaf, status is error, and not in scope", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "error",
-                output: null,
-                error: { code: "TOOL_ERROR", message: "tool broke" },
-                executionPath: [["s1"], ["s2"]],
-                scope: { s1: "done" },
-            }),
-        );
-        expect(result.get("s1")?.status).toBe("completed");
-        const s2 = result.get("s2");
-        expect(s2?.status).toBe("failed");
-        expect(s2?.latestError).toEqual({
-            code: "TOOL_ERROR",
-            message: "tool broke",
-        });
-    });
+test("indexes repeated steps across a hovered execution trace", () => {
+    const executions = [
+        record("start", 0, null),
+        record("fetch", 0, null),
+        record("assess_matchup", 0, { score: 1 }),
+        record("rate_limit", 0, null),
+        record("assess_matchup", 1, { score: 2 }),
+    ];
+    const state = {
+        status: "success",
+        output: null,
+        error: null,
+        logs: [],
+        scope: {},
+        executionPath: [],
+        stepExecutions: executions,
+    } as ExecutionState;
 
-    test("counts executions by occurrence in executionPath", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "success",
-                executionPath: [
-                    ["loop", "s1"],
-                    ["loop", "s1"],
-                    ["loop", "s1"],
-                ],
-                scope: { s1: "final" },
-            }),
-        );
-        const s = result.get("s1");
-        expect(s?.executionCount).toBe(3);
-        expect(s?.status).toBe("completed");
-        expect(s?.latestOutput).toBe("final");
-    });
+    const indexes = derivePathSequenceIndexes(
+        state,
+        executions[4]?.executionId,
+    );
 
-    test("extracts step ID from the last segment of each path", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "success",
-                executionPath: [["parent", "child"]],
-                scope: { child: 42 },
-            }),
-        );
-        expect(result.has("child")).toBe(true);
-        expect(result.get("child")?.latestOutput).toBe(42);
-    });
-
-    test("multiple distinct steps", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "success",
-                executionPath: [["s1"], ["s2"]],
-                scope: { s1: "a", s2: "b" },
-            }),
-        );
-        expect(result.size).toBe(2);
-        expect(result.get("s1")?.status).toBe("completed");
-        expect(result.get("s2")?.status).toBe("completed");
-    });
-
-    test("executed steps without a scope binding are completed", () => {
-        const result = deriveStepSummaries(
-            makeState({
-                status: "success",
-                executionPath: [["s1"], ["s2"], ["s3"]],
-                scope: { s1: "a", s3: "c" },
-            }),
-        );
-        expect(result.get("s2")?.status).toBe("completed");
-    });
+    expect(indexes.get("assess_matchup")).toEqual([3, 5]);
+    expect(indexes.get("rate_limit")).toEqual([4]);
+    expect(indexes.has("unvisited")).toBe(false);
 });

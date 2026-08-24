@@ -96,7 +96,9 @@ export async function* _executeWorkflow({
                     return;
                 }
                 yield update;
-                lastUpdate = update;
+                if (update.state === undefined) {
+                    lastUpdate = update;
+                }
             }
         } catch (error) {
             if (error instanceof UnrecoverableExecutionError) {
@@ -144,5 +146,8 @@ export async function* _executeWorkflow({
         output,
         error: null,
         currentUniqueStepIdPath: uniqueStepIdPath,
+        // Block executors run this workflow recursively. Preserve the terminal
+        // end step so an enclosing executor can propagate its terminal output.
+        ...(lastEndStepId ? { lastEndStepId } : {}),
     };
 }
