@@ -18,7 +18,6 @@ import { DEMO_TOOL_DISPLAY_NAMES, DEMO_TOOLS } from "./tools.ts";
 const llmConfigType = type({
     apiKey: "string",
     modelId: "string",
-    "baseURL?": "string",
 });
 
 export interface AppContext {
@@ -82,11 +81,14 @@ export const router = os.router({
                     model,
                     maxGenerationSteps: 20,
                 });
-                for await (const partial of stream) {
-                    yield { partial };
+                while (true) {
+                    const next = await stream.next();
+                    if (next.done) {
+                        yield { result: next.value };
+                        return;
+                    }
+                    yield { partial: next.value };
                 }
-                const result = await stream.return(undefined as never);
-                yield { result: result.value };
             }),
 
         execute: base

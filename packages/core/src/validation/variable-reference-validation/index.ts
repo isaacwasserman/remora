@@ -56,12 +56,14 @@ function buildStepGraph(
             `Step "${currentStepId}" could not be found in workflow.`,
         );
     }
-    const nestedEdges: StepGraphEdge[] = nestedChainEntryPoints(step).map(
-        (entryPointStepId) => ({
+    const nestedEdges: StepGraphEdge[] = nestedChainEntryPoints(step)
+        // Empty references are valid while a workflow is being edited. They
+        // have no executable nested chain and therefore form no graph edge.
+        .filter((entryPointStepId) => entryPointStepId !== "")
+        .map((entryPointStepId) => ({
             type: "block-entrance",
             stepNode: buildStepGraph(stepsById, entryPointStepId),
-        }),
-    );
+        }));
     const continuationEdges: StepGraphEdge[] = step.nextStepId
         ? [
               {
@@ -300,9 +302,15 @@ type BlockScopeProcessor<T extends WorkflowStep["type"]> = (args: {
     scope: TypeScope;
     tools: ToolSet;
     snapshots: ScopeSnapshots;
-    /** Returns the scope at the end of a nested chain. */
-    walkChain: (node: StepGraphNode, scope: TypeScope) => TypeScope;
-}) => TypeScope;
+    /** Returns the scope and returned value type at the end of a nested chain. */
+    walkChain: (node: StepGraphNode, scope: TypeScope) => ChainAnalysis;
+}) => ChainAnalysis;
+
+type ChainAnalysis = {
+    scope: TypeScope;
+    /** The value returned by the chain's terminal end or control-flow step. */
+    outputType: RemoraflowType;
+};
 
 /**
  * How each block step type scopes its nested chains and which bindings escape
@@ -334,43 +342,72 @@ const blockScopeProcessors: {
                 step.params.accumulatorInitialValue,
                 scope,
             );
-            // biome-ignore lint/style/noNonNullAssertion: <explanation>
+            // biome-ignore lint/style/noNonNullAssertion: hasAccumulator guarantees the name is present
             loopBindings.set(step.params.accumulatorName!, accInitType);
         }
 
         const loopScope: TypeScope = { parent: scope, bindings: loopBindings };
 
         const [bodyNode] = blockEntranceNodes(node);
-        if (!bodyNode) return scope;
-        const bodyEndScope = walkChain(bodyNode, loopScope);
-
-        if (hasAccumulator && accInitType) {
-            scope.bindings.set(node.stepId, accInitType);
-        } else {
-            scope.bindings.set(node.stepId, {
-                type: "array",
-                items: innermostBindingType(bodyEndScope),
-            });
+        if (!bodyNode) {
+            return {
+                scope,
+                outputType: scope.bindings.get(node.stepId) ?? true,
+            };
         }
-        return scope;
+        const bodyAnalysis = walkChain(bodyNode, loopScope);
+
+        let outputType: RemoraflowType;
+        if (hasAccumulator && accInitType) {
+            outputType = accInitType;
+        } else {
+            outputType = {
+                type: "array",
+                items: bodyAnalysis.outputType,
+            };
+        }
+        scope.bindings.set(node.stepId, outputType);
+        return { scope, outputType };
     },
     "switch-case": ({ node, scope, walkChain }) => {
-        const branchScopes = blockEntranceNodes(node).map((branchNode) =>
+        const branchAnalyses = blockEntranceNodes(node).map((branchNode) =>
             walkChain(branchNode, scope),
         );
-        if (branchScopes.length === 0) return scope;
-        return mergeBranchScopes(scope, branchScopes);
+        if (branchAnalyses.length === 0) {
+            return {
+                scope,
+                outputType: scope.bindings.get(node.stepId) ?? true,
+            };
+        }
+        return {
+            scope: mergeBranchScopes(
+                scope,
+                branchAnalyses.map((analysis) => analysis.scope),
+            ),
+            outputType: unionSchemas(
+                branchAnalyses.map((analysis) => analysis.outputType),
+            ),
+        };
     },
     "wait-for-condition": ({ node, scope, snapshots, walkChain }) => {
         const [conditionNode] = blockEntranceNodes(node);
-        if (!conditionNode) return scope;
+        if (!conditionNode) {
+            return {
+                scope,
+                outputType: scope.bindings.get(node.stepId) ?? true,
+            };
+        }
         // `condition` reads the chain's bindings, but the executor evaluates it
         // against a throwaway scope, so none of them escape the step.
+        const conditionAnalysis = walkChain(conditionNode, scope);
         snapshots.nestedChainScopeByStepId.set(
             node.stepId,
-            walkChain(conditionNode, scope),
+            conditionAnalysis.scope,
         );
-        return scope;
+        return {
+            scope,
+            outputType: scope.bindings.get(node.stepId) ?? true,
+        };
     },
     while: ({ node, step, scope, walkChain }) => {
         const [conditionNode, bodyNode] = blockEntranceNodes(node);
@@ -386,7 +423,7 @@ const blockScopeProcessors: {
 
         const accScope = (): TypeScope => {
             const bindings = new Map<string, RemoraflowType>();
-            // biome-ignore lint/style/noNonNullAssertion: <explanation>
+            // biome-ignore lint/style/noNonNullAssertion: accScope is only called in accumulator mode
             bindings.set(step.params.accumulatorName!, accInitType!);
             return { parent: scope, bindings };
         };
@@ -394,21 +431,28 @@ const blockScopeProcessors: {
         if (conditionNode) {
             walkChain(conditionNode, hasAccumulator ? accScope() : scope);
         }
-        if (!bodyNode) return scope;
-        const bodyEndScope = walkChain(
+        if (!bodyNode) {
+            return {
+                scope,
+                outputType: scope.bindings.get(node.stepId) ?? true,
+            };
+        }
+        const bodyAnalysis = walkChain(
             bodyNode,
             hasAccumulator ? accScope() : scope,
         );
 
+        let outputType: RemoraflowType;
         if (hasAccumulator && accInitType) {
-            scope.bindings.set(node.stepId, accInitType);
+            outputType = accInitType;
         } else {
-            scope.bindings.set(node.stepId, {
+            outputType = {
                 type: "array",
-                items: innermostBindingType(bodyEndScope),
-            });
+                items: bodyAnalysis.outputType,
+            };
         }
-        return scope;
+        scope.bindings.set(node.stepId, outputType);
+        return { scope, outputType };
     },
     "agent-loop": null,
     "request-intervention": null,
@@ -422,7 +466,7 @@ const blockScopeProcessors: {
 
 /**
  * Walks a chain to its end, snapshotting the scope at each step, and returns
- * the scope in effect after its terminal step.
+ * both the final scope and the value returned by the chain.
  */
 function processChain(
     stepsById: Map<string, WorkflowStep>,
@@ -431,7 +475,7 @@ function processChain(
     tools: ToolSet,
     snapshots: ScopeSnapshots,
     inputSchema?: JSONSchema7,
-): TypeScope {
+): ChainAnalysis {
     snapshots.byStepId.set(node.stepId, scope);
     const currentStep = stepsById.get(node.stepId) as WorkflowStep;
     const bindings = new Map<string, RemoraflowType>();
@@ -439,17 +483,23 @@ function processChain(
         node.stepId,
         getStepOutputType(currentStep, scope, tools, inputSchema),
     );
-    let scopeAfterStep: TypeScope = { parent: scope, bindings };
+    let analysis: ChainAnalysis = {
+        scope: { parent: scope, bindings },
+        outputType:
+            currentStep.type === "end"
+                ? (bindings.get(node.stepId) as RemoraflowType)
+                : { type: "null" },
+    };
 
     const processBlock = blockScopeProcessors[
         currentStep.type
     ] as BlockScopeProcessor<WorkflowStep["type"]> | null;
     if (processBlock) {
-        scopeAfterStep = processBlock({
+        analysis = processBlock({
             stepsById,
             node,
             step: currentStep,
-            scope: scopeAfterStep,
+            scope: analysis.scope,
             tools,
             snapshots,
             walkChain: (chainNode, chainScope) =>
@@ -465,23 +515,15 @@ function processChain(
     }
 
     const continuation = continuationNode(node);
-    if (!continuation) return scopeAfterStep;
+    if (!continuation) return analysis;
     return processChain(
         stepsById,
         continuation,
-        scopeAfterStep,
+        analysis.scope,
         tools,
         snapshots,
         inputSchema,
     );
-}
-
-function innermostBindingType(scope: TypeScope): RemoraflowType {
-    const types = Array.from(scope.bindings.values());
-    if (types.length === 0) return { type: "null" };
-    return types.length === 1
-        ? (types[0] as RemoraflowType)
-        : unionSchemas(types);
 }
 
 export function buildScopeSnapshotsById(

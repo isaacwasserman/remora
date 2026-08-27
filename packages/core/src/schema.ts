@@ -1,5 +1,6 @@
 import { jsonSchemaToType } from "@ark/json-schema";
 import { type Type, type } from "arktype";
+import dedent from "dedent";
 import type { JSONSchema7 } from "json-schema";
 import { resolveDurationLimits } from "./execution/execution-engine/duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
@@ -92,7 +93,36 @@ const switchCaseParamsSchema = type({
         ],
     },
 }).describe(
-    "a step that branches to different step chains based on the value of an expression; each case's chain runs until a step with no nextStepId, at which point execution continues with this step's nextStepId; a case with type 'default' serves as the fallback if no other case matches",
+    dedent`
+        a step that branches to different step chains based on the value of an expression; each case's chain runs until a step with no nextStepId, at which point execution continues with this step's nextStepId; a case with type 'default' serves as the fallback if no other case matches
+
+        Example using JS semantics:
+
+        \`\`\`js
+        function switchCaseStep({ switchOn, cases }) {
+          switch (evaluate(switchOn)) {
+            case evaluate(cases[0].value):
+              return runFromStep(cases[0].branchBodyStepId);
+
+            // Additional non-default cases...
+
+            default: {
+              const index = cases.findIndex(
+                ({ value }) => value.type === "default",
+              );
+
+              if (index === -1) {
+                throw new Error("UNRECOGNIZED_CASE");
+              }
+
+              return runFromStep(cases[index].branchBodyStepId);
+            }
+          }
+        }
+        \`\`\`
+
+        After this step completes, execution continues from its \`nextStepId\` when present.
+    `,
 );
 
 const forEachParamsSchema = type({
@@ -138,7 +168,30 @@ const forEachParamsSchema = type({
         return true;
     })
     .describe(
-        "a step that iterates over a list and executes a chain of steps for each item; the loop body chain runs until a step with no nextStepId, at which point the next iteration begins; once all items are exhausted, execution continues with this step's nextStepId; optionally specify accumulatorName and accumulatorInitialValue to fold iterations into a single value instead of collecting them into an array",
+        dedent`
+            a step that iterates over a list and executes a chain of steps for each item; the loop body chain runs until a step with no nextStepId, at which point the next iteration begins; once all items are exhausted, execution continues with this step's nextStepId; optionally specify accumulatorName and accumulatorInitialValue to fold iterations into a single value instead of collecting them into an array
+
+            Example using JS semantics:
+
+            \`\`\`js
+            function forEachStep({ target, itemName, loopBodyStepId, accumulatorName, accumulatorInitialValue }) {
+              const list = evaluate(target);
+
+              if (accumulatorName !== undefined) {
+                // Fold mode
+                return list.reduce(
+                  (acc, item) => runFromStep(loopBodyStepId, { [itemName]: item, [accumulatorName]: acc }),
+                  evaluate(accumulatorInitialValue)
+                );
+              }
+
+              // Map mode
+              return list.map(item => runFromStep(loopBodyStepId, { [itemName]: item }));
+            }
+            \`\`\`
+
+            After this step completes, execution continues from its \`nextStepId\` when present.
+        `,
     );
 
 const whileParamsSchema = type({
@@ -178,7 +231,33 @@ const whileParamsSchema = type({
         return true;
     })
     .describe(
-        "a step that repeatedly evaluates a condition chain and, while its output is truthy, executes a loop body chain; each body output is collected into an array; when the condition is falsy, execution continues with this step's nextStepId; optionally specify accumulatorName and accumulatorInitialValue to fold iterations into a single value instead of collecting them into an array",
+        dedent`
+            a step that repeatedly evaluates a condition chain and, while its output is truthy, executes a loop body chain; each body output is collected into an array; when the condition is falsy, execution continues with this step's nextStepId; optionally specify accumulatorName and accumulatorInitialValue to fold iterations into a single value instead of collecting them into an array
+
+            Example using JS semantics:
+
+            \`\`\`js
+            function whileStep({ conditionStepId, loopBodyStepId, accumulatorName, accumulatorInitialValue }) {
+              if (accumulatorName !== undefined) {
+                // Fold mode
+                let acc = evaluate(accumulatorInitialValue);
+                while (runFromStep(conditionStepId, { [accumulatorName]: acc })) {
+                  acc = runFromStep(loopBodyStepId, { [accumulatorName]: acc });
+                }
+                return acc;
+              }
+
+              // Collect mode
+              const outputs = [];
+              while (runFromStep(conditionStepId)) {
+                outputs.push(runFromStep(loopBodyStepId));
+              }
+              return outputs;
+            }
+            \`\`\`
+
+            After this step completes, execution continues from its \`nextStepId\` when present.
+        `,
     );
 
 const llmPromptSchema = type({
@@ -290,7 +369,39 @@ export function createWorkflowDefinitionSchema(
             ],
         },
     }).describe(
-        "a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression",
+        dedent`
+            a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression
+
+            Example using JS semantics:
+
+            \`\`\`js
+            function waitForConditionStep({
+              conditionStepId,
+              condition,
+              maxAttempts = 10,
+              intervalMs = 1000,
+              backoffMultiplier = 1,
+              timeoutMs,
+            }) {
+              let delay = intervalMs;
+              const deadline = timeoutMs !== undefined ? Date.now() + timeoutMs : undefined;
+
+              for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const scope = runFromStep(conditionStepId);
+                const result = evaluate(condition, scope);
+                if (result) return result;
+
+                if (deadline !== undefined && Date.now() >= deadline) break;
+                sleep(delay);
+                delay *= backoffMultiplier;
+              }
+
+              throw new Error("condition not met");
+            }
+            \`\`\`
+
+            After this step completes, execution continues from its \`nextStepId\` when present.
+        `,
     );
 
     const agentLoopParamsSchema = type({
@@ -385,7 +496,7 @@ export function createWorkflowDefinitionSchema(
             output: expressionSchema,
         },
     }).describe(
-        "a step that indicates the end of a branch; optionally specify an output expression whose evaluated value becomes the workflow's output",
+        "Ends the current execution chain and returns its evaluated output to the enclosing block or workflow. Use this like a return statement within loop bodies (to contribute to map or write to accumulator) and switch case bodies.",
     );
 
     let stepParamsSchema = toolCallParamsSchema
@@ -420,6 +531,7 @@ export function createWorkflowDefinitionSchema(
 
     /** Schema for validating workflow definitions. */
     const workflowDefinitionArktypeSchema = type({
+        "+": "reject",
         initialStepId: [
             "string",
             "@",

@@ -71,12 +71,12 @@ export type AnyTool = {
     inputSchema: AnyToolSchema;
     outputSchema?: AnyToolSchema;
     execute?: (input: any, options: any) => any;
-    description?: string;
+    description?: string | ((options: any) => string);
 };
 export type AnyStubbedTool = {
     inputSchema: AnyToolSchema;
     outputSchema?: AnyToolSchema;
-    description?: string;
+    description?: string | ((options: any) => string);
 };
 
 export type ToolSet = Record<string, AnyTool>;
@@ -335,15 +335,19 @@ export async function extractToolSchemas(
 ): Promise<ToolDefinitionMap> {
     const schemas: ToolDefinitionMap = {};
     for (const [name, toolDef] of Object.entries(tools)) {
-        schemas[name] = {
-            description: toolDef.description,
+        const schema: ToolSchemaDefinition = {
+            description:
+                typeof toolDef.description === "string"
+                    ? toolDef.description
+                    : undefined,
             inputSchema: asSchema(toolDef.inputSchema)
                 .jsonSchema as ToolSchemaDefinition["inputSchema"],
         };
         if (toolDef.outputSchema) {
-            schemas[name].outputSchema = asSchema(toolDef.outputSchema)
+            schema.outputSchema = asSchema(toolDef.outputSchema)
                 .jsonSchema as Record<string, unknown>;
         }
+        schemas[name] = schema;
     }
     return schemas;
 }

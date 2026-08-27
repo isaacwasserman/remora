@@ -405,6 +405,32 @@ describe("syntaxValidator", () => {
             },
         ]);
     });
+
+    test("rejects undeclared workflow definition properties", () => {
+        const { diagnostics } = syntaxValidator.validate(
+            untrusted({
+                initialStepId: "start",
+                steps: [
+                    {
+                        id: "start",
+                        name: "start",
+                        description: "",
+                        type: "start",
+                    },
+                ],
+                ignoreWarnings: true,
+            }),
+            ctx({}),
+        );
+
+        expect(diagnostics).toEqual([
+            {
+                severity: "error",
+                path: ["ignoreWarnings"],
+                message: expect.stringContaining("must be removed"),
+            },
+        ]);
+    });
 });
 
 describe("toolDefinitionValidator", () => {
@@ -533,6 +559,204 @@ describe("variableReferenceValidator", () => {
                 severity: "error",
                 path: ["steps", 3, "params", "output", "expression"],
                 message: "Invalid access: always resolves to null.",
+            },
+        ]);
+    });
+
+    test("infers for-each items from switch branch return values", () => {
+        const routingTools: ToolSet = {
+            run: tool({
+                inputSchema: type({ jobId: "string" }),
+                outputSchema: type({ jobId: "string", status: "'ran'" }),
+                execute: async ({ jobId }) => ({ jobId, status: "ran" }),
+            }),
+            defer: tool({
+                inputSchema: type({ jobId: "string" }),
+                outputSchema: type({
+                    jobId: "string",
+                    status: "'deferred'",
+                }),
+                execute: async ({ jobId }) => ({
+                    jobId,
+                    status: "deferred",
+                }),
+            }),
+        };
+        const routedOutputSchema: JSONSchema7 = {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    jobId: { type: "string" },
+                    status: {
+                        type: "string",
+                        enum: ["ran", "deferred"],
+                    },
+                },
+                required: ["jobId", "status"],
+                additionalProperties: false,
+            },
+        };
+        const definition: WorkflowDefinition = {
+            ...workflow(
+                step("start", { type: "start", nextStepId: "loop" }),
+                step("loop", {
+                    type: "for-each",
+                    nextStepId: "finish",
+                    params: {
+                        target: {
+                            type: "literal",
+                            value: [
+                                { jobId: "JOB-1", ready: true },
+                                { jobId: "JOB-2", ready: false },
+                            ],
+                        },
+                        itemName: "job",
+                        loopBodyStepId: "route",
+                    },
+                }),
+                step("route", {
+                    type: "switch-case",
+                    params: {
+                        switchOn: {
+                            type: "jmespath",
+                            expression: "job.ready",
+                        },
+                        cases: [
+                            {
+                                value: { type: "literal", value: true },
+                                branchBodyStepId: "run",
+                            },
+                            {
+                                value: { type: "default" },
+                                branchBodyStepId: "defer",
+                            },
+                        ],
+                    },
+                }),
+                step("run", {
+                    type: "tool-call",
+                    nextStepId: "returnRun",
+                    params: {
+                        toolName: "run",
+                        toolInput: {
+                            jobId: {
+                                type: "jmespath",
+                                expression: "job.jobId",
+                            },
+                        },
+                    },
+                }),
+                step("returnRun", {
+                    type: "end",
+                    params: {
+                        output: { type: "jmespath", expression: "run" },
+                    },
+                }),
+                step("defer", {
+                    type: "tool-call",
+                    nextStepId: "returnDefer",
+                    params: {
+                        toolName: "defer",
+                        toolInput: {
+                            jobId: {
+                                type: "jmespath",
+                                expression: "job.jobId",
+                            },
+                        },
+                    },
+                }),
+                step("returnDefer", {
+                    type: "end",
+                    params: {
+                        output: { type: "jmespath", expression: "defer" },
+                    },
+                }),
+                step("finish", {
+                    type: "end",
+                    params: {
+                        output: { type: "jmespath", expression: "loop" },
+                    },
+                }),
+            ),
+            outputSchema: routedOutputSchema,
+        };
+
+        expect(
+            validateWorkflowDefinition(definition, ctx(routingTools)),
+        ).toMatchObject({ isValid: true, diagnostics: [] });
+    });
+
+    test("retains null when a switch branch actually returns null", () => {
+        const definition: WorkflowDefinition = {
+            ...workflow(
+                step("start", { type: "start", nextStepId: "loop" }),
+                step("loop", {
+                    type: "for-each",
+                    nextStepId: "finish",
+                    params: {
+                        target: { type: "literal", value: [true, false] },
+                        itemName: "ready",
+                        loopBodyStepId: "route",
+                    },
+                }),
+                step("route", {
+                    type: "switch-case",
+                    params: {
+                        switchOn: {
+                            type: "jmespath",
+                            expression: "ready",
+                        },
+                        cases: [
+                            {
+                                value: { type: "literal", value: true },
+                                branchBodyStepId: "returnObject",
+                            },
+                            {
+                                value: { type: "default" },
+                                branchBodyStepId: "returnNull",
+                            },
+                        ],
+                    },
+                }),
+                step("returnObject", {
+                    type: "end",
+                    params: {
+                        output: {
+                            type: "literal",
+                            value: { status: "ran" },
+                        },
+                    },
+                }),
+                step("returnNull", { type: "end" }),
+                step("finish", {
+                    type: "end",
+                    params: {
+                        output: { type: "jmespath", expression: "loop" },
+                    },
+                }),
+            ),
+            outputSchema: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: { status: { const: "ran" } },
+                    required: ["status"],
+                    additionalProperties: false,
+                },
+            },
+        };
+        const { isValid, diagnostics } = validateWorkflowDefinition(
+            definition,
+            ctx({}),
+        );
+
+        expect(isValid).toBe(true);
+        expect(diagnostics).toEqual([
+            {
+                severity: "warning",
+                path: ["steps", 5, "params", "output", "items"],
+                message: expect.stringContaining("Possibly invalid"),
             },
         ]);
     });
