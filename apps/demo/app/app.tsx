@@ -11,15 +11,17 @@ import { AuditDialog } from "./components/audit-dialog.tsx";
 import { InputDialog } from "./components/input-dialog.tsx";
 import { InterventionDialog } from "./components/intervention-dialog.tsx";
 import { NewWorkflowDialog } from "./components/new-workflow-dialog.tsx";
+import { OpenRouterOAuthCallback } from "./components/openrouter-oauth-callback.tsx";
 import { OutputPanel } from "./components/output-panel.tsx";
 import { SettingsDialog } from "./components/settings-dialog.tsx";
 import { Toolbar } from "./components/toolbar.tsx";
 import { useWSExecution } from "./hooks/use-ws-execution.ts";
+import { isOpenRouterOAuthCallback } from "./lib/openrouter-oauth.ts";
 import { rpc } from "./lib/rpc-client.ts";
 import { decodeWorkflow, encodeWorkflow } from "./lib/sharing.ts";
 import {
     loadActiveWorkflowKey,
-    loadLLMConfig,
+    loadOpenRouterConfig,
     saveActiveWorkflowKey,
 } from "./lib/storage.ts";
 import defaultWorkflow from "./workflows/pokemon-lookup.json";
@@ -30,7 +32,10 @@ export function App() {
     const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
     const [layout, setLayout] = useState<LayoutDirection>("vertical");
     const [hasLLMConfig, setHasLLMConfig] = useState(
-        () => !!loadLLMConfig()?.apiKey,
+        () => !!loadOpenRouterConfig()?.apiKey,
+    );
+    const [isOAuthCallback, setIsOAuthCallback] = useState(() =>
+        isOpenRouterOAuthCallback(),
     );
 
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -145,6 +150,22 @@ export function App() {
         document.documentElement.classList.toggle("dark");
     }, []);
 
+    if (isOAuthCallback) {
+        return (
+            <OpenRouterOAuthCallback
+                onConnected={() => {
+                    window.history.replaceState(
+                        null,
+                        "",
+                        import.meta.env.BASE_URL,
+                    );
+                    setHasLLMConfig(!!loadOpenRouterConfig()?.apiKey);
+                    setIsOAuthCallback(false);
+                }}
+            />
+        );
+    }
+
     return (
         <ReactFlowProvider>
             <div className="h-screen flex flex-col">
@@ -192,7 +213,9 @@ export function App() {
             <SettingsDialog
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}
-                onSaved={() => setHasLLMConfig(!!loadLLMConfig()?.apiKey)}
+                onSaved={() =>
+                    setHasLLMConfig(!!loadOpenRouterConfig()?.apiKey)
+                }
             />
 
             {workflow && (

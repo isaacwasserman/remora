@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { tool } from "ai";
-import type { MockLanguageModelV3 } from "ai/test";
+import type { MockLanguageModelV4 } from "ai/test";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import type { WorkflowStep } from "../../schema";
@@ -30,12 +30,12 @@ const docTool = tool({
 });
 
 /** Every prompt the model was sent, flattened for substring assertions. */
-function recordedPrompts(model: MockLanguageModelV3): string {
+function recordedPrompts(model: MockLanguageModelV4): string {
     return JSON.stringify(model.doGenerateCalls.map((call) => call.prompt));
 }
 
 /** Names of the tools the model was offered on its first call. */
-function recordedToolNames(model: MockLanguageModelV3): string[] {
+function recordedToolNames(model: MockLanguageModelV4): string[] {
     return (model.doGenerateCalls[0]?.tools ?? []).map(({ name }) => name);
 }
 

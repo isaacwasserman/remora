@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Textarea } from "~/components/ui/textarea";
 import { rpc } from "../lib/rpc-client.ts";
-import { loadLLMConfig } from "../lib/storage.ts";
+import { loadOpenRouterConfig } from "../lib/storage.ts";
 
 interface NewWorkflowDialogProps {
     open: boolean;
@@ -58,9 +58,9 @@ export function NewWorkflowDialog({
     };
 
     const handleGenerate = async () => {
-        const llmConfig = loadLLMConfig();
+        const llmConfig = loadOpenRouterConfig();
         if (!llmConfig?.apiKey) {
-            setError("Configure LLM settings before generating a workflow.");
+            setError("Connect OpenRouter before generating a workflow.");
             return;
         }
         setError(null);

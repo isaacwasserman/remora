@@ -1,3 +1,4 @@
+import { ChevronDown, Loader2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -11,8 +12,13 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import type { LLMConfig } from "../lib/storage.ts";
-import { loadLLMConfig, saveLLMConfig } from "../lib/storage.ts";
+import { startOpenRouterOAuth } from "../lib/openrouter-oauth.ts";
+import {
+    clearOpenRouterConfig,
+    DEFAULT_OPENROUTER_MODEL,
+    loadOpenRouterConfig,
+    saveOpenRouterConfig,
+} from "../lib/storage.ts";
 
 interface SettingsDialogProps {
     open: boolean;
@@ -25,79 +31,148 @@ export function SettingsDialog({
     onOpenChange,
     onSaved,
 }: SettingsDialogProps) {
-    const [config, setConfig] = useState<LLMConfig>(() => {
-        const saved = loadLLMConfig();
-        return saved ?? { apiKey: "", modelId: "", baseURL: "" };
-    });
+    const [config, setConfig] = useState(() => loadOpenRouterConfig());
+    const [modelId, setModelId] = useState(
+        () => config?.modelId ?? DEFAULT_OPENROUTER_MODEL,
+    );
+    const [manualKey, setManualKey] = useState("");
+    const [showManualEntry, setShowManualEntry] = useState(false);
+    const [connecting, setConnecting] = useState(false);
 
-    const handleSave = () => {
-        saveLLMConfig(config);
+    const saveConfig = (
+        apiKey: string,
+        connectionMethod: "oauth" | "api-key",
+    ) => {
+        const next = {
+            apiKey,
+            modelId: modelId.trim() || DEFAULT_OPENROUTER_MODEL,
+            connectionMethod,
+        };
+        saveOpenRouterConfig(next);
+        setConfig(next);
         onSaved();
-        onOpenChange(false);
+    };
+
+    const handleConnect = async () => {
+        setConnecting(true);
+        try {
+            if (config?.apiKey) {
+                saveConfig(config.apiKey, config.connectionMethod);
+            }
+            await startOpenRouterOAuth(
+                modelId.trim() || DEFAULT_OPENROUTER_MODEL,
+            );
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    const handleSaveManualKey = () => {
+        if (!manualKey.trim()) return;
+        saveConfig(manualKey.trim(), "api-key");
+        setManualKey("");
+        setShowManualEntry(false);
+    };
+
+    const handleDisconnect = () => {
+        clearOpenRouterConfig();
+        setConfig(null);
+        setManualKey("");
+        onSaved();
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>LLM Settings</DialogTitle>
+                    <DialogTitle>OpenRouter</DialogTitle>
                     <DialogDescription>
-                        Configure the LLM provider for generation and analysis
-                        steps.
+                        Connect an OpenRouter account to generate and run
+                        workflows.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
                     <div className="grid gap-2">
-                        <Label htmlFor="api-key">API Key</Label>
-                        <Input
-                            id="api-key"
-                            type="password"
-                            value={config.apiKey}
-                            onChange={(
-                                e: React.ChangeEvent<HTMLInputElement>,
-                            ) =>
-                                setConfig((c) => ({
-                                    ...c,
-                                    apiKey: e.target.value,
-                                }))
-                            }
-                        />
-                    </div>
-                    <div className="grid gap-2">
                         <Label htmlFor="model-id">Model ID</Label>
                         <Input
                             id="model-id"
-                            placeholder="gpt-4o"
-                            value={config.modelId}
+                            value={modelId}
                             onChange={(
                                 e: React.ChangeEvent<HTMLInputElement>,
-                            ) =>
-                                setConfig((c) => ({
-                                    ...c,
-                                    modelId: e.target.value,
-                                }))
-                            }
+                            ) => setModelId(e.target.value)}
                         />
                     </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="base-url">Base URL (optional)</Label>
-                        <Input
-                            id="base-url"
-                            placeholder="https://api.openai.com/v1"
-                            value={config.baseURL ?? ""}
-                            onChange={(
-                                e: React.ChangeEvent<HTMLInputElement>,
-                            ) =>
-                                setConfig((c) => ({
-                                    ...c,
-                                    baseURL: e.target.value || undefined,
-                                }))
-                            }
+                    {config?.apiKey ? (
+                        <div className="rounded-md border p-3 text-sm">
+                            Connected via{" "}
+                            {config.connectionMethod === "oauth"
+                                ? "OpenRouter"
+                                : "API key"}
+                        </div>
+                    ) : null}
+                    <Button
+                        onClick={() => void handleConnect()}
+                        disabled={connecting}
+                    >
+                        {connecting && (
+                            <Loader2 className="size-4 animate-spin" />
+                        )}
+                        {config?.connectionMethod === "oauth"
+                            ? "Reconnect OpenRouter"
+                            : "Connect OpenRouter"}
+                    </Button>
+                    <button
+                        type="button"
+                        className="flex items-center gap-1 text-left text-sm text-muted-foreground"
+                        onClick={() =>
+                            setShowManualEntry((visible) => !visible)
+                        }
+                    >
+                        <ChevronDown
+                            className={`size-4 transition-transform ${showManualEntry ? "rotate-180" : ""}`}
                         />
-                    </div>
+                        Use an API key instead
+                    </button>
+                    {showManualEntry ? (
+                        <div className="grid gap-2">
+                            <Label htmlFor="api-key">OpenRouter API key</Label>
+                            <Input
+                                id="api-key"
+                                type="password"
+                                value={manualKey}
+                                onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>,
+                                ) => setManualKey(e.target.value)}
+                            />
+                            <Button
+                                variant="outline"
+                                onClick={handleSaveManualKey}
+                                disabled={!manualKey.trim()}
+                            >
+                                Save API key
+                            </Button>
+                        </div>
+                    ) : null}
                 </div>
                 <DialogFooter>
-                    <Button onClick={handleSave}>Save</Button>
+                    {config?.apiKey ? (
+                        <Button variant="outline" onClick={handleDisconnect}>
+                            Disconnect
+                        </Button>
+                    ) : null}
+                    <Button
+                        onClick={() => {
+                            if (config?.apiKey) {
+                                saveConfig(
+                                    config.apiKey,
+                                    config.connectionMethod,
+                                );
+                            }
+                            onOpenChange(false);
+                        }}
+                    >
+                        Done
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -147,4 +147,44 @@ describe("auditWorkflow provenance", () => {
         const schema = entry?.sources[0]?.inputSpace as Record<string, unknown>;
         expect(schema).toHaveProperty("anyOf");
     });
+
+    it("audits connected switch branches when another branch is unconnected", () => {
+        const wf = workflow(
+            step("start", { type: "start", nextStepId: "switch" }),
+            step("switch", {
+                type: "switch-case",
+                params: {
+                    switchOn: { type: "literal", value: true },
+                    cases: [
+                        {
+                            value: { type: "literal", value: true },
+                            branchBodyStepId: "call",
+                        },
+                        {
+                            value: { type: "default" },
+                            branchBodyStepId: "",
+                        },
+                    ],
+                },
+                nextStepId: "end",
+            }),
+            step("call", {
+                type: "tool-call",
+                params: {
+                    toolName: "test-tool",
+                    toolInput: {
+                        name: { type: "literal", value: "hello" },
+                        count: { type: "literal", value: 1 },
+                    },
+                },
+            }),
+            step("end", { type: "end" }),
+        );
+
+        const result = auditWorkflow(wf, testTools);
+        const entry = result.capabilities.toolCalls.find(
+            (toolCall) => toolCall.toolName === "test-tool",
+        );
+        expect(entry?.sources[0]?.stepIds).toEqual(["call"]);
+    });
 });

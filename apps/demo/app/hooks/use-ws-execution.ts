@@ -1,6 +1,6 @@
 import type { ExecutionState, WorkflowDefinition } from "@remoraflow/core";
 import { useCallback, useRef, useState } from "react";
-import { loadLLMConfig } from "../lib/storage.ts";
+import { loadOpenRouterConfig } from "../lib/storage.ts";
 import { wsRpc } from "../lib/ws-client.ts";
 
 export interface InterventionRequestState {
@@ -20,7 +20,7 @@ export function useWSExecution() {
         workflow: WorkflowDefinition;
         inputs: Record<string, unknown>;
     }): AsyncGenerator<ExecutionState> {
-        const llmConfig = loadLLMConfig();
+        const llmConfig = loadOpenRouterConfig();
         // biome-ignore lint/complexity/noBannedTypes: oRPC client types are opaque
         const stream = await (wsRpc.workflow.execute as Function)({
             workflow: params.workflow,

@@ -26,9 +26,16 @@ import { templateToRegex } from "./utils";
 function simplifyInputSpace(
     inputSpace: JSONSchema7Definition,
 ): JSONSchema7Definition {
-    return jsonSchemaToType(
-        inputSpace as Parameters<typeof jsonSchemaToType>[0],
-    ).toJsonSchema() as JSONSchema7Definition;
+    try {
+        return jsonSchemaToType(
+            inputSpace as Parameters<typeof jsonSchemaToType>[0],
+        ).toJsonSchema() as JSONSchema7Definition;
+    } catch {
+        // Some inferred JSON Schema fragments use constructs the ArkType
+        // normalizer cannot represent. They are already valid audit output,
+        // so retain them instead of failing the entire audit.
+        return inputSpace;
+    }
 }
 
 export function auditWorkflow(
@@ -127,9 +134,8 @@ export function auditWorkflow(
                                 step.id,
                             );
                         } else {
-                            // biome-ignore lint/suspicious/noExplicitAny: It's ok
                             const inputSchema = asSchema(
-                                tool.inputSchema as FlexibleSchema<any>,
+                                tool.inputSchema as FlexibleSchema<unknown>,
                             ).jsonSchema;
                             if ("then" in inputSchema) {
                                 throw new Error(

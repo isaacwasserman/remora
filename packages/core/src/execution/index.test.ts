@@ -279,16 +279,17 @@ for (const engine of ENGINES) {
                     (execution) => execution.stepId === "fileOne",
                 );
                 expect(fileExecutions).toHaveLength(2);
-                expect(fileExecutions.map((execution) => execution.output)).toEqual([
-                    { filed: true },
-                    { filed: true },
-                ]);
+                expect(
+                    fileExecutions.map((execution) => execution.output),
+                ).toEqual([{ filed: true }, { filed: true }]);
                 expect(
                     fileExecutions.map(
                         (execution) => execution.renderedParams?.toolInput,
                     ),
                 ).toEqual([{ ticketId: 101 }, { ticketId: 102 }]);
-                expect(fileExecutions.map((execution) => execution.invocationPath)).toEqual([
+                expect(
+                    fileExecutions.map((execution) => execution.invocationPath),
+                ).toEqual([
                     ["loop", "0", "fileOne"],
                     ["loop", "1", "fileOne"],
                 ]);

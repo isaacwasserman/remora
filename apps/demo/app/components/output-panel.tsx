@@ -1,7 +1,46 @@
 import type { ExecutionState } from "@remoraflow/core";
 import { JsonViewer, ReplaySlider } from "@remoraflow/ui";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+
+const MIN_HEIGHT = 60;
+const MAX_HEIGHT = 600;
+const DEFAULT_HEIGHT = 200;
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = useCallback(() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+    }, [text]);
+
+    return (
+        <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+                e.stopPropagation();
+                copy();
+            }}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    copy();
+                }
+            }}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+            {copied ? (
+                <Check className="size-3 text-green-500" />
+            ) : (
+                <Copy className="size-3" />
+            )}
+            <span className="text-xs">{copied ? "Copied" : label}</span>
+        </span>
+    );
+}
 
 interface OutputPanelProps {
     executionState: ExecutionState | null;
@@ -21,6 +60,35 @@ export function OutputPanel({
     onGoLive,
 }: OutputPanelProps) {
     const [expanded, setExpanded] = useState(true);
+    const [height, setHeight] = useState(DEFAULT_HEIGHT);
+    const dragState = useRef<{ startY: number; startHeight: number } | null>(
+        null,
+    );
+
+    const onPointerDown = useCallback(
+        (e: React.PointerEvent) => {
+            e.preventDefault();
+            dragState.current = { startY: e.clientY, startHeight: height };
+            const target = e.currentTarget as HTMLElement;
+            target.setPointerCapture(e.pointerId);
+        },
+        [height],
+    );
+
+    const onPointerMove = useCallback((e: React.PointerEvent) => {
+        if (!dragState.current) return;
+        const delta = dragState.current.startY - e.clientY;
+        setHeight(
+            Math.min(
+                MAX_HEIGHT,
+                Math.max(MIN_HEIGHT, dragState.current.startHeight + delta),
+            ),
+        );
+    }, []);
+
+    const onPointerUp = useCallback(() => {
+        dragState.current = null;
+    }, []);
 
     if (!executionState && stateHistory.length === 0) return null;
 
@@ -33,7 +101,15 @@ export function OutputPanel({
             : undefined;
 
     return (
-        <div className="border-t border-border bg-card shrink-0">
+        <div className="border-t border-border bg-card shrink-0 relative">
+            {expanded && (
+                <div
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    className="absolute inset-x-0 -top-1 h-2 cursor-ns-resize z-10"
+                />
+            )}
             <ReplaySlider
                 stateHistory={stateHistory}
                 replayIndex={replayIndex}
@@ -61,7 +137,10 @@ export function OutputPanel({
                 )}
             </button>
             {expanded && (
-                <div className="px-4 pb-3 space-y-2">
+                <div
+                    className="px-4 pb-3 space-y-2 overflow-y-auto"
+                    style={{ maxHeight: height }}
+                >
                     {error && (
                         <div
                             role="alert"
@@ -76,9 +155,15 @@ export function OutputPanel({
                         </div>
                     )}
                     {outputJson && (
-                        <JsonViewer
-                            value={outputJson}
-                            className="max-h-[200px]"
+                        <div className="space-y-1">
+                            <JsonViewer value={outputJson} />
+                            <CopyButton text={outputJson} label="Copy output" />
+                        </div>
+                    )}
+                    {executionState && (
+                        <CopyButton
+                            text={JSON.stringify(executionState, null, 2)}
+                            label="Copy full execution state"
                         />
                     )}
                 </div>

@@ -11,7 +11,7 @@ describe("templateToRegex - Basic Functionality", () => {
         const regex = new RegExp(pattern);
         expect(regex.test("Hello Alice!")).toBe(true);
         expect(regex.test("Hello Bob!")).toBe(true);
-        expect(regex.test("Hello !")).toBe(true); // . matches space
+        expect(regex.test("Hello !")).toBe(false);
         expect(regex.test("Hello")).toBe(false); // missing space and exclamation
     });
 
@@ -19,7 +19,7 @@ describe("templateToRegex - Basic Functionality", () => {
         const template = "${greeting} ${name}, welcome to ${place}!";
         const pattern = templateToRegex(template);
 
-        expect(pattern).toBe("^.+ .+, welcome to .+$");
+        expect(pattern).toBe("^.+ .+, welcome to .+!$");
 
         const regex = new RegExp(pattern);
         expect(regex.test("Hi Sarah, welcome to Paris!")).toBe(true);

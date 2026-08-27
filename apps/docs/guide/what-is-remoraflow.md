@@ -1,6 +1,10 @@
-# What is RemoraFlow?
+# What is Remoraflow?
 
-RemoraFlow is a DSL for agents to write workflows for themselves. It allows an agent to produce a **well-defined, repeatable, and auditable** workflow from a task and toolset. 
+Remoraflow is a language for defining repeatable and reliable AI workflows.
+
+Most AI "workflows" today are actually just long prompts that describe a procedure to be executed by an AI agent. These prompts describe steps and logic, but they never actually enforce it; at runtime, the agent is _asked_ to follow your prompt, but nothing prevents it from getting derailed or disregarding your instructions entirely. If all you're relying on your workflow to do is summarize your email, then who cares. But if you want to get _real work_ done with AI workflows, you'd
+
+Remoraflow is a language for agents to write workflows for themselves. It allows an agent to produce a **well-defined, repeatable, and auditable** workflow from a task and toolset. 
 
 These days, **most AI "workflows" are actually just long prompts that *describe logic but don't guarantee this logic***.
 
