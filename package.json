@@ -3,6 +3,12 @@
     "devDependencies": {
         "@biomejs/biome": "2.4.4",
         "@changesets/cli": "^2.30.0",
+        "@remoraflow/core": "workspace:*",
+        "@temporalio/activity": "^1.23.0",
+        "@temporalio/client": "^1.23.0",
+        "@temporalio/testing": "^1.23.0",
+        "@temporalio/worker": "^1.23.0",
+        "@temporalio/workflow": "^1.23.0",
         "@types/bun": "latest",
         "typescript": "^7.0.2"
     },

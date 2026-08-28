@@ -23,15 +23,16 @@ function runnerFor<TResult>(body: (run: ExecutionRun) => Promise<TResult>) {
     });
 }
 
-beforeAll(async () => {
-    await LocalDurableTestRunner.setupTestEnvironment({ skipTime: true });
-});
-
-afterAll(async () => {
-    await LocalDurableTestRunner.teardownTestEnvironment();
-});
-
 describe("lambda durable execution adapter", () => {
+    beforeAll(async () => {
+        await LocalDurableTestRunner.setupTestEnvironment({
+            skipTime: true,
+        });
+    });
+
+    afterAll(async () => {
+        await LocalDurableTestRunner.teardownTestEnvironment();
+    });
     test("a step completed before a suspend is not re-executed after it", async () => {
         const calls: string[] = [];
         const runner = runnerFor(async (run) => {
