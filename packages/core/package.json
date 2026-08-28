@@ -22,6 +22,7 @@
         "LICENSE"
     ],
     "scripts": {
+        "build": "bun scripts/build.ts",
         "typecheck": "bun tsc --noEmit",
         "fix": "biome check --fix --unsafe .",
         "test": "bun test $(find src -name '*.test.ts' ! -name '*.e2e.test.ts' ! -name '*.integration.test.ts')",
