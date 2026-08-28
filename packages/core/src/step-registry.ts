@@ -219,7 +219,7 @@ const expressionReferencesByStepType: ExpressionReferencesByStepType = {
         ),
     ],
     "tool-call": (step) =>
-        Object.entries(step.params.toolInput).map(
+        Object.entries(step.params.toolInput ?? {}).map(
             ([paramName, expression]) => ({
                 expression,
                 path: ["params", "toolInput", paramName],

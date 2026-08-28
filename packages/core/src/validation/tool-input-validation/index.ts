@@ -69,7 +69,7 @@ const STEP_INPUT_VALIDATORS: { [T in StepType]: StepInputValidator<T> } = {
             scopeSnapshot,
             targetTool,
             step.params.toolName,
-            step.params.toolInput,
+            step.params.toolInput ?? {},
         );
         return stepDiagnostics.map((diagnostic) => ({
             severity: diagnostic.level,

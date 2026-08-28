@@ -3,19 +3,18 @@
     "type": "module",
     "private": true,
     "scripts": {
-        "dev": "bun run api && bunx vitepress dev .",
-        "build": "bun run api && bun run --filter registry build && bunx vitepress build .",
-        "preview": "bunx vitepress preview .",
-        "api": "bunx typedoc"
+        "dev": "bunx vitepress dev . --port 4444",
+        "build": "bun run --filter registry build && bunx vitepress build .",
+        "preview": "bunx vitepress preview ."
     },
     "devDependencies": {
-        "typedoc": "^0.28.17",
-        "typedoc-plugin-markdown": "^4.10.0",
+        "vite": "^5.4.0",
         "vitepress": "^1.6.4",
-        "vitepress-plugin-llms": "^1.11.0",
+        "vitepress-plugin-llms": "^1.13.5",
         "vitepress-plugin-tabs": "^0.8.0"
     },
     "dependencies": {
-        "posthog-js": "^1.363.5"
+        "posthog-js": "^1.363.5",
+        "vitepress-plugin-group-icons": "^1.7.6"
     }
 }

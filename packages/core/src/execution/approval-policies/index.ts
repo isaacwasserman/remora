@@ -10,6 +10,7 @@ export async function decideApproval(
     for (const policy of policies) {
         try {
             if (
+                !policy.scope ||
                 policy.scope === "all" ||
                 policy.scope === `only-${environment}-steps`
             ) {

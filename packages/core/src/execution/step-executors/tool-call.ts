@@ -42,7 +42,7 @@ export const toolCallExecutor: StepExecutor<"tool-call"> = {
             return;
         }
         const toolInput = Object.fromEntries(
-            Object.entries(step.params.toolInput).map(
+            Object.entries(step.params.toolInput ?? {}).map(
                 ([paramName, paramExpression]) => [
                     paramName,
                     evaluateExpressionAgainstScope(paramExpression, scope),

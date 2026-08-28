@@ -2,49 +2,41 @@
 
 Remoraflow is a language for defining repeatable and reliable AI workflows.
 
-Most AI "workflows" today are actually just long prompts that describe a procedure to be executed by an AI agent. These prompts describe steps and logic, but they never actually enforce it; at runtime, the agent is _asked_ to follow your prompt, but nothing prevents it from getting derailed or disregarding your instructions entirely. If all you're relying on your workflow to do is summarize your email, then who cares. But if you want to get _real work_ done with AI workflows, you'd
+Most AI "workflows" today are actually just long prompts that describe a procedure to be executed by an AI agent. These prompts describe steps and logic, but they never actually enforce it; at runtime, the agent is _asked_ to follow your prompt, but nothing prevents it from getting derailed or disregarding your instructions entirely. If all you're relying on your workflow to do is summarize your email, then who cares. But if you want to get _real work_ done with AI workflows, you're going to need some stronger guarantees.
 
-Remoraflow is a language for agents to write workflows for themselves. It allows an agent to produce a **well-defined, repeatable, and auditable** workflow from a task and toolset. 
-
-These days, **most AI "workflows" are actually just long prompts that *describe logic but don't guarantee this logic***.
-
-RemoraFlow is a language for defining workflows that guarantee an outcome through careful validation and deterministic behavior.
+Remoraflow is based on the premise that **most of what a workflow does should be deterministic**. Rather than handing an LLM a set of instructions at runtime, we can lock-in the logic ahead of time and only use AI when intelligence is necessary. Not only does this make AI workflows safer and more reliable but it also dramatically improves their token-efficiency, speed, and accuracy.
 
 ## Features
 
 ### Workflows by Agents, for Agents
 
-The RemoraFlow syntax is JSON-based. This means flows can be easily generated via agent tool calls.
+Workflows consist of the same tool calls that your agent is used to, glued together deterministically with JMESPath expressions referencing each other. 
 
-Flows consist of the same tool calls that your agent is used to, glued together deterministically with JMESPath expressions referencing each other.
+The Remoraflow syntax is JSON-based, meaning that the entire grammar can be described by a standard JSON schema. Pass this schema to to your favorite AI agent as a tool or structured output format, and you have yourself a workflow generating machine.
 
-As part of the `@remoraflow/core` package, we provide a reference `create-workflow` tool that you can immediately hand to your agents as well as a prompt to help you create your own workflow creation tool.
+In a hurry? We also provide a reference `generateWorkflow` function that you can pass to your agent as a tool.
 
 ### Deterministic Execution (when you want it)
 
-While many flows can be constructed entirely from sequences of [tool calls](./workflow-definitions.md#tool-call) and [branching logic](./workflow-definitions.md#switch-case), the most useful flows require the intelligence of an LLM. RemoraFlow provides LLM-based steps that make strong guarantees about their behavior through validation, intelligent retries, and access control (see [LLM Prompt Step](./workflow-definitions.md#llm-prompt), [Extract Data Step](./workflow-definitions.md#extract-data), [Agent Loop Step](./workflow-definitions.md#agent-loop)).
+While many flows can be constructed entirely from sequences of tool calls and branching logic, the most advanced flows require the intelligence of an LLM. RemoraFlow provides LLM-based steps that make strong guarantees about their behavior through validation, intelligent retries, and access control.
 
 ### Ahead-of-Time Validation
 
 Through careful ahead-of-time validation, the agent (or user) authoring a flow is provided deterministic diagnostics and feedback on whether its workflow works. The compiler provides traceable diagnostics that the agent can fix before the workflow ever runs.
 
+### Access Control and Human-in-the-Loop
+
+When creating automations, we're often asked to choose between utility and safety. We want workflows to be useful, but that means giving them access to sensitive, write-capable, high blast-radius operations. Remoraflow addresses this with approval policies and user interventions. As an application developer building on top of Remoraflow, you can define policies that determine which tools can run, which inputs they can have, and whether they require a user to sign-off on their execution. Additionally, workflows can include explicit requests for user input, allowing the workflow to delegate to an authority for sensitive decisions.
+
 ### Durable Execution
 
-RemoraFlow is compatible with leading durable execution environments, allowing workflows to sleep or block on conditions for long-periods without consuming serverless resources.
-
-## Constrained Tool Schemas
-
-When the compiler analyzes a workflow, it determines exactly which tool parameters are static (known at compile time) versus dynamic (resolved at runtime). This produces a narrowed input schema for each tool.
-
-This matters for safety: a human supervisor can review the constrained schemas and approve a limited set of behaviors ahead of time. The compiler makes this distinction explicit, enabling workflows to run without human-in-the-loop supervision where appropriate.
-
-> A workflow that only ever calls `sendEmail` with a specific template and a dynamic recipient is meaningfully different from one with unconstrained access to the email API.
+Remoraflow is compatible with leading durable execution environments (including Temporal.io, Inngest, and AWS Durable Execution), allowing workflows to sleep or block on conditions for long-periods without consuming serverless resources.
 
 ## Use Cases
 
 ### Unsupervised Jobs
 
-Agents can construct repeatable workflows to be run as cron jobs, webhook handlers, etc. With RemoraFlow, the execution is predictable and can be easily audited.
+Agents can construct repeatable workflows to be run as cron jobs, webhook handlers, etc. With Remoraflow, the execution is predictable and can be easily audited.
 
 ### Agent Plans
 
@@ -54,51 +46,4 @@ Traditionally, agents like Claude Code present text-based plans that outline how
 
 However, text-based plans don't provide any guarantees of the agent's behavior; an agent can present a plan and decide to do something completely different during execution.
 
-Using RemoraFlow, agents can construct a workflows instead of a text-based plan, and the resultant workflow can be run with behavioral guarantees and an audit trail.
-
-## Architecture
-
-RemoraFlow has four main components:
-
-### Compiler
-
-A multi-pass compiler that takes a raw workflow definition and produces a validated execution graph. Passes include:
-
-- **Graph construction** — builds the DAG, detects cycles and duplicate step IDs
-- **Reference validation** — verifies all step references resolve
-- **Limits validation** — checks literal sleep/wait values against configured limits
-- **Output schema validation** — warns about JSON Schema keywords unsupported by LLM structured output APIs
-- **Tool validation** — ensures tool call parameters match available tool schemas, including type checking
-- **Control flow validation** — checks branching and looping logic
-- **JMESPath validation** — parses and validates all expressions
-- **For-each target validation** — confirms loop targets resolve to arrays
-- **Constrained schema generation** — produces narrowed tool input schemas
-- **Best practices** — applies non-destructive transformations (e.g., adding missing end steps)
-
-Diagnostics are emitted as structured errors and warnings with specific codes, step locations, and field paths.
-
-### Executor
-
-A runtime engine that walks the compiled execution graph step by step. It handles:
-
-- **Tool calls** with literal or expression-based arguments
-- **LLM prompts** with template string interpolation from step outputs
-- **Data extraction** via LLM-based extraction into structured formats
-- **Switch-case** branching on step output values
-- **For-each** loops over arrays with scoped iteration variables
-
-Each step's output is stored in a scope that subsequent steps can reference via JMESPath expressions, providing structured data flow without arbitrary code.
-
-The executor is compatible with the [Vercel AI SDK](https://ai-sdk.dev/) and supports any agent or language model implementing the AI SDK interfaces.
-
-### Generator
-
-An LLM-driven workflow generator that takes a natural language task description and produces a validated workflow definition. The generator uses a tool call loop — if compilation fails, diagnostics are fed back to the LLM for correction, up to a configurable number of retries.
-
-### Viewer / Editor
-
-A React-based workflow component built on [React Flow](https://reactflow.dev/) that renders compiled workflows as interactive DAGs. Click any node to see step details and diagnostics in a side panel. This is available in the `@remoraflow/ui` package or via the [shadcn compatible registry](./component-registry.md).
-
-## Status
-
-Early prototype. The core compiler, executor, and viewer are functional, but the API is unstable and breaking changes should be expected.
+Using Remoraflow, agents can construct a workflow instead of a text-based plan, and the resultant workflow can be run with behavioral guarantees and an audit trail.

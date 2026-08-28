@@ -9,8 +9,7 @@ export type FinalApprovalPolicyDecision = ApprovalPolicyDecision & {
 
 export type ApprovalPolicy = {
     id: string;
-    type: "approval";
-    scope: "all" | "only-tool-call-steps" | "only-agent-loop-steps";
+    scope?: "all" | "only-tool-call-steps" | "only-agent-loop-steps";
     decideFn: (
         toolName: string,
         toolInput: unknown,

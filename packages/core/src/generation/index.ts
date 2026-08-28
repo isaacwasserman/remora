@@ -29,6 +29,8 @@ import {
     findLastSuccessfulToolCall,
     hasSuccessfulToolCall,
 } from "./stop-condition";
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from "..";
+import { toJsonSchema } from "@standard-community/standard-json";
 
 export type GenerationOptions = RemoraflowSettings & {};
 
@@ -248,7 +250,7 @@ export function preparePrompt({
     options,
 }: {
     taskDescription: string;
-    workflowOutputSchema?: JSONSchema7;
+    workflowOutputSchema?: StandardSchemaV1;
     tools: StubbedToolSet;
     options: GenerationOptions;
 }) {
@@ -298,7 +300,7 @@ export function preparePrompt({
                 ? dedent`
                     The generated workflow must declare and produce output matching this JSON Schema:
                     <RequiredWorkflowOutputSchema>
-                        ${JSON.stringify(workflowOutputSchema)}
+                        ${JSON.stringify(toJsonSchema(workflowOutputSchema))}
                     </RequiredWorkflowOutputSchema>
                 `
                 : ""
@@ -324,7 +326,7 @@ export async function* generateWorkflowStream({
     onDiagnosticEvent,
 }: {
     taskDescription: string;
-    workflowOutputSchema?: JSONSchema7;
+    workflowOutputSchema?: StandardSchemaV1;
     tools: StubbedToolSet;
     options: GenerationOptions;
     model: LanguageModel;
@@ -458,7 +460,7 @@ export async function* generateWorkflowStream({
                 description: "Submits a candidate workflow for validation",
                 strict: true,
                 inputSchema: submitWorkflowInputSchema,
-                execute: ({ definition, ignoreWarnings }, { toolCallId }) => {
+                execute: async ({ definition, ignoreWarnings }, { toolCallId }) => {
                     yieldQueue.push({
                         type: "intermediate-output",
                         payload: definition,
@@ -483,7 +485,7 @@ export async function* generateWorkflowStream({
                         const subsetDiagnostics =
                             requestedOutputSchemaDiagnostics(
                                 correctedDefinition.outputSchema,
-                                workflowOutputSchema,
+                                await toJsonSchema(workflowOutputSchema),
                             );
                         if (subsetDiagnostics.length > 0) {
                             throw new Error(
@@ -647,4 +649,13 @@ export async function* generateWorkflowStream({
     throw new Error(
         "Generation ended before a valid workflow could be authored.",
     );
+}
+
+export async function generateWorkflow(...args: Parameters<typeof generateWorkflowStream>): Promise<GenerationOutput> {
+    const stream = generateWorkflowStream(...args);
+    let result: IteratorResult<DeepPartial<WorkflowDefinition>, GenerationOutput>;
+    do {
+        result = await stream.next();
+    } while (!result.done);
+    return result.value;
 }

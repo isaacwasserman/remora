@@ -64,7 +64,7 @@ const toolCallParamsSchema = type({
     type: "'tool-call'",
     params: {
         toolName: "string",
-        toolInput: [
+        "toolInput?": [
             {
                 "[string]": expressionSchema,
             },
