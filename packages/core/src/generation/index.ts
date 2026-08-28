@@ -1,3 +1,4 @@
+import { toJsonSchema } from "@standard-community/standard-json";
 import {
     asSchema,
     type DeepPartial,
@@ -12,6 +13,7 @@ import {
 import { type } from "arktype";
 import dedent from "dedent";
 import type { JSONSchema7 } from "json-schema";
+import type { StandardSchemaV1 } from "..";
 import { createAsyncQueue } from "../execution/execution-engine/async-queue";
 import {
     createWorkflowDefinitionSchema,
@@ -29,8 +31,6 @@ import {
     findLastSuccessfulToolCall,
     hasSuccessfulToolCall,
 } from "./stop-condition";
-import type { StandardJSONSchemaV1, StandardSchemaV1 } from "..";
-import { toJsonSchema } from "@standard-community/standard-json";
 
 export type GenerationOptions = RemoraflowSettings & {};
 
@@ -460,7 +460,10 @@ export async function* generateWorkflowStream({
                 description: "Submits a candidate workflow for validation",
                 strict: true,
                 inputSchema: submitWorkflowInputSchema,
-                execute: async ({ definition, ignoreWarnings }, { toolCallId }) => {
+                execute: async (
+                    { definition, ignoreWarnings },
+                    { toolCallId },
+                ) => {
                     yieldQueue.push({
                         type: "intermediate-output",
                         payload: definition,
@@ -651,9 +654,14 @@ export async function* generateWorkflowStream({
     );
 }
 
-export async function generateWorkflow(...args: Parameters<typeof generateWorkflowStream>): Promise<GenerationOutput> {
+export async function generateWorkflow(
+    ...args: Parameters<typeof generateWorkflowStream>
+): Promise<GenerationOutput> {
     const stream = generateWorkflowStream(...args);
-    let result: IteratorResult<DeepPartial<WorkflowDefinition>, GenerationOutput>;
+    let result: IteratorResult<
+        DeepPartial<WorkflowDefinition>,
+        GenerationOutput
+    >;
     do {
         result = await stream.next();
     } while (!result.done);

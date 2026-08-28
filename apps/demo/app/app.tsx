@@ -31,12 +31,14 @@ export function App() {
     const [isEditing, setIsEditing] = useState(false);
     const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
     const [layout, setLayout] = useState<LayoutDirection>("vertical");
-    const [hasLLMConfig, setHasLLMConfig] = useState(
-        () => !!loadOpenRouterConfig()?.apiKey,
-    );
+    const [hasLLMConfig, setHasLLMConfig] = useState(false);
     const [isOAuthCallback, setIsOAuthCallback] = useState(() =>
         isOpenRouterOAuthCallback(),
     );
+
+    useEffect(() => {
+        loadOpenRouterConfig().then((c) => setHasLLMConfig(!!c?.apiKey));
+    }, []);
 
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [auditOpen, setAuditOpen] = useState(false);
@@ -159,7 +161,9 @@ export function App() {
                         "",
                         import.meta.env.BASE_URL,
                     );
-                    setHasLLMConfig(!!loadOpenRouterConfig()?.apiKey);
+                    loadOpenRouterConfig().then((c) =>
+                        setHasLLMConfig(!!c?.apiKey),
+                    );
                     setIsOAuthCallback(false);
                 }}
             />
@@ -214,7 +218,9 @@ export function App() {
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}
                 onSaved={() =>
-                    setHasLLMConfig(!!loadOpenRouterConfig()?.apiKey)
+                    void loadOpenRouterConfig().then((c) =>
+                        setHasLLMConfig(!!c?.apiKey),
+                    )
                 }
             />
 

@@ -17,18 +17,11 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     }, [text]);
 
     return (
-        <span
-            role="button"
-            tabIndex={0}
+        <button
+            type="button"
             onClick={(e) => {
                 e.stopPropagation();
                 copy();
-            }}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    copy();
-                }
             }}
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
@@ -38,7 +31,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
                 <Copy className="size-3" />
             )}
             <span className="text-xs">{copied ? "Copied" : label}</span>
-        </span>
+        </button>
     );
 }
 

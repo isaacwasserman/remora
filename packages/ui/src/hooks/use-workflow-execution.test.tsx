@@ -70,6 +70,7 @@ function createControllableStream() {
                             resolve = r;
                         });
                     }
+                    // biome-ignore lint/style/noNonNullAssertion: cursor bounded by states.length check above
                     return { done: false as const, value: states[cursor++]! };
                 },
             };

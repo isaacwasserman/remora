@@ -40,7 +40,7 @@ export const whileExecutor: StepExecutor<"while"> = {
         const hasAccumulator = step.params.accumulatorName !== undefined;
         let accumulator: unknown = hasAccumulator
             ? evaluateExpressionAgainstScope(
-                  // biome-ignore lint/style/noNonNullAssertion: <explanation>
+                  // biome-ignore lint/style/noNonNullAssertion: guarded by hasAccumulator check
                   step.params.accumulatorInitialValue!,
                   scope,
               )
@@ -48,7 +48,7 @@ export const whileExecutor: StepExecutor<"while"> = {
 
         while (true) {
             const iterationScope: ExecutionScope = hasAccumulator
-                ? // biome-ignore lint/style/noNonNullAssertion: <explanation>
+                ? // biome-ignore lint/style/noNonNullAssertion: guarded by hasAccumulator check
                   { ...scope, [step.params.accumulatorName!]: accumulator }
                 : scope;
 

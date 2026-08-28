@@ -384,27 +384,28 @@ describe("step paths", () => {
         // Step ids cannot begin with `__`, so nothing an author writes can
         // land on one of these.
         const { tools } = countingToolset(2);
-        const { reservedKeys, stepKeys } = await runCapturingStepKeys(
-            workflow(
-                step("wait", {
-                    type: "wait-for-condition",
-                    params: {
-                        conditionStepId: "check",
-                        condition: {
-                            type: "jmespath",
-                            expression: "check.ready",
+        const { reservedKeys, stepKeys: _stepKeys } =
+            await runCapturingStepKeys(
+                workflow(
+                    step("wait", {
+                        type: "wait-for-condition",
+                        params: {
+                            conditionStepId: "check",
+                            condition: {
+                                type: "jmespath",
+                                expression: "check.ready",
+                            },
+                            intervalMs: { type: "literal", value: 0 },
+                            maxAttempts: { type: "literal", value: 5 },
                         },
-                        intervalMs: { type: "literal", value: 0 },
-                        maxAttempts: { type: "literal", value: 5 },
-                    },
-                }),
-                step("check", {
-                    type: "tool-call",
-                    params: { toolName: "probe", toolInput: {} },
-                }),
-            ),
-            tools,
-        );
+                    }),
+                    step("check", {
+                        type: "tool-call",
+                        params: { toolName: "probe", toolInput: {} },
+                    }),
+                ),
+                tools,
+            );
 
         expect(reservedKeys).toContain("__remoraflow.startedAt");
         expect(reservedKeys).toContain("wait.__remoraflow.deadline");

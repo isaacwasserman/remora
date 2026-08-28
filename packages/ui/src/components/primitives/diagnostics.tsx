@@ -40,9 +40,9 @@ export function DiagnosticList({
     if (diagnostics.length === 0) return null;
     return (
         <div className={cn("stack-tight", className)}>
-            {diagnostics.map((d, i) => (
+            {diagnostics.map((d) => (
                 <SeverityNote
-                    key={i}
+                    key={`${d.severity}-${d.message}`}
                     severity={d.severity === "error" ? "error" : "warning"}
                 >
                     {d.message}

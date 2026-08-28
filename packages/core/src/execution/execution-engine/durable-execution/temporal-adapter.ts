@@ -36,6 +36,7 @@ export type TemporalDurableContext = {
     sleep: (duration: string | number) => Promise<void>;
     createActivities: (
         options: TemporalActivityOptions,
+        // biome-ignore lint/suspicious/noExplicitAny: matches Temporal SDK's createActivities signature
     ) => Record<string, (...args: any[]) => Promise<any>>;
 };
 

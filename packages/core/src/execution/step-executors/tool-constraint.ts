@@ -33,13 +33,12 @@ export function constrainToolSetInputs(
     if (!inputConstraints || Object.keys(inputConstraints).length === 0) {
         return tools;
     }
-    // biome-ignore lint/style/noNonNullAssertion: Asserted by ternary
     return Object.fromEntries(
         Object.entries(tools).map(([toolName, tool]) =>
             toolName in inputConstraints
                 ? [
                       toolName,
-                      // biome-ignore lint/style/noNonNullAssertion: <explanation>
+                      // biome-ignore lint/style/noNonNullAssertion: key presence checked by `in`
                       constrainToolInput(tool, inputConstraints[toolName]!),
                   ]
                 : [toolName, tool],

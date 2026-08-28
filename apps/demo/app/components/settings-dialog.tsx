@@ -1,6 +1,6 @@
 import { ChevronDown, Loader2 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
     Dialog,
@@ -17,6 +17,7 @@ import {
     clearOpenRouterConfig,
     DEFAULT_OPENROUTER_MODEL,
     loadOpenRouterConfig,
+    type OpenRouterConfig,
     saveOpenRouterConfig,
 } from "../lib/storage.ts";
 
@@ -31,15 +32,22 @@ export function SettingsDialog({
     onOpenChange,
     onSaved,
 }: SettingsDialogProps) {
-    const [config, setConfig] = useState(() => loadOpenRouterConfig());
-    const [modelId, setModelId] = useState(
-        () => config?.modelId ?? DEFAULT_OPENROUTER_MODEL,
-    );
+    const [config, setConfig] = useState<OpenRouterConfig | null>(null);
+    const [modelId, setModelId] = useState(DEFAULT_OPENROUTER_MODEL);
     const [manualKey, setManualKey] = useState("");
     const [showManualEntry, setShowManualEntry] = useState(false);
     const [connecting, setConnecting] = useState(false);
 
-    const saveConfig = (
+    useEffect(() => {
+        if (open) {
+            loadOpenRouterConfig().then((c) => {
+                setConfig(c);
+                if (c?.modelId) setModelId(c.modelId);
+            });
+        }
+    }, [open]);
+
+    const saveConfig = async (
         apiKey: string,
         connectionMethod: "oauth" | "api-key",
     ) => {
@@ -48,7 +56,7 @@ export function SettingsDialog({
             modelId: modelId.trim() || DEFAULT_OPENROUTER_MODEL,
             connectionMethod,
         };
-        saveOpenRouterConfig(next);
+        await saveOpenRouterConfig(next);
         setConfig(next);
         onSaved();
     };
@@ -57,7 +65,7 @@ export function SettingsDialog({
         setConnecting(true);
         try {
             if (config?.apiKey) {
-                saveConfig(config.apiKey, config.connectionMethod);
+                await saveConfig(config.apiKey, config.connectionMethod);
             }
             await startOpenRouterOAuth(
                 modelId.trim() || DEFAULT_OPENROUTER_MODEL,
@@ -69,7 +77,7 @@ export function SettingsDialog({
 
     const handleSaveManualKey = () => {
         if (!manualKey.trim()) return;
-        saveConfig(manualKey.trim(), "api-key");
+        void saveConfig(manualKey.trim(), "api-key");
         setManualKey("");
         setShowManualEntry(false);
     };
@@ -163,7 +171,7 @@ export function SettingsDialog({
                     <Button
                         onClick={() => {
                             if (config?.apiKey) {
-                                saveConfig(
+                                void saveConfig(
                                     config.apiKey,
                                     config.connectionMethod,
                                 );

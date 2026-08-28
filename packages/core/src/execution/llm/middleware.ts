@@ -245,7 +245,7 @@ function truncatePrompt(
     for (let i = 0; i < prompt.length; i++) {
         if (exempt[i]) {
             remaining -= estimateMessageTokens(
-                // biome-ignore lint/style/noNonNullAssertion: <explanation>
+                // biome-ignore lint/style/noNonNullAssertion: index checked by loop bound
                 prompt[i]!,
                 fileTokenEstimate,
                 perMessageOverhead,
@@ -264,7 +264,7 @@ function truncatePrompt(
     let exhausted = false;
     for (let i = prompt.length - 1; i >= 0; i--) {
         if (exempt[i]) continue;
-        // biome-ignore lint/style/noNonNullAssertion: <explanation>
+        // biome-ignore lint/style/noNonNullAssertion: index checked by loop bound
         const message = prompt[i]!;
 
         if (exhausted || remaining <= perMessageOverhead) {
@@ -327,7 +327,7 @@ function partiallyTruncateMessage(
     );
     for (let i = 0; i < parts.length; i++) {
         if (exempt[i]) {
-            // biome-ignore lint/style/noNonNullAssertion: <explanation>
+            // biome-ignore lint/style/noNonNullAssertion: index checked by loop bound
             remaining -= estimatePartTokens(parts[i]!, fileTokenEstimate);
         }
     }
@@ -340,7 +340,7 @@ function partiallyTruncateMessage(
     let exhausted = false;
     for (let i = parts.length - 1; i >= 0; i--) {
         if (exempt[i]) continue;
-        // biome-ignore lint/style/noNonNullAssertion: <explanation>
+        // biome-ignore lint/style/noNonNullAssertion: index checked by loop bound
         const part = parts[i]!;
 
         if (exhausted || remaining <= 0) {
@@ -491,7 +491,7 @@ function resolveIncompleteToolInvocations(prompt: Prompt): Prompt {
 
     const result: Message[] = [];
     for (let i = 0; i < prompt.length; i++) {
-        // biome-ignore lint/style/noNonNullAssertion: <explanation>
+        // biome-ignore lint/style/noNonNullAssertion: index checked by loop bound
         const msg = prompt[i]!;
         if (msg.role !== "assistant") {
             result.push(msg);

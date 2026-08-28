@@ -20,7 +20,7 @@ export function useWSExecution() {
         workflow: WorkflowDefinition;
         inputs: Record<string, unknown>;
     }): AsyncGenerator<ExecutionState> {
-        const llmConfig = loadOpenRouterConfig();
+        const llmConfig = await loadOpenRouterConfig();
         // biome-ignore lint/complexity/noBannedTypes: oRPC client types are opaque
         const stream = await (wsRpc.workflow.execute as Function)({
             workflow: params.workflow,

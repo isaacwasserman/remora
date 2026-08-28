@@ -82,7 +82,7 @@ export function GroupHeaderNode({ data, selected }: NodeProps) {
         itemName,
         condition,
         conditionStepId,
-        loopBodyStepId,
+        loopBodyStepId: _loopBodyStepId,
         layoutDirection,
     } = data as unknown as GroupHeaderData;
     const sourcePosition =

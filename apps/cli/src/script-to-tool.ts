@@ -3,7 +3,7 @@ import { Project, SymbolFlags, type Type } from "ts-morph";
 function typeToJSONSchema(
     type: Type,
     visited = new Set<string>(),
-): Record<string, any> {
+): Record<string, unknown> {
     // Prevent infinite loops on recursive types (e.g., node.children)
     const typeId = type.getText();
     if (visited.has(typeId))
@@ -40,6 +40,7 @@ function typeToJSONSchema(
     if (type.getSymbol()?.getName() === "Promise") {
         const typeArgs = type.getTypeArguments();
         if (typeArgs.length > 0) {
+            // biome-ignore lint/style/noNonNullAssertion: length checked above
             return typeToJSONSchema(typeArgs[0]!, visited);
         }
     }
@@ -47,7 +48,7 @@ function typeToJSONSchema(
     // 5. Objects / Interfaces / Record Types
     if (type.isObject() || type.isInterface()) {
         visited.add(typeId);
-        const properties: Record<string, any> = {};
+        const properties: Record<string, unknown> = {};
         const required: string[] = [];
 
         const props = type.getProperties();
@@ -95,7 +96,7 @@ export function analyzeFileFunctions(filePath: string) {
         const fnName = fn.getName() ?? "anonymous";
 
         // 1. Build Input Schema from Function Parameters
-        const paramProperties: Record<string, any> = {};
+        const paramProperties: Record<string, unknown> = {};
         const requiredParams: string[] = [];
 
         fn.getParameters().forEach((param) => {

@@ -37,7 +37,7 @@ export const forEachExecutor: StepExecutor<"for-each"> = {
         const hasAccumulator = step.params.accumulatorName !== undefined;
         let accumulator: unknown = hasAccumulator
             ? evaluateExpressionAgainstScope(
-                  // biome-ignore lint/style/noNonNullAssertion: <explanation>
+                  // biome-ignore lint/style/noNonNullAssertion: guarded by hasAccumulator check
                   step.params.accumulatorInitialValue!,
                   scope,
               )
@@ -57,7 +57,7 @@ export const forEachExecutor: StepExecutor<"for-each"> = {
                 ...scope,
                 [step.params.itemName]: iteratorElement,
                 ...(hasAccumulator
-                    ? // biome-ignore lint/style/noNonNullAssertion: <explanation>
+                    ? // biome-ignore lint/style/noNonNullAssertion: guarded by hasAccumulator check
                       { [step.params.accumulatorName!]: accumulator }
                     : {}),
             };

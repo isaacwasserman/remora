@@ -24,9 +24,9 @@ export function OpenRouterOAuthCallback({
     useEffect(() => {
         const modelId = pendingOpenRouterOAuthModelId();
         exchangeOpenRouterOAuthCode()
-            .then((apiKey) => {
-                const config = loadOpenRouterConfig();
-                saveOpenRouterConfig({
+            .then(async (apiKey) => {
+                const config = await loadOpenRouterConfig();
+                await saveOpenRouterConfig({
                     apiKey,
                     modelId:
                         modelId ?? config?.modelId ?? DEFAULT_OPENROUTER_MODEL,

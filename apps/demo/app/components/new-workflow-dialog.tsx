@@ -58,7 +58,7 @@ export function NewWorkflowDialog({
     };
 
     const handleGenerate = async () => {
-        const llmConfig = loadOpenRouterConfig();
+        const llmConfig = await loadOpenRouterConfig();
         if (!llmConfig?.apiKey) {
             setError("Connect OpenRouter before generating a workflow.");
             return;

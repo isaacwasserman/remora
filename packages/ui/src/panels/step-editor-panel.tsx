@@ -104,9 +104,9 @@ function DiagnosticsSection({
 
     return (
         <div className="space-y-1.5">
-            {errors.map((d, i) => (
+            {errors.map((d) => (
                 <div
-                    key={`err-${i}`}
+                    key={`err-${d.message}`}
                     className="flex gap-2 items-start text-[11px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded-md px-2.5 py-2 border border-red-200/80 dark:border-red-900/60"
                 >
                     <span className="shrink-0 font-semibold bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded text-[10px]">
@@ -115,9 +115,9 @@ function DiagnosticsSection({
                     <span className="leading-relaxed">{d.message}</span>
                 </div>
             ))}
-            {warnings.map((d, i) => (
+            {warnings.map((d) => (
                 <div
-                    key={`warn-${i}`}
+                    key={`warn-${d.message}`}
                     className="flex gap-2 items-start text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-md px-2.5 py-2 border border-amber-200/80 dark:border-amber-900/60"
                 >
                     <span className="shrink-0 font-semibold bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px]">

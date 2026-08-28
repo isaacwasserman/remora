@@ -52,8 +52,8 @@
 }
 
 @media (min-width: 768px) {
-    .VPFeatures .item.grid-4 {
-        width: calc(100% / 3) !important;
+    .VPFeatures .container .items .item.grid-4 {
+        width: calc(100% / 3);
     }
 }
 

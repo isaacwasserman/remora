@@ -48,7 +48,7 @@ export function auditWorkflow(
             ToolCallProvenance,
             { inputSpace: JSONSchema7Definition; stepIds: string[] } | undefined
         >
-    > = {};
+    > = Object.create(null);
     function appendInputSpace(
         toolName: string,
         inputSpace: JSONSchema7Definition,
@@ -75,7 +75,9 @@ export function auditWorkflow(
         switch (step.type) {
             case "tool-call": {
                 const toolName = step.params.toolName;
-                const paramExpressions = Object.entries(step.params.toolInput ?? {});
+                const paramExpressions = Object.entries(
+                    step.params.toolInput ?? {},
+                );
                 const paramTypes: Record<string, JSONSchema7Definition> = {};
                 for (const [paramName, paramExpression] of paramExpressions) {
                     switch (paramExpression.type) {

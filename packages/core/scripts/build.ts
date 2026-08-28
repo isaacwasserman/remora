@@ -45,8 +45,10 @@ console.log(
 );
 
 try {
-	await $`bunx tsc --project tsconfig.build.json`;
-	console.log("Declaration emit complete");
+    await $`bunx tsc --project tsconfig.build.json`;
+    console.log("Declaration emit complete");
 } catch {
-	console.warn("Declaration emit failed (non-fatal) — declarations need isolatedDeclarations fixes before npm publish");
+    console.warn(
+        "Declaration emit failed (non-fatal) — declarations need isolatedDeclarations fixes before npm publish",
+    );
 }
