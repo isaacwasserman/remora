@@ -47,6 +47,16 @@
     mask-repeat: no-repeat;
 }
 
+.VPFeatures .items {
+    justify-content: center;
+}
+
+@media (min-width: 768px) {
+    .VPFeatures .item.grid-4 {
+        width: calc(100% / 3) !important;
+    }
+}
+
 .VPHero .actions a[href*="github.com"]::before {
     content: "";
     display: inline-block;
