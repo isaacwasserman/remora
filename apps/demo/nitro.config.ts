@@ -8,7 +8,7 @@ export default defineConfig({
     },
     vercel: {
         functions: {
-            runtime: "bun1.x",
+            runtime: "nodejs22.x",
         },
     },
 });
