@@ -10,7 +10,6 @@
         "@temporalio/worker": "^1.23.0",
         "@temporalio/workflow": "^1.23.0",
         "@types/bun": "latest",
-        "@typescript/native-preview": "^7.0.0-dev",
         "typescript": "^7.0.2"
     },
     "private": true,
@@ -19,7 +18,7 @@
         "test": "bun test",
         "lint": "biome check .",
         "lint:fix": "biome check --fix --unsafe .",
-        "typecheck": "bunx tsgo --build || true",
+        "typecheck": "bun tsc --build || true",
         "viewer": "bun run --filter demo dev",
         "docs:dev": "bun run --filter docs dev",
         "docs:build": "bun run --filter docs build",

@@ -1,6 +1,9 @@
 import { jsonSchemaToType } from "@ark/json-schema";
-import { Validator } from "@cfworker/json-schema";
+import Ajv from "ajv";
+import type { JsonSchema } from "arktype";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
+
+const ajv = new Ajv({ allErrors: true });
 
 /**
  * A reason why one schema (`sub`) is not a subset of another (`sup`).
@@ -261,7 +264,7 @@ function classify(
 
 /** A single validation failure from the full JSON-Schema validator. */
 export interface ValueError {
-    instanceLocation?: string;
+    path?: (string | number)[],
     error?: string;
 }
 
@@ -285,9 +288,7 @@ function constDiagnostics(
         return [];
     }
     const detail = result.errors[0];
-    const subPath = detail?.instanceLocation
-        ? pointerToPath(detail.instanceLocation)
-        : [];
+    const subPath = detail?.path ?? []
     const reason = detail?.error ?? "does not satisfy the target schema";
     return [
         {
@@ -309,33 +310,24 @@ export function validateValue(
     if (sup === false) {
         return {
             valid: false,
-            errors: [
-                {
-                    instanceLocation: "#",
-                    error: "the target schema accepts no value",
-                },
-            ],
+            errors: [{ path: [], error: "the target schema accepts no value" }],
         };
     }
     try {
-        const result = new Validator(sup as object, "7").validate(value);
-        return { valid: result.valid, errors: result.errors as ValueError[] };
+        const valid = ajv.validate(sup, value);
+        if (valid) {
+            return { valid: true, errors: [] };
+        }
+        const errors: ValueError[] = (ajv.errors ?? []).map((e) => ({
+            path: (e.instancePath ?? "")
+                .split("/")
+                .filter(Boolean) as (string | number)[],
+            error: e.message ?? "validation failed",
+        }));
+        return { valid: false, errors };
     } catch {
-        // Unparseable target — stay lenient rather than report a false positive.
         return { valid: true, errors: [] };
     }
-}
-
-/** Converts a JSON Pointer (`#/a/0`) to a path array (`["a", 0]`). */
-function pointerToPath(pointer: string): (string | number)[] {
-    return pointer
-        .replace(/^#/, "")
-        .split("/")
-        .filter(Boolean)
-        .map((segment) => {
-            const decoded = segment.replace(/~1/g, "/").replace(/~0/g, "~");
-            return /^\d+$/.test(decoded) ? Number(decoded) : decoded;
-        });
 }
 
 function matchesPattern(pattern: string, key: string): boolean {
