@@ -6,9 +6,4 @@ export default defineConfig({
     features: {
         websocket: true,
     },
-    vercel: {
-        functions: {
-            runtime: "nodejs22.x",
-        },
-    },
 });
