@@ -2,7 +2,10 @@ import { jsonSchemaToType } from "@ark/json-schema";
 import Ajv from "ajv";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 
-const ajv = new Ajv({ allErrors: true });
+let _ajv: InstanceType<typeof Ajv> | null = null;
+function ajv() {
+    return (_ajv ??= new Ajv({ allErrors: true }));
+}
 
 /**
  * A reason why one schema (`sub`) is not a subset of another (`sup`).
@@ -313,11 +316,12 @@ export function validateValue(
         };
     }
     try {
-        const valid = ajv.validate(sup, value);
+        const validator = ajv();
+        const valid = validator.validate(sup, value);
         if (valid) {
             return { valid: true, errors: [] };
         }
-        const errors: ValueError[] = (ajv.errors ?? []).map((e) => ({
+        const errors: ValueError[] = (validator.errors ?? []).map((e) => ({
             path: (e.instancePath ?? "").split("/").filter(Boolean) as (
                 | string
                 | number
