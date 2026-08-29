@@ -1,6 +1,5 @@
 import { jsonSchemaToType } from "@ark/json-schema";
 import Ajv from "ajv";
-import type { JsonSchema } from "arktype";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 
 const ajv = new Ajv({ allErrors: true });
@@ -264,7 +263,7 @@ function classify(
 
 /** A single validation failure from the full JSON-Schema validator. */
 export interface ValueError {
-    path?: (string | number)[],
+    path?: (string | number)[];
     error?: string;
 }
 
@@ -288,7 +287,7 @@ function constDiagnostics(
         return [];
     }
     const detail = result.errors[0];
-    const subPath = detail?.path ?? []
+    const subPath = detail?.path ?? [];
     const reason = detail?.error ?? "does not satisfy the target schema";
     return [
         {
@@ -319,9 +318,10 @@ export function validateValue(
             return { valid: true, errors: [] };
         }
         const errors: ValueError[] = (ajv.errors ?? []).map((e) => ({
-            path: (e.instancePath ?? "")
-                .split("/")
-                .filter(Boolean) as (string | number)[],
+            path: (e.instancePath ?? "").split("/").filter(Boolean) as (
+                | string
+                | number
+            )[],
             error: e.message ?? "validation failed",
         }));
         return { valid: false, errors };
