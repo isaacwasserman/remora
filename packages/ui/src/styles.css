@@ -3,67 +3,191 @@
 @import "tailwindcss/theme" layer(remoraflow);
 @import "tailwindcss/utilities";
 @import "@xyflow/react/dist/style.css" layer(remoraflow);
+@import "./theme.css";
 
 @source "./";
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-destructive-foreground: var(--destructive-foreground);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+.rf-highlighted-expression {
+    color: var(--color-foreground, var(--foreground));
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+        monospace;
+    /* This component is used for both the read-only display and edit overlay.
+     * Do not inherit a surrounding panel's type scale: it can differ between
+     * those two contexts. */
+    font-size: 12px;
+    line-height: 20px;
+    white-space: pre-wrap;
 }
 
-/*
- * Map React Flow's --xy-* variables to shadcn/Tailwind theme tokens.
- * This lets the host app's theme control the entire viewer appearance.
- * React Flow resolves: var(--xy-foo, var(--xy-foo-default))
- * so setting --xy-foo here wins over the built-in defaults.
- */
-.react-flow {
-	--xy-background-color: var(--color-background, var(--background));
-	--xy-node-color: var(--color-card-foreground, var(--card-foreground));
-	--xy-node-border: 1px solid var(--color-border, var(--border));
-	--xy-node-background-color: var(--color-card, var(--card));
-	--xy-node-group-background-color: var(--color-muted, var(--muted));
-	--xy-node-border-radius: var(--radius-lg, 0.625rem);
-	--xy-node-boxshadow-hover: 0 1px 4px 1px color-mix(in oklab, var(--color-foreground, var(--foreground)) 8%, transparent);
-	--xy-node-boxshadow-selected: 0 0 0 1.5px var(--color-primary, var(--primary));
-	--xy-handle-background-color: var(--color-primary, var(--primary));
-	--xy-edge-stroke: var(--color-border, var(--border));
-	--xy-edge-stroke-selected: var(--color-primary, var(--primary));
-	--xy-connectionline-stroke: var(--color-muted-foreground, var(--muted-foreground));
-	--xy-selection-background-color: color-mix(in oklab, var(--color-primary, var(--primary)) 8%, transparent);
-	--xy-minimap-background-color: var(--color-card, var(--card));
-	--xy-minimap-mask-background-color: color-mix(in oklab, var(--color-background, var(--background)) 70%, transparent);
-	--xy-minimap-node-background-color: var(--color-muted, var(--muted));
-	--xy-controls-button-background-color: var(--color-card, var(--card));
-	--xy-controls-button-background-color-hover: var(--color-accent, var(--accent));
-	--xy-controls-button-color: var(--color-foreground, var(--foreground));
-	--xy-controls-button-color-hover: var(--color-foreground, var(--foreground));
-	--xy-controls-button-border-color: var(--color-border, var(--border));
-	--xy-controls-box-shadow: 0 0 2px 1px color-mix(in oklab, var(--color-foreground, var(--foreground)) 6%, transparent);
-	--xy-edge-label-background-color: var(--color-card, var(--card));
-	--xy-background-pattern-color: var(--color-border, var(--border));
-	--xy-attribution-background-color: color-mix(in oklab, var(--color-card, var(--card)) 50%, transparent);
+.rf-highlighted-expression .hljs-subst,
+.rf-highlighted-expression .hljs-built_in {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .hljs-string {
+    color: var(--color-emerald-700);
+}
+
+.rf-highlighted-expression .hljs-number {
+    color: var(--color-fuchsia-700);
+}
+
+.rf-highlighted-expression .hljs-literal {
+    color: var(--color-amber-700);
+}
+
+.rf-highlighted-expression .hljs-operator {
+    color: var(--color-sky-700);
+}
+
+.rf-highlighted-expression .hljs-punctuation {
+    color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.dark .rf-highlighted-expression .hljs-subst,
+.dark .rf-highlighted-expression .hljs-built_in {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .hljs-string {
+    color: var(--color-emerald-300);
+}
+
+.dark .rf-highlighted-expression .hljs-number {
+    color: var(--color-fuchsia-300);
+}
+
+.dark .rf-highlighted-expression .hljs-literal {
+    color: var(--color-amber-300);
+}
+
+.dark .rf-highlighted-expression .hljs-operator {
+    color: var(--color-sky-300);
+}
+
+.rf-highlighted-expression-overlay {
+    height: 100%;
+    overflow: hidden;
+    padding: 0.25rem 0.75rem;
+    white-space: pre;
+}
+
+.rf-highlighted-expression-overlay-textarea {
+    padding: 0.5rem 0.625rem;
+    white-space: pre-wrap;
+}
+
+.rf-highlighted-expression-overlay-code {
+    padding: 0.5rem;
+    white-space: pre-wrap;
+}
+
+.code-input-json-appearance .rf-highlighted-expression-overlay-code {
+    padding: 0.5rem 0.625rem;
+}
+
+.jmespath-code-editor .cm-content {
+    padding-top: 9px;
+    padding-bottom: 7px;
+}
+
+.rf-highlighted-expression .rf-template-interpolation,
+.rf-highlighted-expression .rf-jmes-identifier,
+.cm-content .rf-template-interpolation,
+.cm-content .rf-jmes-identifier {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .rf-template-delimiter,
+.cm-content .rf-template-delimiter {
+    color: var(--color-rose-600);
+}
+
+.dark .rf-highlighted-expression .rf-template-interpolation,
+.dark .rf-highlighted-expression .rf-jmes-identifier,
+.dark .cm-content .rf-template-interpolation,
+.dark .cm-content .rf-jmes-identifier {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .rf-template-delimiter,
+.dark .cm-content .rf-template-delimiter {
+    color: var(--color-rose-300);
+}
+
+.rf-highlighted-expression .rf-jmes-built-in,
+.cm-content .rf-jmes-built-in {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .rf-jmes-string,
+.cm-content .rf-jmes-string {
+    color: var(--color-emerald-700);
+}
+
+.rf-highlighted-expression .rf-jmes-number,
+.cm-content .rf-jmes-number {
+    color: var(--color-fuchsia-700);
+}
+
+.rf-highlighted-expression .rf-jmes-literal,
+.cm-content .rf-jmes-literal {
+    color: var(--color-amber-700);
+}
+
+.rf-highlighted-expression .rf-jmes-operator,
+.cm-content .rf-jmes-operator {
+    color: var(--color-sky-700);
+}
+
+.rf-highlighted-expression .rf-jmes-punctuation,
+.cm-content .rf-jmes-punctuation {
+    color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.rf-highlighted-expression .rf-jmes-member-separator,
+.cm-content .rf-jmes-member-separator {
+    color: #64748b;
+}
+
+.dark .rf-highlighted-expression .rf-jmes-built-in,
+.dark .cm-content .rf-jmes-built-in {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-string,
+.dark .cm-content .rf-jmes-string {
+    color: var(--color-emerald-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-number,
+.dark .cm-content .rf-jmes-number {
+    color: var(--color-fuchsia-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-literal,
+.dark .cm-content .rf-jmes-literal {
+    color: var(--color-amber-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-operator,
+.dark .cm-content .rf-jmes-operator {
+    color: var(--color-sky-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-member-separator,
+.dark .cm-content .rf-jmes-member-separator {
+    color: #94a3b8;
+}
+
+.code-input-transparent-background .cm-editor {
+    background-color: transparent !important;
+}
+
+.code-input-overlay-only .cm-content,
+.code-input-overlay-only .cm-line {
+    color: transparent !important;
+    caret-color: var(--color-foreground, var(--foreground));
 }

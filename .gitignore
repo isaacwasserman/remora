@@ -23,10 +23,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.test.local
 .env.production.local
 .env.local
+.env.test
 
 # caches
 .eslintcache
 .cache
+.context
 *.tsbuildinfo
 
 # IntelliJ based IDEs
@@ -45,3 +47,4 @@ apps/docs/public/r
 apps/demo/.output
 
 apps/*/.env
+packages/*/.env

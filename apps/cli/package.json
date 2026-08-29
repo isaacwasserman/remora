@@ -1,0 +1,16 @@
+{
+    "name": "cli",
+    "private": true,
+    "scripts": {
+        "example": "set -a && source .env && set +a && cd example && bun run ../src/index.ts execute -t tools.ts -w workflow.json -i"
+    },
+    "dependencies": {
+        "@ai-sdk/openai": "^3.0.37",
+        "@remoraflow/core": "workspace:*",
+        "@types/json-schema": "^7.0.15",
+        "ai": "^7",
+        "ts-json-schema-generator": "^2.9.0",
+        "ts-morph": "^28.0.0"
+    },
+    "devDependencies": {}
+}

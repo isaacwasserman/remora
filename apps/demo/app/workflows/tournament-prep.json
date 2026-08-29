@@ -1,0 +1,459 @@
+{
+    "initialStepId": "start",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "pokemon": {
+                "type": "string",
+                "description": "Name of your Pokemon to build a tournament strategy around"
+            },
+            "scout_count": {
+                "type": "number",
+                "description": "Number of opposing threats to scout (1-5)",
+                "minimum": 1,
+                "maximum": 5
+            }
+        },
+        "required": ["pokemon", "scout_count"]
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "pokemon": { "type": "string" },
+            "types": { "type": "array", "items": { "type": "string" } },
+            "stats": { "type": "object" },
+            "weaknesses": { "type": "array", "items": { "type": "string" } },
+            "threats": { "type": "array" },
+            "critical_threats": { "type": "array" },
+            "tournament_format": { "type": "string" },
+            "strategy": { "type": "object" },
+            "team": { "type": "object" }
+        },
+        "required": [
+            "pokemon",
+            "types",
+            "stats",
+            "weaknesses",
+            "threats",
+            "tournament_format",
+            "strategy",
+            "team"
+        ]
+    },
+    "steps": [
+        {
+            "id": "start",
+            "name": "Start",
+            "description": "Entry point for tournament preparation",
+            "type": "start",
+            "nextStepId": "fetch_pokemon"
+        },
+        {
+            "id": "fetch_pokemon",
+            "name": "Fetch Pokemon",
+            "description": "Get the user's pokemon details and base stats",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon",
+                "toolInput": {
+                    "pokemon": {
+                        "type": "jmespath",
+                        "expression": "input.pokemon"
+                    }
+                }
+            },
+            "nextStepId": "fetch_primary_type"
+        },
+        {
+            "id": "fetch_primary_type",
+            "name": "Fetch Primary Type",
+            "description": "Look up type matchups for the pokemon's primary type",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon-type",
+                "toolInput": {
+                    "typeName": {
+                        "type": "jmespath",
+                        "expression": "fetch_pokemon.types[0]"
+                    }
+                }
+            },
+            "nextStepId": "rate_limit"
+        },
+        {
+            "id": "rate_limit",
+            "name": "Rate Limit",
+            "description": "Pause between API calls to respect rate limits",
+            "type": "sleep",
+            "params": {
+                "durationMs": {
+                    "type": "literal",
+                    "value": 500
+                }
+            },
+            "nextStepId": "find_threats"
+        },
+        {
+            "id": "find_threats",
+            "name": "Find Threats",
+            "description": "List pokemon of a type that counters the user's primary type",
+            "type": "tool-call",
+            "params": {
+                "toolName": "list-pokemon",
+                "toolInput": {
+                    "type": {
+                        "type": "jmespath",
+                        "expression": "fetch_primary_type.double_damage_from[0]"
+                    },
+                    "limit": {
+                        "type": "jmespath",
+                        "expression": "input.scout_count"
+                    }
+                }
+            },
+            "nextStepId": "scout_threats"
+        },
+        {
+            "id": "scout_threats",
+            "name": "Scout Threats",
+            "description": "Analyze each threatening pokemon individually",
+            "type": "for-each",
+            "params": {
+                "target": {
+                    "type": "jmespath",
+                    "expression": "find_threats.pokemon"
+                },
+                "itemName": "threat_name",
+                "loopBodyStepId": "fetch_threat"
+            },
+            "nextStepId": "review_findings"
+        },
+        {
+            "id": "fetch_threat",
+            "name": "Fetch Threat",
+            "description": "Get full details for the threatening pokemon",
+            "type": "tool-call",
+            "params": {
+                "toolName": "get-pokemon",
+                "toolInput": {
+                    "pokemon": {
+                        "type": "jmespath",
+                        "expression": "threat_name"
+                    }
+                }
+            },
+            "nextStepId": "threat_pause"
+        },
+        {
+            "id": "threat_pause",
+            "name": "Threat Pause",
+            "description": "Brief pause between threat lookups",
+            "type": "sleep",
+            "params": {
+                "durationMs": {
+                    "type": "literal",
+                    "value": 200
+                }
+            },
+            "nextStepId": "classify_speed"
+        },
+        {
+            "id": "classify_speed",
+            "name": "Classify Speed",
+            "description": "Route analysis based on whether the threat outspeeds the user's pokemon",
+            "type": "switch-case",
+            "params": {
+                "switchOn": {
+                    "type": "jmespath",
+                    "expression": "fetch_threat.stats.speed > fetch_pokemon.stats.speed"
+                },
+                "cases": [
+                    {
+                        "value": { "type": "literal", "value": true },
+                        "branchBodyStepId": "fast_threat"
+                    },
+                    {
+                        "value": { "type": "default" },
+                        "branchBodyStepId": "slow_threat"
+                    }
+                ]
+            },
+            "nextStepId": "assess_matchup"
+        },
+        {
+            "id": "fast_threat",
+            "name": "Fast Threat",
+            "description": "Label this opponent as faster than the user's pokemon",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "literal",
+                    "value": "fast"
+                }
+            }
+        },
+        {
+            "id": "slow_threat",
+            "name": "Slow Threat",
+            "description": "Label this opponent as slower than or equal to the user's pokemon",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "literal",
+                    "value": "slow"
+                }
+            }
+        },
+        {
+            "id": "assess_matchup",
+            "name": "Assess Matchup",
+            "description": "Use an LLM to analyze the specific battle matchup",
+            "type": "llm-prompt",
+            "params": {
+                "prompt": "Analyze the battle matchup between ${fetch_pokemon.name} and ${fetch_threat.name}.\n\n${fetch_pokemon.name} stats: ATK=${fetch_pokemon.stats.attack}, DEF=${fetch_pokemon.stats.defense}, SPD=${fetch_pokemon.stats.speed}.\n${fetch_threat.name} stats: ATK=${fetch_threat.stats.attack}, DEF=${fetch_threat.stats.defense}, SPD=${fetch_threat.stats.speed}.\nSpeed classification: ${classify_speed}.\n\nProvide a matchup analysis with advantage assessment, threat level (1-10), and a recommended counter-action.",
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "advantage": { "type": "string" },
+                        "threat_level": { "type": "number" },
+                        "recommended_action": { "type": "string" }
+                    },
+                    "required": [
+                        "advantage",
+                        "threat_level",
+                        "recommended_action"
+                    ]
+                }
+            },
+            "nextStepId": "extract_rating"
+        },
+        {
+            "id": "extract_rating",
+            "name": "Extract Rating",
+            "description": "Extract a structured threat assessment from the matchup analysis",
+            "type": "extract-data",
+            "params": {
+                "sourceData": {
+                    "type": "jmespath",
+                    "expression": "assess_matchup"
+                },
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "threat_tier": { "type": "string" },
+                        "counter_strategy": { "type": "string" },
+                        "priority": { "type": "number" }
+                    },
+                    "required": ["threat_tier", "counter_strategy", "priority"]
+                }
+            },
+            "nextStepId": "scout_end"
+        },
+        {
+            "id": "scout_end",
+            "name": "Scout End",
+            "description": "Collect the complete threat assessment for this opponent",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "{ name: fetch_threat.name, types: fetch_threat.types, speed: fetch_threat.stats.speed, speed_class: classify_speed, threat_tier: extract_rating.threat_tier, priority: extract_rating.priority, counter: extract_rating.counter_strategy, matchup: assess_matchup }"
+                }
+            }
+        },
+        {
+            "id": "review_findings",
+            "name": "Review Findings",
+            "description": "Present scouting results and ask the user to choose a tournament format",
+            "type": "request-intervention",
+            "params": {
+                "type": "multiple-choice",
+                "question": {
+                    "type": "template",
+                    "template": "Scouting complete for ${fetch_pokemon.name}.\n${length(scout_threats)} threats analyzed across types ${join(', ', fetch_pokemon.types)}.\nWeaknesses: ${join(', ', fetch_primary_type.double_damage_from)}.\n\nWhich tournament format do you want to prepare for?"
+                },
+                "choices": {
+                    "type": "literal",
+                    "value": ["Singles", "Doubles", "Free-for-all"]
+                },
+                "allowFreeResponse": true
+            },
+            "nextStepId": "await_readiness"
+        },
+        {
+            "id": "await_readiness",
+            "name": "Await Readiness",
+            "description": "Poll until scouting data is confirmed ready for strategy planning",
+            "type": "wait-for-condition",
+            "params": {
+                "conditionStepId": "readiness_check",
+                "condition": {
+                    "type": "jmespath",
+                    "expression": "readiness_check"
+                },
+                "maxAttempts": {
+                    "type": "literal",
+                    "value": 3
+                },
+                "intervalMs": {
+                    "type": "literal",
+                    "value": 60000
+                },
+                "backoffMultiplier": {
+                    "type": "literal",
+                    "value": 1.5
+                },
+                "timeoutMs": {
+                    "type": "literal",
+                    "value": 300000
+                }
+            },
+            "nextStepId": "refine_strategy"
+        },
+        {
+            "id": "readiness_check",
+            "name": "Readiness Check",
+            "description": "Verify that scouting produced usable results",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "length(scout_threats) > `0`"
+                }
+            }
+        },
+        {
+            "id": "refine_strategy",
+            "name": "Refine Strategy",
+            "description": "Iteratively refine the battle strategy until satisfied",
+            "type": "while",
+            "params": {
+                "conditionStepId": "should_refine",
+                "loopBodyStepId": "draft_strategy",
+                "accumulatorName": "strategy",
+                "accumulatorInitialValue": {
+                    "type": "literal",
+                    "value": {
+                        "lead_pokemon": "",
+                        "win_conditions": [],
+                        "key_matchups": [],
+                        "adjustments": ""
+                    }
+                }
+            },
+            "nextStepId": "build_team"
+        },
+        {
+            "id": "should_refine",
+            "name": "Should Refine",
+            "description": "Check whether the strategy still needs a refinement pass",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "strategy.lead_pokemon == ''"
+                }
+            }
+        },
+        {
+            "id": "draft_strategy",
+            "name": "Draft Strategy",
+            "description": "Draft a battle strategy using scouting data and user preferences",
+            "type": "llm-prompt",
+            "params": {
+                "prompt": "Draft a ${review_findings} tournament strategy for ${fetch_pokemon.name} (types: ${fetch_pokemon.types}).\n\nStats: HP=${fetch_pokemon.stats.hp}, ATK=${fetch_pokemon.stats.attack}, DEF=${fetch_pokemon.stats.defense}, SPD=${fetch_pokemon.stats.speed}.\nWeaknesses: ${join(', ', fetch_primary_type.double_damage_from)}.\nResistances: ${join(', ', fetch_primary_type.half_damage_from)}.\nThreats scouted: ${scout_threats}.\n\nCreate a strategy with a lead pokemon recommendation, win conditions, key matchups to watch, and adjustments for the chosen format.",
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "lead_pokemon": { "type": "string" },
+                        "win_conditions": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "key_matchups": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "adjustments": { "type": "string" }
+                    },
+                    "required": [
+                        "lead_pokemon",
+                        "win_conditions",
+                        "key_matchups",
+                        "adjustments"
+                    ]
+                }
+            },
+            "nextStepId": "draft_end"
+        },
+        {
+            "id": "draft_end",
+            "name": "Draft End",
+            "description": "Output the strategy draft as the new accumulator value",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "draft_strategy"
+                }
+            }
+        },
+        {
+            "id": "build_team",
+            "name": "Build Team",
+            "description": "Autonomously research and build a tournament team around the user's pokemon",
+            "type": "agent-loop",
+            "params": {
+                "instructions": "Build a complete ${review_findings} tournament team around ${fetch_pokemon.name}.\n\nUse the refined strategy: lead with ${refine_strategy.lead_pokemon}, win conditions are ${refine_strategy.win_conditions}.\nCover weaknesses against ${join(', ', fetch_primary_type.double_damage_from)}.\n\nResearch which pokemon complement ${fetch_pokemon.name} and find at least 2 good teammates. For each teammate, explain its role and how it covers the team's weaknesses.",
+                "tools": ["get-pokemon", "get-pokemon-type", "list-pokemon"],
+                "inputConstraints": {
+                    "list-pokemon": {
+                        "type": "object",
+                        "properties": {
+                            "limit": { "type": "number", "maximum": 5 }
+                        }
+                    }
+                },
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "team": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": { "type": "string" },
+                                    "role": { "type": "string" }
+                                },
+                                "required": ["name", "role"]
+                            }
+                        },
+                        "team_synergy": { "type": "string" },
+                        "coverage_gaps": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    },
+                    "required": ["team", "team_synergy", "coverage_gaps"]
+                },
+                "maxSteps": {
+                    "type": "literal",
+                    "value": 8
+                }
+            },
+            "nextStepId": "done"
+        },
+        {
+            "id": "done",
+            "name": "Done",
+            "description": "Assemble and output the complete tournament preparation report",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "{ pokemon: fetch_pokemon.name, types: fetch_pokemon.types, stats: fetch_pokemon.stats, weaknesses: fetch_primary_type.double_damage_from, threats: sort_by(scout_threats, &priority)[:3], critical_threats: scout_threats[?threat_tier == 'S'], tournament_format: review_findings, strategy: refine_strategy, team: build_team }"
+                }
+            }
+        }
+    ]
+}

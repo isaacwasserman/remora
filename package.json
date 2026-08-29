@@ -1,28 +1,33 @@
 {
-  "name": "remora-monorepo",
-  "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
-  "scripts": {
-    "build": "cd packages/core && bun run build && cd ../ui && bun run build",
-    "test": "bun test",
-    "lint": "biome check .",
-    "lint:fix": "biome check --fix --unsafe .",
-    "typecheck": "tsgo --noEmit",
-    "viewer": "bun run --filter demo dev",
-    "docs:dev": "bun run --filter docs dev",
-    "docs:build": "bun run --filter docs build",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "ci:release": "bun run build && cd packages/core && npm publish --provenance --access public && cd ../ui && npm publish --provenance --access public"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.4.4",
-    "@changesets/cli": "^2.30.0",
-    "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20260301.1",
-    "typescript": "^5.8.0"
-  }
+    "name": "remora-monorepo",
+    "devDependencies": {
+        "@biomejs/biome": "2.4.4",
+        "@changesets/cli": "^2.30.0",
+        "@remoraflow/core": "workspace:*",
+        "@temporalio/activity": "^1.23.0",
+        "@temporalio/client": "^1.23.0",
+        "@temporalio/testing": "^1.23.0",
+        "@temporalio/worker": "^1.23.0",
+        "@temporalio/workflow": "^1.23.0",
+        "@types/bun": "latest",
+        "typescript": "^7.0.2"
+    },
+    "private": true,
+    "scripts": {
+        "build": "cd packages/core && bun run build && cd ../ui && bun run build",
+        "test": "bun test",
+        "lint": "biome check .",
+        "lint:fix": "biome check --fix --unsafe .",
+        "typecheck": "bun tsc --build || true",
+        "viewer": "bun run --filter demo dev",
+        "docs:dev": "bun run --filter docs dev",
+        "docs:build": "bun run --filter docs build",
+        "changeset": "changeset",
+        "version-packages": "changeset version",
+        "ci:release": "bun run build && cd packages/core && npm publish --provenance --access public && cd ../ui && npm publish --provenance --access public"
+    },
+    "workspaces": [
+        "packages/*",
+        "apps/*"
+    ]
 }

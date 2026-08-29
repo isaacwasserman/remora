@@ -1,4 +1,11 @@
 {
-  "extends": "../../tsconfig.json",
-  "include": [".vitepress/**/*.ts"]
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "paths": {
+            "@remoraflow/core": ["../../packages/core/src/index.ts"],
+            "@remoraflow/ui": ["../../packages/ui/src/index.ts"],
+            "vite": ["./node_modules/vite"]
+        }
+    },
+    "include": [".vitepress/**/*.ts"]
 }

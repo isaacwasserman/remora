@@ -1,61 +1,73 @@
 {
-  "name": "@remoraflow/core",
-  "version": "0.11.0",
-  "description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
-  "publishConfig": {
-    "access": "public"
-  },
-  "homepage": "https://remoraflow.com/",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/isaacwasserman/remora",
-    "directory": "packages/core"
-  },
-  "license": "GPL-3.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/lib.js",
-      "types": "./dist/lib.d.ts"
+    "name": "@remoraflow/core",
+    "version": "0.11.0",
+    "description": "A workflow DSL for agents — compile, execute, and visualize agent workflows",
+    "publishConfig": {
+        "access": "public"
     },
-    "./adapters/aws-lambda": {
-      "import": "./dist/executor/adapters/aws-lambda.js",
-      "types": "./dist/executor/adapters/aws-lambda.d.ts"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "scripts": {
-    "build": "bun scripts/build.ts",
-    "prepublishOnly": "bun run build",
-    "test": "bun test",
-    "test:e2e": "bun test src/e2e.ts"
-  },
-  "dependencies": {
-    "@jmespath-community/jmespath": "^1.3.0",
-    "arktype": "^2.1.29",
-    "tokenx": "^1.3.0"
-  },
-  "peerDependencies": {
-    "ai": "^6.0.0",
-    "@ai-sdk/provider-utils": "^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "ai": {
-      "optional": true
+    "homepage": "https://remoraflow.com/",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/isaacwasserman/remora",
+        "directory": "packages/core"
     },
-    "@ai-sdk/provider-utils": {
-      "optional": true
+    "license": "GPL-3.0",
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "bun scripts/build.ts",
+        "typecheck": "bun tsc --noEmit",
+        "fix": "biome check --fix --unsafe .",
+        "test": "bun test $(find src -name '*.test.ts' ! -name '*.e2e.test.ts' ! -name '*.integration.test.ts')",
+        "test:generate": "bun test src/generation/workflow-generation.e2e.test.ts",
+        "test:execute": "bun test src/execution/workflow-execution.e2e.test.ts",
+        "test:durable": "bun scripts/test-durable.ts"
+    },
+    "dependencies": {
+        "ajv": "^8.20.0",
+        "@ark/json-schema": "^0.0.7",
+        "@standard-community/standard-json": "^0.3.5",
+        "@standard-schema/spec": "^1.1.0",
+        "@types/capture-console": "^1.0.5",
+        "@types/jmespath": "^0.15.2",
+        "@types/json-schema": "^7.0.15",
+        "arktype": "^2.1.29",
+        "capture-console": "^1.0.2",
+        "dedent": "^1.7.2",
+        "jmespath": "^0.16.0",
+        "tokenx": "^1.3.0",
+        "zod": "^4.4.3"
+    },
+    "peerDependencies": {
+        "ai": "^7.0.0",
+        "@ai-sdk/provider-utils": "^5.0.11"
+    },
+    "peerDependenciesMeta": {
+        "ai": {
+            "optional": true
+        },
+        "@ai-sdk/provider-utils": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@ai-sdk/openai": "^4.0.43",
+        "@ai-sdk/provider-utils": "5.0.27",
+        "@aws/durable-execution-sdk-js": "^1.1.0",
+        "@aws/durable-execution-sdk-js-testing": "^1.1.1",
+        "@temporalio/client": "^1.23.0",
+        "@temporalio/worker": "^1.23.0",
+        "@temporalio/workflow": "^1.23.0",
+        "@types/bun": "^1.3.14",
+        "ai": "7",
+        "inngest": "^4.18.1",
+        "typescript": "^7.0.2"
     }
-  },
-  "devDependencies": {
-    "@ai-sdk/anthropic": "^3.0.50",
-    "@ai-sdk/openai": "^3.0.37",
-    "@aws/durable-execution-sdk-js": "^1.1.0",
-    "@aws/durable-execution-sdk-js-testing": "^1.1.1",
-    "ai": "^6.0.105"
-  }
 }

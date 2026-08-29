@@ -1,304 +1,276 @@
 # Getting Started
 
-In the next five minutes, you'll generate, compile, and execute your first RemoraFlow workflow — a validated, deterministic pipeline with LLM intelligence scoped to exactly the steps that need it.
-
-## Install
-
-:::tabs
-== bun
-```bash
-bun add @remoraflow/core
-```
-== npm
-```bash
-npm install @remoraflow/core
-```
-== pnpm
-```bash
-pnpm add @remoraflow/core
-```
-== yarn
-```bash
-yarn add @remoraflow/core
-```
-:::
-
-RemoraFlow uses the [AI SDK](https://ai-sdk.dev/) for LLM calls and tool definitions. Install it along with your provider of choice:
-
-:::tabs
-== bun
-```bash
-bun add ai @ai-sdk/anthropic  # or @ai-sdk/openai, etc.
-```
-== npm
-```bash
-npm install ai @ai-sdk/anthropic
-```
-== pnpm
-```bash
-pnpm add ai @ai-sdk/anthropic
-```
-== yarn
-```bash
-yarn add ai @ai-sdk/anthropic
-```
-:::
-
-## Define Your Tools
-
-Tools are the primary building blocks of workflows. Before you can generate a workflow, you need to give the agent something to work with. Here's a minimal toolset using the [AI SDK `tool` helper](https://ai-sdk.dev/):
-
-```ts
-import { tool } from "ai";
-import { z } from "zod";
-
-const tools = {
-  "get-open-tickets": tool({
-    description: "Fetch all open support tickets",
-    parameters: z.object({}),
-    execute: async () => {
-      return {
-        tickets: [
-          { id: "T-1", subject: "Login broken", body: "Can't log in since the update." },
-          { id: "T-2", subject: "Billing question", body: "Why was I charged twice?" },
-          { id: "T-3", subject: "Site down", body: "Getting 503 errors on all pages." },
-        ],
-      };
-    },
-  }),
-  "page-oncall": tool({
-    description: "Page the on-call engineer",
-    parameters: z.object({
-      ticketId: z.string(),
-      severity: z.string(),
-    }),
-    execute: async ({ ticketId, severity }) => {
-      console.log(`Paging on-call for ${ticketId} (${severity})`);
-      return { paged: true };
-    },
-  }),
-};
-```
-
-Nothing special — these are standard AI SDK tools. If you've used tool calling with any LLM provider, you already know how this works.
-
 ## Generate a Workflow
 
-Give the agent a task description and your tools. It'll handle the rest:
+To generate your first workflow, use the `generateWorkflow` function.
 
-```ts
+::: code-group
+
+```ts [generate.ts]
 import { generateWorkflow } from "@remoraflow/core";
-import { anthropic } from "@ai-sdk/anthropic";
+import { tool } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { type } from "arktype";
+import { listDogs, petDog, giveDogTreat } from "dog-api";
 
-const result = await generateWorkflow({
-  model: anthropic("claude-sonnet-4-20250514"),
-  tools,
-  task: "Fetch all open support tickets, classify each by severity, and page the on-call engineer for critical ones",
+// Choose an LLM to author the workflow
+const openrouter = createOpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: "https://openrouter.ai/api/v1",
+});
+const model = provider.chat("deepseek/deepseek-v4-flash-0731");
+
+// Generate workflow
+const { workflowDefinition } = await generateWorkflow({
+    model,
+    // Tell the agent what the workflow should do
+    taskDescription: "Pet all of the dogs and give the best one a treat and write a haiku about it.",
+    // Tell the agent what the workflow should output (optional)
+    workflowOutputSchema: type({
+        bestDogName: "string",
+        bestDogHaiku: "string"
+    }),
+    // Tell the agent what tools it can use
+    tools: {
+        listDogs: tool({
+            description: "Retrieves a list of all of the dogs.",
+            outputSchema: type({
+                dogs: type({
+                    name: "string",
+                    score: "number"
+                }).array()
+            }),
+            execute: listDogs
+        }),
+        petDog: tool({
+            description: "Pets a dog by name.",
+            inputSchema: type({
+                name: "string"
+            }),
+            outputSchema: type({
+                success: "boolean"
+            }),
+            execute: petDog
+        }),
+        giveDogTreat: tool({
+            description: "Gives a dog a treat by name.",
+            inputSchema: type({
+                name: "string"
+            }),
+            outputSchema: type({
+                success: "boolean"
+            }),
+            execute: giveDogTreat
+        })
+    },
+    maxGenerationSteps: 10
 });
 
-if (result.workflow) {
-  console.log(`Generated a valid workflow in ${result.attempts} attempt(s)`);
-  // result.workflow is already compiled and ready to execute
-} else {
-  console.error("Generation failed:", result.diagnostics);
+console.log(workflowDefinition);
+```
+
+```json [output.json]
+
+{
+    "initialStepId": "list_dogs",
+    "steps": [
+        {
+            "id": "list_dogs",
+            "name": "List Dogs",
+            "description": "Retrieve all available dogs.",
+            "type": "start",
+            "params": {},
+            "nextStepId": "get_dogs"
+        },
+        {
+            "id": "get_dogs",
+            "name": "Get Dogs",
+            "description": "Call the listDogs tool.",
+            "type": "tool-call",
+            "params": {
+                "toolName": "listDogs"
+            },
+            "nextStepId": "dog_loop"
+        },
+        {
+            "id": "dog_loop",
+            "name": "Loop Over Dogs",
+            "description": "Iterate over each dog and pet them, tracking the best one.",
+            "type": "for-each",
+            "params": {
+                "target": {
+                    "type": "jmespath",
+                    "expression": "get_dogs.dogs"
+                },
+                "itemName": "dog",
+                "accumulatorName": "bestDog",
+                "accumulatorInitialValue": {
+                    "type": "jmespath",
+                    "expression": "get_dogs.dogs[0]"
+                },
+                "loopBodyStepId": "pet_dog"
+            },
+            "nextStepId": "give_best_dog_treat"
+        },
+        {
+            "id": "pet_dog",
+            "name": "Pet Dog",
+            "description": "Pet the current dog.",
+            "type": "tool-call",
+            "params": {
+                "toolName": "petDog",
+                "toolInput": {
+                    "name": {
+                        "type": "jmespath",
+                        "expression": "dog.name"
+                    }
+                }
+            },
+            "nextStepId": "update_accumulator"
+        },
+        {
+            "id": "update_accumulator",
+            "name": "Update Accumulator",
+            "description": "Track the dog with the highest score.",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "max_by([bestDog, dog], &score)"
+                }
+            }
+        },
+        {
+            "id": "give_best_dog_treat",
+            "name": "Give Best Dog Treat",
+            "description": "Gives a treat to the best dog.",
+            "type": "tool-call",
+            "params": {
+                "toolName": "giveDogTreat",
+                "toolInput": {
+                    "name": {
+                        "type": "jmespath",
+                        "expression": "dog_loop.name"
+                    }
+                }
+            },
+            "nextStepId": "write_haiku"
+        },
+        {
+            "id": "write_haiku",
+            "name": "Write Haiku",
+            "description": "Writes a haiku about the best dog.",
+            "type": "llm-prompt",
+            "params": {
+                "prompt": "Write a haiku about a dog named ${dog_loop.name}",
+                "outputFormat": {
+                    "type": "object",
+                    "properties": {
+                        "haiku": { "type": "string" }
+                    },
+                    "required": ["haiku"]
+                }
+            },
+            "nextStepId": "end"
+        },
+        {
+            "id": "end",
+            "name": "End",
+            "description": "Return the best dog's name.",
+            "type": "end",
+            "params": {
+                "output": {
+                    "type": "jmespath",
+                    "expression": "{\"bestDogName\": dog_loop.name, \"bestDogHaiku\": write_haiku.haiku}"
+                }
+            }
+        }
+    ]
 }
 ```
 
-Under the hood, `generateWorkflow` gives the LLM your tool schemas and a structured prompt describing the [workflow definition language](/guide/workflow-definitions). The agent produces a workflow, the [compiler](/guide/compilation) validates it — checking references, types, reachability, expression syntax — and if anything's wrong, the diagnostics go back to the agent for correction. This loop runs until the workflow compiles cleanly or the retry limit is reached.
-
-The result is a compiled, validated workflow graph — ready to execute, no manual review required (unless you [want it](/guide/policies)).
-
-::: tip Other ways to generate workflows
-`generateWorkflow` is the quickest path, but it's not the only one. You can use [`createWorkflowGeneratorTool`](/api/lib/functions/createWorkflowGeneratorTool) to create an AI SDK tool that generates workflows — meaning agents (and their workflows) can generate other workflows. You can also build your own generation pipeline using the [compiler](/guide/compilation) directly, or skip generation entirely and produce the [definition JSON](/guide/workflow-definitions) by any means you like. Anything that outputs a valid workflow definition can be compiled and executed.
 :::
 
-## Run It
+### DIY
 
-```ts
-import { executeWorkflow } from "@remoraflow/core";
+`generateWorkflow` is Remoraflow's reference implementation for workflow generation. It provides intelligent diagnostics, retries, and constraints out-of-the-box, but it's not magic. Because the entire Remoraflow language is described by a JSON schema, you can easily build your own workflow generation procedure using tool calling or structured output. Here's a minimal example:
 
-const execution = await executeWorkflow(result.workflow, {
-  tools,
-  model: anthropic("claude-sonnet-4-20250514"),
-  onStateChange: (state, delta) => {
-    if (delta.type === "step-started") {
-      console.log(`Starting: ${delta.stepId}`);
-    }
-    if (delta.type === "step-completed") {
-      console.log(`Completed: ${delta.stepId} (${delta.durationMs}ms)`);
-    }
-    if (delta.type === "step-failed") {
-      console.error(`Failed: ${delta.stepId} — ${delta.error.message}`);
-    }
-  },
+```typescript
+import { workflowDefinitionSchema } from "@remoraflow/core"
+import { generateText, type ToolSet } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+
+async function myCustomWorkflowGenerator(task: string, tools: ToolSet) {
+    const openrouter = createOpenAI({
+        apiKey: process.env.OPENROUTER_API_KEY,
+        baseURL: "https://openrouter.ai/api/v1",
+    });
+
+    const model = provider.chat("deepseek/deepseek-v4-flash-0731");
+
+    const result = await generateText({
+        model,
+        prompt: `Generate a workflow that completes the following task: "${task}". You have access to these tools: ${JSON.stringify(tools)}`,
+        output: Output.object({ schema: workflowDefinitionSchema })
+    })
+
+    return result.output
+}
+```
+
+## Validate Your Workflow
+
+Workflows aren't very useful if they don't, you know, work.
+
+Remoraflow provides a validator that statically analyzes your workflow definition to ensure well-formedness, valid syntax, and (drumroll 🥁)...
+
+TYPE SAFETY!
+
+```ts [validate.ts]
+import { validateWorkflowDefinition } from "@remoraflow/core"
+import { dogEvaluationWorkflow } from "./dog-evaluation"
+import { dogToolSet } from "dog-tools";
+
+const { isValid, diagnostics } = validateWorkflowDefinition(dogEvaluationWorkflow, { tools: dogToolSet })
+
+```
+
+In addition to a boolean `isValid`, the `validateWorkflowDefinition` function returns diagnostics that inform you (or your agent) exactly what's wrong with the definition. Diagnostics can be errors or just warnings; while error diagnostics signal that the definition is invalid and will fail at runtime (e.g. invalid step references), warnings identify patterns in the workflow that may reduce reliability (e.g. unchecked indexing).
+
+## Execute Your Workflow
+
+To execute your workflow, pass it to the `executeWorkflow` function along with your tools and language model.
+
+::: code-group
+
+```ts [execute.ts]
+import { dogEvaluationWorkflow } from "./dog-evaluation"
+import { dogToolSet } from "dog-tools";
+import { createOpenAI } from "@ai-sdk/openai";
+
+const openrouter = createOpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: "https://openrouter.ai/api/v1",
 });
 
-if (execution.success) {
-  console.log("Workflow output:", execution.output);
-  console.log("Step outputs:", execution.stepOutputs);
-} else {
-  console.error(`Failed at step "${execution.error?.stepId}":`, execution.error?.message);
+const model = provider.chat("deepseek/deepseek-v4-flash-0731");
+
+const { output } = await executeWorkflow({
+    workflowDefinition: dogEvaluationWorkflow,
+    tools: dogToolSet,
+    model,
+})
+```
+
+```json [output.json]
+{
+    "bestDogName": "Fido",
+    "bestDogHaiku": "Fido wags his tail,\nFetching balls across the grass,\nLoyal, happy friend."
 }
 ```
 
-Every state transition is observable in real time through the `onStateChange` callback — starts, completions, failures, retries, even [approval decisions](/guide/policies). The full [execution state](/guide/execution-state) is serializable, so you can persist it, stream it to a UI, or feed it into your own observability stack.
+Read more:
+- See [Durable Execution](./durable-execution.md) for how to execute long-running workflows in serverless environments.
+- See [Human in the Loop](./human-in-the-loop.md) to learn how workflows can request user input mid-execution.
 
-## Visualize It
-
-Want to see what the agent built? The `@remoraflow/ui` package renders workflows as interactive DAGs:
-
-```bash
-bun add @remoraflow/ui @xyflow/react
-```
-
-Then import the package CSS (includes Tailwind utilities and sensible default theme variables):
-
-```ts
-import "@remoraflow/ui/styles.css";
-```
-
-```tsx
-import { WorkflowViewer, StepDetailPanel } from "@remoraflow/ui";
-import type { WorkflowStep, Diagnostic } from "@remoraflow/core";
-import { useState } from "react";
-
-function App() {
-  const [step, setStep] = useState<WorkflowStep | null>(null);
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-
-  return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      <div style={{ flex: 1 }}>
-        <WorkflowViewer
-          workflow={result.workflow}
-          executionState={execution.executionState}
-          hideDetailPanel
-          onStepSelect={(s, d) => { setStep(s); setDiagnostics(d); }}
-        />
-      </div>
-      {step && (
-        <StepDetailPanel
-          step={step}
-          diagnostics={diagnostics}
-          onClose={() => setStep(null)}
-        />
-      )}
-    </div>
-  );
-}
-```
-
-The viewer highlights step status in real time during execution and lets you click into any node to inspect its inputs, outputs, and diagnostics. It also supports a full visual editor — see the [Component Registry](/guide/component-registry) for installation and the full props reference.
-
-## What's Next
-
-You've gone from a task description to a compiled, validated, executed workflow — with real-time observability and a visual DAG — in about thirty lines of code. Here's where to go deeper:
-
-```tsx
-import {
-  WorkflowViewer,
-  StepEditorPanel,
-  StepDetailPanel,
-} from "@remoraflow/ui";
-import type { WorkflowDefinition, WorkflowStep, Diagnostic } from "@remoraflow/core";
-import { useState } from "react";
-
-function WorkflowEditor({ tools }) {
-  const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
-  const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
-  const [stepDiagnostics, setStepDiagnostics] = useState<Diagnostic[]>([]);
-  const [isEditing, setIsEditing] = useState(true);
-
-  const availableToolNames = Object.keys(tools ?? {});
-
-  return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      <div style={{ flex: 1 }}>
-        <WorkflowViewer
-          workflow={workflow}
-          isEditing={isEditing}
-          onWorkflowChange={setWorkflow}
-          tools={tools}
-          hideDetailPanel
-          onStepSelect={(s, d) => { setSelectedStep(s); setStepDiagnostics(d); }}
-        />
-      </div>
-      {selectedStep && isEditing && (
-        <StepEditorPanel
-          step={selectedStep}
-          availableToolNames={availableToolNames}
-          allStepIds={workflow?.steps.map((s) => s.id) ?? []}
-          diagnostics={stepDiagnostics}
-          onChange={(updates) => {
-            // updates is a partial step object — merge into the workflow
-          }}
-          onClose={() => setSelectedStep(null)}
-        />
-      )}
-      {selectedStep && !isEditing && (
-        <StepDetailPanel
-          step={selectedStep}
-          diagnostics={stepDiagnostics}
-          onClose={() => setSelectedStep(null)}
-        />
-      )}
-    </div>
-  );
-}
-```
-
-Pass `workflow={null}` to start with an empty canvas. The `onWorkflowChange` callback is called with the updated `WorkflowDefinition` whenever a step is added, removed, or modified.
-
-### `WorkflowViewer` editing props
-
-| Prop | Type | Default | Description |
-|---|---|---|---|
-| `isEditing` | `boolean` | `false` | Enables canvas editing mode. |
-| `onWorkflowChange` | `(w: WorkflowDefinition) => void` | — | Called on every workflow mutation. |
-| `tools` | `ToolSet` | — | Provides tool name autocomplete in the step editor. |
-| `hideDetailPanel` | `boolean` | `false` | Hides the built-in detail/editor panel. Use when rendering `StepDetailPanel` or `StepEditorPanel` externally. |
-
-### `StepEditorPanel` props
-
-| Prop | Type | Required | Description |
-|---|---|---|---|
-| `step` | `WorkflowStep` | Yes | The step to edit. |
-| `availableToolNames` | `string[]` | Yes | Tool names for autocomplete in `tool-call` steps. |
-| `allStepIds` | `string[]` | Yes | All step IDs for reference validation in editors. |
-| `toolSchemas` | `ToolDefinitionMap` | No | Tool schemas for parameter hints. |
-| `diagnostics` | `Diagnostic[]` | No | Diagnostics to highlight on specific fields. |
-| `workflowInputSchema` | `object` | No | Workflow-level input schema (for `start` step editor). |
-| `workflowOutputSchema` | `object` | No | Workflow-level output schema (for `end` step editor). |
-| `onChange` | `(updates: Record<string, unknown>) => void` | Yes | Called with a partial step object on any field change. |
-| `onWorkflowMetaChange` | `(updates: Record<string, unknown>) => void` | No | Called when the user edits the workflow's `inputSchema` or `outputSchema` (from start/end step editors). |
-| `onClose` | `() => void` | Yes | Called when the user closes the panel. |
-
-### Install via shadcn
-
-The viewer components are also available as a [shadcn registry](/guide/component-registry). This copies the source directly into your project, letting you customize the components:
-
-:::tabs
-== npx
-```bash
-npx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
-npx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
-```
-== bunx
-```bash
-bunx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
-bunx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
-```
-== pnpx
-```bash
-pnpx shadcn@latest add https://remoraflow.com/r/workflow-viewer.json
-pnpx shadcn@latest add https://remoraflow.com/r/workflow-step-detail-panel.json
-```
 :::
-
-- **[Workflow Definitions](/guide/workflow-definitions)** — every step type, expression syntax, and data flow pattern
-- **[Compilation](/guide/compilation)** — compiler passes, diagnostics, and constrained tool schemas
-- **[Execution](/guide/execution)** — retry behavior, error handling, durable execution, and resource limits
-- **[Policies & Approvals](/guide/policies)** — gate tool calls behind authorization rules and human approval workflows
-- **[Execution State](/guide/execution-state)** — the full state model, deltas, and real-time observability
-- **[Streaming & Channels](/guide/streaming)** — stream execution state across process boundaries, multiple subscribers, debouncing, and custom transports
-- **[Component Registry](/guide/component-registry)** — install viewer components via shadcn for full customization

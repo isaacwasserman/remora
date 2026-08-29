@@ -1,0 +1,204 @@
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+
+    --color-tone-start: var(--rf-tone-start);
+    --color-tone-end: var(--rf-tone-end);
+    --color-tone-tool-call: var(--rf-tone-tool-call);
+    --color-tone-llm-prompt: var(--rf-tone-llm-prompt);
+    --color-tone-extract-data: var(--rf-tone-extract-data);
+    --color-tone-switch-case: var(--rf-tone-switch-case);
+    --color-tone-for-each: var(--rf-tone-for-each);
+    --color-tone-sleep: var(--rf-tone-sleep);
+    --color-tone-while: var(--rf-tone-while);
+    --color-tone-wait-for-condition: var(--rf-tone-wait-for-condition);
+    --color-tone-agent-loop: var(--rf-tone-agent-loop);
+    --color-tone-request-intervention: var(--rf-tone-request-intervention);
+
+    --color-status-danger: var(--rf-status-danger);
+    --color-status-warning: var(--rf-status-warning);
+    --color-status-success: var(--rf-status-success);
+    --color-status-running: var(--rf-status-running);
+
+    --text-2xs: 0.6875rem;
+    --text-2xs--line-height: 1rem;
+}
+
+/*
+ * Step tones and status colors. Declared at :where(:root) with zero
+ * specificity so a host app overrides any of them with a plain :root rule.
+ * Tone values seed the light theme; dark values sit in the .dark block below.
+ */
+:where(:root) {
+    --rf-tone-start: #16a34a;
+    --rf-tone-end: #6b7280;
+    --rf-tone-tool-call: #2563eb;
+    --rf-tone-llm-prompt: #7c3aed;
+    --rf-tone-extract-data: #9333ea;
+    --rf-tone-switch-case: #d97706;
+    --rf-tone-for-each: #059669;
+    --rf-tone-sleep: #ca8a04;
+    --rf-tone-while: #4f46e5;
+    --rf-tone-wait-for-condition: #ea580c;
+    --rf-tone-agent-loop: #0d9488;
+    --rf-tone-request-intervention: #e11d48;
+
+    --rf-status-danger: #b91c1c;
+    --rf-status-warning: #b45309;
+    --rf-status-success: #16a34a;
+    --rf-status-running: #2563eb;
+}
+
+:where(.dark) {
+    --rf-tone-start: #4ade80;
+    --rf-tone-end: #9ca3af;
+    --rf-tone-tool-call: #60a5fa;
+    --rf-tone-llm-prompt: #a78bfa;
+    --rf-tone-extract-data: #c084fc;
+    --rf-tone-switch-case: #fbbf24;
+    --rf-tone-for-each: #34d399;
+    --rf-tone-sleep: #facc15;
+    --rf-tone-while: #818cf8;
+    --rf-tone-wait-for-condition: #fb923c;
+    --rf-tone-agent-loop: #2dd4bf;
+    --rf-tone-request-intervention: #fb7185;
+
+    --rf-status-danger: #fca5a5;
+    --rf-status-warning: #fcd34d;
+    --rf-status-success: #4ade80;
+    --rf-status-running: #60a5fa;
+}
+
+@utility stack-tight {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+@utility stack-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+@utility stack-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+@utility row-tight {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/*
+ * Tailwind v4's preflight sets `border: 0 solid` on `*` without a color,
+ * which defaults to `currentColor`. Override so that bare `border` utilities
+ * use the theme's border color instead of black.
+ */
+*,
+::after,
+::before,
+::backdrop,
+::file-selector-button {
+    border-color: var(--color-border, var(--border, currentColor));
+}
+
+/* React Flow's minimap nodes follow the foreground color: translucent black
+ * in light mode and translucent white in dark mode. */
+.react-flow__minimap-node {
+    fill: color-mix(
+        in oklab,
+        var(--color-foreground, var(--foreground)) 14%,
+        transparent
+    );
+}
+
+/*
+ * Map React Flow's --xy-* variables to shadcn/Tailwind theme tokens.
+ * This lets the host app's theme control the entire viewer appearance.
+ * React Flow resolves: var(--xy-foo, var(--xy-foo-default))
+ * so setting --xy-foo here wins over the built-in defaults.
+ */
+.react-flow {
+    --xy-background-color: var(--color-background, var(--background));
+    --xy-node-color: var(--color-card-foreground, var(--card-foreground));
+    --xy-node-border: 1px solid var(--color-border, var(--border));
+    --xy-node-background-color: var(--color-card, var(--card));
+    --xy-node-group-background-color: var(--color-muted, var(--muted));
+    --xy-node-border-radius: var(--radius-lg, 0.625rem);
+    --xy-node-boxshadow-hover: 0 1px 4px 1px
+        color-mix(
+            in oklab,
+            var(--color-foreground, var(--foreground)) 8%,
+            transparent
+        );
+    --xy-node-boxshadow-selected: 0 0 0 1.5px
+        var(--color-primary, var(--primary));
+    --xy-handle-background-color: var(--color-primary, var(--primary));
+    --xy-edge-stroke: var(--color-border, var(--border));
+    --xy-edge-stroke-selected: var(--color-primary, var(--primary));
+    --xy-connectionline-stroke: var(
+        --color-muted-foreground,
+        var(--muted-foreground)
+    );
+    --xy-selection-background-color: color-mix(
+        in oklab,
+        var(--color-primary, var(--primary)) 8%,
+        transparent
+    );
+    --xy-minimap-background-color: var(--color-card, var(--card));
+    --xy-minimap-mask-background-color: color-mix(
+        in oklab,
+        var(--color-background, var(--background)) 70%,
+        transparent
+    );
+    --xy-minimap-node-background-color: var(--color-muted, var(--muted));
+    --xy-controls-button-background-color: var(--color-card, var(--card));
+    --xy-controls-button-background-color-hover: var(
+        --color-accent,
+        var(--accent)
+    );
+    --xy-controls-button-color: var(--color-foreground, var(--foreground));
+    --xy-controls-button-color-hover: var(
+        --color-foreground,
+        var(--foreground)
+    );
+    --xy-controls-button-border-color: var(--color-border, var(--border));
+    --xy-controls-box-shadow: 0 0 2px 1px
+        color-mix(
+            in oklab,
+            var(--color-foreground, var(--foreground)) 6%,
+            transparent
+        );
+    --xy-edge-label-background-color: var(--color-card, var(--card));
+    --xy-background-pattern-color: var(--color-border, var(--border));
+    --xy-attribution-background-color: color-mix(
+        in oklab,
+        var(--color-card, var(--card)) 50%,
+        transparent
+    );
+}

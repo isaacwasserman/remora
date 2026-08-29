@@ -1,153 +1,70 @@
-import type {
-  ExecutionState,
-  StepExecutionRecord,
-  StepStatus,
-  TraceEntry,
-} from "@remoraflow/core";
+import type { ExecutionState, StepExecutionRecord } from "@remoraflow/core";
 
-/** Aggregated execution summary for a single step across all its executions. */
+export type StepStatus = "pending" | "running" | "completed" | "failed";
+
 export interface StepExecutionSummary {
-  status: StepStatus;
-  /** Total number of executions (>1 for steps in for-each loops). */
-  executionCount: number;
-  /** Number of completed executions. */
-  completedCount: number;
-  /** Number of failed executions. */
-  failedCount: number;
-  /** Total retries across all executions. */
-  totalRetries: number;
-  /** Output from the most recent successful execution. */
-  latestOutput?: unknown;
-  /** Error from the most recent failed execution. */
-  latestError?: { code: string; message: string };
-  /** Duration of the most recent execution in milliseconds. */
-  latestDurationMs?: number;
-  /** Resolved input values from the most recent execution. */
-  latestResolvedInputs?: unknown;
-  /** Trace entries from the most recent execution. */
-  latestTrace?: TraceEntry[];
+    status: StepStatus;
+    executionCount: number;
+    executions: StepExecutionRecord[];
+    latestOutput?: unknown;
+    latestError?: { code: string; message: string };
 }
 
-const STATUS_PRIORITY: Record<StepStatus, number> = {
-  failed: 4,
-  "awaiting-approval": 3,
-  running: 3,
-  completed: 2,
-  skipped: 1,
-  pending: 0,
-};
-
-function worstStatus(a: StepStatus, b: StepStatus): StepStatus {
-  return STATUS_PRIORITY[a] >= STATUS_PRIORITY[b] ? a : b;
-}
-
-/**
- * Filter step records to only the latest iteration of each for-each loop.
- * This ensures the viewer shows only the current/most-recent iteration's
- * execution path, clearing previous iterations' branch states.
- */
-function filterToLatestIteration(
-  records: StepExecutionRecord[],
-): StepExecutionRecord[] {
-  // Find the latest iteration index for each for-each step
-  const latestIteration = new Map<string, number>();
-  for (const record of records) {
-    for (const seg of record.path) {
-      if (seg.type === "for-each") {
-        const prev = latestIteration.get(seg.stepId) ?? -1;
-        if (seg.iterationIndex > prev) {
-          latestIteration.set(seg.stepId, seg.iterationIndex);
-        }
-      }
-    }
-  }
-
-  if (latestIteration.size === 0) return records;
-
-  return records.filter((record) => {
-    for (const seg of record.path) {
-      if (seg.type === "for-each") {
-        const latest = latestIteration.get(seg.stepId);
-        if (latest !== undefined && seg.iterationIndex !== latest) {
-          return false;
-        }
-      }
-    }
-    return true;
-  });
-}
-
-/**
- * Derives a per-step summary map from the full execution state.
- * Groups step records by stepId and computes an aggregate status.
- * For steps inside for-each loops, only the latest iteration is shown.
- * Priority: failed > running > completed > skipped > pending.
- */
+/** Groups the runtime's per-invocation records by their authored step ID. */
 export function deriveStepSummaries(
-  state: ExecutionState,
+    state: ExecutionState,
 ): Map<string, StepExecutionSummary> {
-  const filtered = filterToLatestIteration(state.stepRecords);
-
-  const grouped = new Map<string, StepExecutionRecord[]>();
-  for (const record of filtered) {
-    const existing = grouped.get(record.stepId);
-    if (existing) {
-      existing.push(record);
-    } else {
-      grouped.set(record.stepId, [record]);
-    }
-  }
-
-  const summaries = new Map<string, StepExecutionSummary>();
-
-  for (const [stepId, records] of grouped) {
-    let status: StepStatus = "pending";
-    let completedCount = 0;
-    let failedCount = 0;
-    let totalRetries = 0;
-    let latestOutput: unknown;
-    let latestError: { code: string; message: string } | undefined;
-    let latestDurationMs: number | undefined;
-    let latestResolvedInputs: unknown;
-    let latestTrace: TraceEntry[] | undefined;
-
-    for (const record of records) {
-      status = worstStatus(status, record.status);
-      if (record.status === "completed") completedCount++;
-      if (record.status === "failed") failedCount++;
-      totalRetries += record.retries.length;
-
-      if (record.output !== undefined) latestOutput = record.output;
-      if (record.error) {
-        latestError = {
-          code: record.error.code,
-          message: record.error.message,
-        };
-      }
-      if (record.durationMs !== undefined) {
-        latestDurationMs = record.durationMs;
-      }
-      if (record.resolvedInputs !== undefined) {
-        latestResolvedInputs = record.resolvedInputs;
-      }
-      if (record.trace !== undefined) {
-        latestTrace = record.trace;
-      }
+    const grouped = new Map<string, StepExecutionRecord[]>();
+    for (const execution of state.stepExecutions) {
+        const executions = grouped.get(execution.stepId) ?? [];
+        executions.push(execution);
+        grouped.set(execution.stepId, executions);
     }
 
-    summaries.set(stepId, {
-      status,
-      executionCount: records.length,
-      completedCount,
-      failedCount,
-      totalRetries,
-      latestOutput,
-      latestError,
-      latestDurationMs,
-      latestResolvedInputs,
-      latestTrace,
-    });
-  }
+    const summaries = new Map<string, StepExecutionSummary>();
+    for (const [stepId, executions] of grouped) {
+        const latest = executions.at(-1);
+        if (!latest) continue;
+        summaries.set(stepId, {
+            status: latest.status,
+            executionCount: executions.length,
+            executions,
+            ...(latest.output !== undefined
+                ? { latestOutput: latest.output }
+                : {}),
+            ...(latest.error
+                ? {
+                      latestError: {
+                          code: latest.error.code,
+                          message: latest.error.message,
+                      },
+                  }
+                : {}),
+        });
+    }
+    return summaries;
+}
 
-  return summaries;
+/**
+ * Returns the one-based execution order for every step on the trace ending at
+ * the hovered invocation. A repeated step therefore receives every position
+ * at which it appeared, such as `[4, 10]`.
+ */
+export function derivePathSequenceIndexes(
+    state: ExecutionState,
+    executionId: string | undefined,
+): Map<string, number[]> {
+    const endingIndex = executionId
+        ? state.stepExecutions.findIndex(
+              (execution) => execution.executionId === executionId,
+          )
+        : -1;
+    const indexes = new Map<string, number[]>();
+    for (const [index, execution] of state.stepExecutions.entries()) {
+        if (index > endingIndex) break;
+        const stepIndexes = indexes.get(execution.stepId) ?? [];
+        stepIndexes.push(index + 1);
+        indexes.set(execution.stepId, stepIndexes);
+    }
+    return indexes;
 }

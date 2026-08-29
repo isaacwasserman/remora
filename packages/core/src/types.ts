@@ -1,255 +1,353 @@
+/** biome-ignore-all lint/suspicious/noExplicitAny: Needed for proper inference. */
+import type { Schema } from "@ai-sdk/provider-utils";
+import { type LanguageModel as AnyLanguageModel, asSchema } from "ai";
 import { type } from "arktype";
+import type * as z3 from "zod/v3";
+import type * as z4 from "zod/v4";
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from "./schemistry";
 
-const expressionSchema = type({
-  type: "'literal'",
-  value: "unknown",
-})
-  .or({
-    type: "'jmespath'",
-    expression: "string",
-  })
-  .or({
-    type: "'template'",
-    template: "string",
-  })
-  .describe(
-    "a value that must always be wrapped as an expression object — use { type: 'literal', value: ... } for any static value (strings, numbers, booleans, etc.), { type: 'jmespath', expression: '...' } for dynamic data extracted from previous steps' outputs (via their step ids, e.g. `stepId.someKey`) or loop variables (e.g. `itemName.someKey` within a for-each loop body), or { type: 'template', template: '...' } for string interpolation with embedded JMESPath expressions using ${...} syntax (e.g. 'Hello ${user.name}, order ${order.id}') — template expressions always resolve to a string",
-  );
+type LazySchema<SCHEMA> = () => Schema<SCHEMA>;
+type ZodSchema<SCHEMA = any> =
+    | z3.Schema<SCHEMA, z3.ZodTypeDef, any>
+    | z4.core.$ZodType<SCHEMA, any>;
+type StandardSchema<SCHEMA = any> = StandardSchemaV1<unknown, SCHEMA> &
+    StandardJSONSchemaV1<unknown, SCHEMA>;
+type FlexibleSchema<SCHEMA = any> =
+    | Schema<SCHEMA>
+    | LazySchema<SCHEMA>
+    | ZodSchema<SCHEMA>
+    | StandardSchema<SCHEMA>;
+type InferSchema<S> =
+    S extends Schema<infer T>
+        ? T
+        : S extends LazySchema<infer T>
+          ? T
+          : S extends StandardSchemaV1<unknown, infer T>
+            ? T
+            : S extends z4.core.$ZodType<infer T, any>
+              ? T
+              : S extends z3.Schema<infer T, any, any>
+                ? T
+                : unknown;
 
-const toolCallParamsSchema = type({
-  type: "'tool-call'",
-  params: {
-    toolName: "string",
-    toolInput: [
-      {
-        "[string]": expressionSchema,
-      },
-      "@",
-      "a map of input parameter names to their values; ALL values must be wrapped as expression objects — even static strings like email addresses must use { type: 'literal', value: '...' }, never plain primitives",
-    ],
-  },
-}).describe(
-  "a step that calls a tool with specified input parameters (which can be static values or expressions)",
-);
+export type ToolSchema<TSchema> = FlexibleSchema<TSchema>;
 
-const switchCaseParamsSchema = type({
-  type: "'switch-case'",
-  params: {
-    switchOn: expressionSchema,
-    cases: [
-      {
-        value: expressionSchema.or({ type: "'default'" }),
-        branchBodyStepId: [
-          "string",
-          "@",
-          "the id of the first step in the branch body chain to execute if this case matches",
-        ],
-      },
-      "[]",
-    ],
-  },
-}).describe(
-  "a step that branches to different step chains based on the value of an expression; each case's chain runs until a step with no nextStepId, at which point execution continues with this step's nextStepId; a case with type 'default' serves as the fallback if no other case matches",
-);
+export type ToolExecutionOptions = {
+    toolCallId: string;
+    messages: never[];
+};
 
-const forEachParamsSchema = type({
-  type: "'for-each'",
-  params: {
-    target: expressionSchema,
-    itemName: [
-      "string",
-      "@",
-      "the name to refer to the current item in the list within expressions in the loop body",
-    ],
-    loopBodyStepId: [
-      "string",
-      "@",
-      "the id of the first step in the loop body chain to execute for each item in the list",
-    ],
-  },
-}).describe(
-  "a step that iterates over a list and executes a chain of steps for each item; the loop body chain runs until a step with no nextStepId, at which point the next iteration begins; once all items are exhausted, execution continues with this step's nextStepId",
-);
-
-const llmPromptSchema = type({
-  type: "'llm-prompt'",
-  params: {
-    prompt: [
-      "string",
-      "@",
-      "a template string where JMESPath expressions can be embedded using ${...} syntax (e.g. 'Hello ${user.name}, you have ${length(user.messages)} messages'). All data from previous steps is available via their step ids (e.g. ${stepId.someKey}), and loop variables are available within for-each loop bodies (e.g. ${itemName.someKey})",
-    ],
-    outputFormat: [
-      "object",
-      "@",
-      "JSON schema specifying the output format expected from the LLM",
-    ],
-  },
-}).describe(
-  "a step that prompts an LLM with a text prompt to produce an output in a specified format",
-);
-
-const extractDataParamsSchema = type({
-  type: "'extract-data'",
-  params: {
-    sourceData: [expressionSchema, "@", "the data to extract information from"],
-    outputFormat: [
-      "object",
-      "@",
-      "JSON schema specifying the output format expected from the data extraction",
-    ],
-  },
-}).describe(
-  "a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format",
-);
-
-const sleepParamsSchema = type({
-  type: "'sleep'",
-  params: {
-    durationMs: expressionSchema,
-  },
-}).describe(
-  "a step that pauses workflow execution for a specified duration in milliseconds; the durationMs parameter must evaluate to a non-negative number",
-);
-
-const waitForConditionParamsSchema = type({
-  type: "'wait-for-condition'",
-  params: {
-    conditionStepId: [
-      "string",
-      "@",
-      "the id of the first step in the condition-check chain that will be executed on each polling attempt; this chain runs until a step with no nextStepId, then the condition expression is evaluated",
-    ],
-    condition: [
-      expressionSchema,
-      "@",
-      "an expression evaluated after each execution of the condition-check chain; if it evaluates to a truthy value, the wait completes with that value as its output; all step outputs from the condition chain are available in scope for this expression",
-    ],
-    "maxAttempts?": [
-      expressionSchema,
-      "@",
-      "maximum number of polling attempts before giving up (default: 10)",
-    ],
-    "intervalMs?": [
-      expressionSchema,
-      "@",
-      "milliseconds to wait between polling attempts (default: 1000)",
-    ],
-    "backoffMultiplier?": [
-      expressionSchema,
-      "@",
-      "multiply the interval by this factor after each attempt (default: 1, i.e. no backoff; use 2 for exponential backoff)",
-    ],
-    "timeoutMs?": [
-      expressionSchema,
-      "@",
-      "hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts",
-    ],
-  },
-}).describe(
-  "a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression",
-);
-
-const agentLoopParamsSchema = type({
-  type: "'agent-loop'",
-  params: {
-    instructions: [
-      "string",
-      "@",
-      "a template string with task instructions for the agent; JMESPath expressions can be embedded using ${...} syntax (e.g. 'Research ${input.topic} and summarize findings'). All data from previous steps is available via their step ids, and loop variables are available within for-each loop bodies",
-    ],
-    tools: [
-      ["string", "[]"],
-      "@",
-      "names of tools from the workflow's tool set that the agent is allowed to use",
-    ],
-    outputFormat: [
-      "object",
-      "@",
-      "JSON schema specifying the structured output format expected from the agent",
-    ],
-    "maxSteps?": [
-      expressionSchema,
-      "@",
-      "maximum number of tool-calling steps the agent may take (default: 10)",
-    ],
-  },
-}).describe(
-  "a step that delegates work to an autonomous agent with its own tool-calling loop; USE SPARINGLY — this sacrifices the determinism that is the core value of the workflow DSL. Prefer explicit tool-call, llm-prompt, and control flow steps whenever the task can be decomposed into predictable operations",
-);
-
-const startParamsSchema = type({
-  type: "'start'",
-}).describe(
-  "a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
-);
-
-const endSchema = type({
-  type: "'end'",
-  "params?": {
-    output: expressionSchema,
-  },
-}).describe(
-  "a step that indicates the end of a branch; optionally specify an output expression whose evaluated value becomes the workflow's output",
-);
-
-const workflowStepSchema = type({
-  id: /^[a-zA-Z_][a-zA-Z0-9_]+$/,
-  name: "string",
-  description: "string",
-  "nextStepId?": "string",
-}).and(
-  toolCallParamsSchema
-    .or(llmPromptSchema)
-    .or(extractDataParamsSchema)
-    .or(switchCaseParamsSchema)
-    .or(forEachParamsSchema)
-    .or(sleepParamsSchema)
-    .or(waitForConditionParamsSchema)
-    .or(agentLoopParamsSchema)
-    .or(startParamsSchema)
-    .or(endSchema),
-);
+export type Tool<
+    TInputSchema extends ToolSchema<any> = ToolSchema<never>,
+    TOutputSchema extends ToolSchema<any> = ToolSchema<never>,
+> = {
+    inputSchema: TInputSchema;
+    outputSchema?: TOutputSchema;
+    execute?: (
+        input: InferSchema<TInputSchema>,
+        options: ToolExecutionOptions,
+    ) =>
+        | AsyncIterable<InferSchema<TOutputSchema>>
+        | PromiseLike<InferSchema<TOutputSchema>>
+        | InferSchema<TOutputSchema>;
+};
 
 /**
- * ArkType schema for validating workflow definitions. Use this to validate
- * workflow JSON before passing it to {@link compileWorkflow}.
+ * Like {@link FlexibleSchema}, but without requiring the optional
+ * standard-schema JSON Schema extension.
  */
-export const workflowDefinitionSchema = type({
-  initialStepId: "string",
-  "inputSchema?": [
-    "object",
-    "@",
-    "an optional JSON Schema object defining the inputs required to run the workflow; the executor validates provided inputs against this schema, and the validated inputs become available in JMESPath scope via the root identifier 'input' (e.g. input.fieldName)",
-  ],
-  "outputSchema?": [
-    "object",
-    "@",
-    "an optional JSON Schema object declaring the shape of the workflow's output; when present, the value produced by the end step's output expression will be validated against this schema",
-  ],
-  steps: [
-    [workflowStepSchema, "[]"],
-    "@",
-    "a list of steps to execute in the workflow; these should be in no particular order as execution flow is determined by the nextStepId fields and branching logic within the steps",
-  ],
+type AnyToolSchema =
+    | Schema<any>
+    | LazySchema<any>
+    | ZodSchema<any>
+    | StandardSchemaV1<unknown, any>;
+
+/**
+ * A tool with its schema types erased, for use in heterogeneous collections
+ * such as {@link ToolSet}. Author individual tools as {@link Tool} (or via the
+ * `ai` SDK's `tool()`), which preserves their types.
+ */
+export type AnyTool = {
+    inputSchema: AnyToolSchema;
+    outputSchema?: AnyToolSchema;
+    execute?: (input: any, options: any) => any;
+    description?: string | ((options: any) => string);
+};
+export type AnyStubbedTool = {
+    inputSchema: AnyToolSchema;
+    outputSchema?: AnyToolSchema;
+    description?: string | ((options: any) => string);
+};
+
+export type ToolSet = Record<string, AnyTool>;
+
+export type StubbedToolSet = Record<string, AnyStubbedTool>;
+
+export type LanguageModel = Exclude<AnyLanguageModel, string>;
+
+export type ModelSet = Record<string, LanguageModel>;
+
+export type AgentConfig = { tools: ToolSet; model: LanguageModel };
+
+export type ServiceResult<T, E extends string = never> =
+    | { data: T; error: null }
+    | { data: null; error: E; message: string };
+
+export function success(): { data: undefined; error: null };
+export function success<T>(data: T): { data: T; error: null };
+export function success<T>(data?: T) {
+    return { data, error: null };
+}
+
+export function failure<E extends string>(
+    error: E,
+    message: string,
+): { data: null; error: E; message: string } {
+    return { data: null, error, message };
+}
+
+export function unknownFailure(
+    error: unknown,
+): ServiceResult<never, "UNKNOWN"> {
+    return failure(
+        "UNKNOWN",
+        error instanceof Error ? error.message : String(error),
+    );
+}
+
+const featuresSchema = type({
+    allowUserIntervention: [
+        ["boolean", "@", 'whether to allow "request-intervention" steps'],
+        "=",
+        false,
+    ],
+    allowAgentLoops: [
+        ["boolean", "@", 'whether to allow "agent-loop" steps'],
+        "=",
+        true,
+    ],
 });
 
-/**
- * A single step in a workflow. Each step has a type that determines its behavior:
- * - `start` — entry point, declares input schema
- * - `tool-call` — calls a tool with literal or expression-based arguments
- * - `llm-prompt` — prompts an LLM with template string interpolation
- * - `extract-data` — uses an LLM to extract structured data from unstructured source
- * - `switch-case` — branches to different step chains based on an expression value
- * - `for-each` — iterates over an array, executing a chain of steps per item
- * - `agent-loop` — delegates work to an autonomous agent with its own tool-calling loop (use sparingly)
- * - `end` — terminates a branch, optionally producing workflow output
- */
-export type WorkflowStep = typeof workflowStepSchema.infer;
+const durationSchema = type({
+    maxDurationSeconds: [
+        [
+            "number > 0",
+            "@",
+            "maximum duration of a given workflow including waiting periods",
+        ],
+        "=",
+        60 * 60 * 24 * 365,
+    ],
+    maxExecutionSeconds: [
+        [
+            "number > 0",
+            "@",
+            "maximum duration of a given workflow excluding waiting periods but including polling execution time",
+        ],
+        "=",
+        60 * 60,
+    ],
+    maxWaitSeconds: [
+        [
+            "number > 0",
+            "@",
+            "maximum combined wait time for any one wait-for-condition step",
+        ],
+        "=",
+        60 * 60 * 24,
+    ],
+    maxSleepSeconds: [
+        ["number > 0", "@", "maximum duration of any one sleep step"],
+        "=",
+        60 * 60 * 24,
+    ],
+    maxStepExecutionSeconds: [
+        [
+            "number > 0",
+            "@",
+            "maximum execution time for any one step, excluding wait time",
+        ],
+        "=",
+        60 * 60,
+    ],
+    minPollIntervalSeconds: [
+        [
+            "number >= 0",
+            "@",
+            "minimum time between polling wait-for-condition polling runs",
+        ],
+        "=",
+        60,
+    ],
+});
 
-/**
- * A complete workflow definition. Contains an initial step ID and an ordered list of steps.
- * Execution flow is determined by each step's `nextStepId` and branching/looping logic,
- * not by the order of steps in the array.
- */
-export type WorkflowDefinition = typeof workflowDefinitionSchema.infer;
+const stepRetrySchema = type({
+    maxAttempts: [
+        [
+            "number.integer",
+            "@",
+            "how many attempts to give each durable step after a recoverable error",
+        ],
+        "=",
+        1,
+    ],
+    retryDelaySeconds: [
+        [
+            "number >= 0",
+            "@",
+            "how many seconds to wait between durable step retry attempts",
+        ],
+        "=",
+        5,
+    ],
+    "shouldRetry?": type("Function").as<(errorMessage: string) => boolean>(),
+});
+
+const tokenBudgetsSchema = type({
+    maxDataTokens: [
+        [
+            "number.integer > 0",
+            "@",
+            "maximum number of tokens worth of data to present to the llm at one time before summarizing/truncating",
+        ],
+        "=",
+        8192,
+    ],
+    maxAgentSteps: [
+        [
+            "number.integer >= 2",
+            "@",
+            "maximum number of steps that an agent may take to produce its final output",
+        ],
+        "=",
+        16,
+    ],
+    maxContextTokens: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum length of context given to LLM before truncation",
+        ],
+        "=",
+        128_000,
+    ],
+});
+
+const structuralLimitsSchema = type({
+    maxSteps: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum number of steps that a workflow may contain (0 for unlimited)",
+        ],
+        "=",
+        0,
+    ],
+    maxNestingDepth: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum nesting depth of steps within bodies of for-each and switch-case steps (0 for unlimited)",
+        ],
+        "=",
+        0,
+    ],
+    maxLoopIterations: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum number of iterations that a for-each step may have (0 for unlimited)",
+        ],
+        "=",
+        0,
+    ],
+});
+
+const logLimitsSchema = type({
+    maxLogLineLength: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum length of a log line that will be captured in the output before truncating",
+        ],
+        "=",
+        4096,
+    ],
+    maxLogLines: [
+        [
+            "number.integer >= 0",
+            "@",
+            "maximum number of log lines that will be captured in the output before recycling earlier logs (0 for unlimited)",
+        ],
+        "=",
+        4096,
+    ],
+});
+
+const toolExecutionLimitsSchema = type({
+    maxToolOutputBytes: [
+        ["number.integer >= 0", "@", "maximum size of any given tool output"],
+        "=",
+        1024 * 1024 * 5,
+    ],
+});
+
+export const remoraflowSettingsSchema = type({
+    features: featuresSchema.default(() => featuresSchema.assert({})),
+    duration: durationSchema.default(() => durationSchema.assert({})),
+    stepRetry: stepRetrySchema.default(() => stepRetrySchema.assert({})),
+    tokenBudgets: tokenBudgetsSchema.default(() =>
+        tokenBudgetsSchema.assert({}),
+    ),
+    structuralLimits: structuralLimitsSchema.default(() =>
+        structuralLimitsSchema.assert({}),
+    ),
+    logLimits: logLimitsSchema.default(() => logLimitsSchema.assert({})),
+    toolExecutionLimits: toolExecutionLimitsSchema.default(() =>
+        toolExecutionLimitsSchema.assert({}),
+    ),
+});
+
+export type RemoraflowSettings = typeof remoraflowSettingsSchema.inferIn;
+export type ResolvedRemoraflowSettings =
+    typeof remoraflowSettingsSchema.inferOut;
+
+/** The `features` subset of {@link ResolvedRemoraflowSettings} — feature flags
+ * that gate which step types a workflow may contain. */
+export type RemoraflowFeatures = ResolvedRemoraflowSettings["features"];
+
+export type { ExecutionState } from "./execution/types";
+
+export interface ToolSchemaDefinition {
+    displayName?: string;
+    description?: string;
+    inputSchema: {
+        required?: string[];
+        properties?: Record<string, unknown>;
+    };
+    outputSchema?: Record<string, unknown>;
+}
+
+export type ToolDefinitionMap = Record<string, ToolSchemaDefinition>;
+
+export async function extractToolSchemas(
+    tools: ToolSet,
+): Promise<ToolDefinitionMap> {
+    const schemas: ToolDefinitionMap = {};
+    for (const [name, toolDef] of Object.entries(tools)) {
+        const schema: ToolSchemaDefinition = {
+            description:
+                typeof toolDef.description === "string"
+                    ? toolDef.description
+                    : undefined,
+            inputSchema: asSchema(toolDef.inputSchema)
+                .jsonSchema as ToolSchemaDefinition["inputSchema"],
+        };
+        if (toolDef.outputSchema) {
+            schema.outputSchema = asSchema(toolDef.outputSchema)
+                .jsonSchema as Record<string, unknown>;
+        }
+        schemas[name] = schema;
+    }
+    return schemas;
+}
