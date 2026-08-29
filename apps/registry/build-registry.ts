@@ -13,7 +13,7 @@ interface FileEntry {
 }
 
 const VIEWER_FILES: FileEntry[] = [
-    { relPath: "components/ui/workflow-combobox.tsx", type: "registry:ui" },
+    { relPath: "components/ui/combobox.tsx", type: "registry:ui" },
     { relPath: "components/ui/command.tsx", type: "registry:ui" },
     { relPath: "components/ui/dialog.tsx", type: "registry:ui" },
     { relPath: "components/ui/popover.tsx", type: "registry:ui" },
