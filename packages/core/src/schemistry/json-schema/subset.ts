@@ -4,7 +4,8 @@ import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 
 let _ajv: InstanceType<typeof Ajv> | null = null;
 function ajv() {
-    return (_ajv ??= new Ajv({ allErrors: true }));
+    if (!_ajv) _ajv = new Ajv({ allErrors: true });
+    return _ajv;
 }
 
 /**
