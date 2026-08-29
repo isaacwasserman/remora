@@ -1,4 +1,14 @@
 {
     "installCommand": "cd ../.. && bun install",
-    "buildCommand": "cd ../.. && bun run build && cd apps/demo && bun run build"
+    "buildCommand": "cd ../.. && bun run build && bun run docs:build && cd apps/demo && bun run build && bash scripts/merge-docs.sh",
+    "rewrites": [
+        {
+            "source": "/r/static/:path(.*)",
+            "destination": "https://us-assets.i.posthog.com/static/:path"
+        },
+        {
+            "source": "/r/:path(.*)",
+            "destination": "https://us.i.posthog.com/:path"
+        }
+    ]
 }
