@@ -86,6 +86,7 @@
         "@types/capture-console": "^1.0.5",
         "@types/jmespath": "^0.15.2",
         "@types/json-schema": "^7.0.15",
+        "ajv": "^8.20.0",
         "arktype": "^2.1.29",
         "capture-console": "^1.0.2",
         "dedent": "^1.7.2",
