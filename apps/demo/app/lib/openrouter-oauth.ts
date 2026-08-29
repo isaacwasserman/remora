@@ -1,3 +1,5 @@
+import { decryptSecret, encryptSecret } from "./crypto.ts";
+
 const PKCE_VERIFIER_KEY = "remoraflow-demo:openrouter-pkce-verifier";
 const PKCE_MODEL_ID_KEY = "remoraflow-demo:openrouter-pkce-model-id";
 
@@ -41,8 +43,8 @@ export function isOpenRouterOAuthCallback(): boolean {
 export async function startOpenRouterOAuth(modelId: string): Promise<void> {
     const verifier = createVerifier();
     const challenge = await createChallenge(verifier);
-    sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
-    sessionStorage.setItem(PKCE_MODEL_ID_KEY, modelId);
+    sessionStorage.setItem(PKCE_VERIFIER_KEY, await encryptSecret(verifier));
+    sessionStorage.setItem(PKCE_MODEL_ID_KEY, await encryptSecret(modelId));
 
     const authorizeURL = new URL("https://openrouter.ai/auth");
     authorizeURL.searchParams.set("callback_url", callbackURL());
@@ -53,10 +55,11 @@ export async function startOpenRouterOAuth(modelId: string): Promise<void> {
 
 export async function exchangeOpenRouterOAuthCode(): Promise<string> {
     const code = new URLSearchParams(window.location.search).get("code");
-    const verifier = sessionStorage.getItem(PKCE_VERIFIER_KEY);
-    if (!code || !verifier) {
+    const encryptedVerifier = sessionStorage.getItem(PKCE_VERIFIER_KEY);
+    if (!code || !encryptedVerifier) {
         throw new Error("Missing OpenRouter authorization details.");
     }
+    const verifier = await decryptSecret(encryptedVerifier);
 
     const response = await fetch("https://openrouter.ai/api/v1/auth/keys", {
         method: "POST",
@@ -80,8 +83,9 @@ export async function exchangeOpenRouterOAuthCode(): Promise<string> {
     return data.key;
 }
 
-export function pendingOpenRouterOAuthModelId(): string | null {
-    const modelId = sessionStorage.getItem(PKCE_MODEL_ID_KEY);
+export async function pendingOpenRouterOAuthModelId(): Promise<string | null> {
+    const encrypted = sessionStorage.getItem(PKCE_MODEL_ID_KEY);
     sessionStorage.removeItem(PKCE_MODEL_ID_KEY);
-    return modelId;
+    if (!encrypted) return null;
+    return decryptSecret(encrypted);
 }

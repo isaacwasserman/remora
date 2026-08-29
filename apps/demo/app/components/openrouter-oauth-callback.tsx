@@ -22,9 +22,14 @@ export function OpenRouterOAuthCallback({
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const modelId = pendingOpenRouterOAuthModelId();
-        exchangeOpenRouterOAuthCode()
-            .then(async (apiKey) => {
+        pendingOpenRouterOAuthModelId()
+            .then((modelId) =>
+                exchangeOpenRouterOAuthCode().then((apiKey) => ({
+                    apiKey,
+                    modelId,
+                })),
+            )
+            .then(async ({ apiKey, modelId }) => {
                 const config = await loadOpenRouterConfig();
                 await saveOpenRouterConfig({
                     apiKey,
