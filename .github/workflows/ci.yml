@@ -14,6 +14,26 @@ jobs:
       - run: bun run build
       - run: bun test $(find packages -name '*.test.ts' -o -name '*.test.tsx' | grep -v 'temporal-adapter.integration.test.' | grep -v 'inngest-adapter.integration.test.' | grep -v '.e2e.test.')
 
+  test-temporal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: temporalio/setup-temporal@v0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun test packages/core/src/execution/execution-engine/durable-execution/temporal-adapter.integration.test.ts
+
+  test-inngest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: inngest/action-test-functions@v1
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun test packages/core/src/execution/execution-engine/durable-execution/inngest-adapter.integration.test.ts
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
