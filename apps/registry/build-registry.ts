@@ -48,21 +48,39 @@ const VIEWER_FILES: FileEntry[] = [
     { relPath: "nodes/group-container-node.tsx", type: "registry:component" },
     // components
     { relPath: "components/step-palette.tsx", type: "registry:component" },
-    { relPath: "components/canvas-context-menu.tsx", type: "registry:component" },
-    { relPath: "components/workflow-json-dialog.tsx", type: "registry:component" },
+    {
+        relPath: "components/canvas-context-menu.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "components/workflow-json-dialog.tsx",
+        type: "registry:component",
+    },
     { relPath: "components/replay-slider.tsx", type: "registry:component" },
     // syntax
-    { relPath: "syntax/codemirror-template-highlighting.ts", type: "registry:component" },
-    { relPath: "syntax/highlighted-expression.tsx", type: "registry:component" },
+    {
+        relPath: "syntax/codemirror-template-highlighting.ts",
+        type: "registry:component",
+    },
+    {
+        relPath: "syntax/highlighted-expression.tsx",
+        type: "registry:component",
+    },
     { relPath: "syntax/jmespath.ts", type: "registry:component" },
     { relPath: "syntax/remora-template.ts", type: "registry:component" },
     // editors
     { relPath: "editors/code-input.tsx", type: "registry:component" },
     { relPath: "editors/codemirror-theme.ts", type: "registry:component" },
-    { relPath: "editors/codemirror/use-codemirror.ts", type: "registry:component" },
+    {
+        relPath: "editors/codemirror/use-codemirror.ts",
+        type: "registry:component",
+    },
     { relPath: "editors/expression-editor.tsx", type: "registry:component" },
     { relPath: "editors/expression-input.tsx", type: "registry:component" },
-    { relPath: "editors/expression-scope-context.tsx", type: "registry:component" },
+    {
+        relPath: "editors/expression-scope-context.tsx",
+        type: "registry:component",
+    },
     { relPath: "editors/jmespath-code-editor.tsx", type: "registry:component" },
     { relPath: "editors/json-code-editor.tsx", type: "registry:component" },
     { relPath: "editors/json-editor.tsx", type: "registry:component" },
@@ -70,23 +88,65 @@ const VIEWER_FILES: FileEntry[] = [
     { relPath: "editors/shared-editors.tsx", type: "registry:component" },
     { relPath: "editors/step-fields.tsx", type: "registry:component" },
     { relPath: "editors/template-code-editor.tsx", type: "registry:component" },
-    { relPath: "editors/template-expression-input.tsx", type: "registry:component" },
+    {
+        relPath: "editors/template-expression-input.tsx",
+        type: "registry:component",
+    },
     // editor fields
     { relPath: "editors/fields/boolean-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/case-list-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/constant-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/expression-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/expression-map-field.tsx", type: "registry:component" },
+    {
+        relPath: "editors/fields/case-list-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/constant-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/expression-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/expression-map-field.tsx",
+        type: "registry:component",
+    },
     { relPath: "editors/fields/field-row.tsx", type: "registry:component" },
-    { relPath: "editors/fields/identifier-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/json-schema-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/read-only-step-params.tsx", type: "registry:component" },
-    { relPath: "editors/fields/schema-map-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/step-ref-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/template-text-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/tool-ref-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/tool-ref-list-field.tsx", type: "registry:component" },
-    { relPath: "editors/fields/workflow-extras-editor.tsx", type: "registry:component" },
+    {
+        relPath: "editors/fields/identifier-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/json-schema-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/read-only-step-params.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/schema-map-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/step-ref-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/template-text-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/tool-ref-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/tool-ref-list-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/workflow-extras-editor.tsx",
+        type: "registry:component",
+    },
     // step-ui
     { relPath: "step-ui/constraint-hints.ts", type: "registry:component" },
     { relPath: "step-ui/field-kinds.ts", type: "registry:component" },
@@ -97,7 +157,10 @@ const VIEWER_FILES: FileEntry[] = [
     { relPath: "step-ui/tones.ts", type: "registry:component" },
     { relPath: "step-ui/types.ts", type: "registry:component" },
     // panels
-    { relPath: "panels/field-diagnostics-context.tsx", type: "registry:component" },
+    {
+        relPath: "panels/field-diagnostics-context.tsx",
+        type: "registry:component",
+    },
     { relPath: "panels/shared.tsx", type: "registry:component" },
     { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
     { relPath: "panels/step-editor-panel.tsx", type: "registry:component" },
