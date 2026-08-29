@@ -110,34 +110,47 @@ export function OutputPanel({
                 onSeek={onSeek}
                 onGoLive={onGoLive}
             />
-            <button
-                type="button"
-                onClick={() => setExpanded((e) => !e)}
-                className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-                <span>
-                    Output
-                    {status && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wide">
-                            ({status})
-                        </span>
+            <div className="flex items-center justify-between px-4 py-1.5">
+                <button
+                    type="button"
+                    onClick={() => setExpanded((e) => !e)}
+                    className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    <span>
+                        Output
+                        {status && (
+                            <span className="ml-2 text-[10px] uppercase tracking-wide">
+                                ({status})
+                            </span>
+                        )}
+                    </span>
+                    {expanded ? (
+                        <ChevronDown className="size-3.5" />
+                    ) : (
+                        <ChevronUp className="size-3.5" />
                     )}
-                </span>
-                {expanded ? (
-                    <ChevronDown className="size-3.5" />
-                ) : (
-                    <ChevronUp className="size-3.5" />
-                )}
-            </button>
+                </button>
+                <div className="flex items-center gap-1">
+                    {outputJson && (
+                        <CopyButton text={outputJson} label="Copy output" />
+                    )}
+                    {executionState && (
+                        <CopyButton
+                            text={JSON.stringify(executionState, null, 2)}
+                            label="Copy full state"
+                        />
+                    )}
+                </div>
+            </div>
             {expanded && (
                 <div
-                    className="px-4 pb-3 space-y-2 overflow-y-auto"
-                    style={{ maxHeight: height }}
+                    className="px-4 pb-3 flex flex-col gap-2"
+                    style={{ height }}
                 >
                     {error && (
                         <div
                             role="alert"
-                            className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20"
+                            className="text-xs p-2.5 rounded-md bg-destructive/10 text-destructive border border-destructive/20 shrink-0"
                         >
                             <div className="font-semibold font-mono">
                                 {error.code}
@@ -148,16 +161,9 @@ export function OutputPanel({
                         </div>
                     )}
                     {outputJson && (
-                        <div className="space-y-1">
-                            <JsonViewer value={outputJson} />
-                            <CopyButton text={outputJson} label="Copy output" />
+                        <div className="min-h-0 flex-1 [&_.cm-editor]:!h-full [&_.cm-editor]:!max-h-none [&_.cm-scroller]:!max-h-none">
+                            <JsonViewer value={outputJson} className="h-full" />
                         </div>
-                    )}
-                    {executionState && (
-                        <CopyButton
-                            text={JSON.stringify(executionState, null, 2)}
-                            label="Copy full execution state"
-                        />
                     )}
                 </div>
             )}

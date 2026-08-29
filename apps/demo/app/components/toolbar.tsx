@@ -27,6 +27,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { Switch } from "~/components/ui/switch";
 import type { SavedWorkflow } from "../lib/storage.ts";
+import remoraflowLogo from "../assets/remoraflow-logo.svg";
 import { loadCustomWorkflows, saveCustomWorkflows } from "../lib/storage.ts";
 
 interface ToolbarProps {
@@ -113,9 +114,11 @@ export function Toolbar({
 
     return (
         <header className="h-12 border-b border-border flex items-center px-4 gap-2 shrink-0 bg-card">
-            <span className="font-bold text-sm tracking-tight mr-2">
-                RemoraFlow
-            </span>
+            <img
+                src={remoraflowLogo}
+                alt="RemoraFlow"
+                className="h-7 mr-2"
+            />
 
             <div className="flex items-center gap-1.5">
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
