@@ -74,7 +74,11 @@ export function createTemporalDurableExecutionAdapter(
         step(stepName, _fn, options) {
             const activityOptions = stepOptionsToActivityOptions(options);
             const activities = context.createActivities(activityOptions);
-            return activities[stepName]();
+            const activity = activities[stepName];
+            if (!activity) {
+                throw new Error(`Activity "${stepName}" not registered`);
+            }
+            return activity();
         },
 
         async sleep(seconds) {

@@ -88,7 +88,6 @@ function requestApprovalPolicy(
 ): ApprovalPolicy {
     return {
         id: "request-sensitive-actions",
-        type: "approval",
         scope,
         decideFn: () => ({
             policyId: "request-sensitive-actions",

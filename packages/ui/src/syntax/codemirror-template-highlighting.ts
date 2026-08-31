@@ -152,7 +152,7 @@ function findJmespathTokens(
             continue;
         }
 
-        if (/[.[\](){}:,]/.test(character)) {
+        if (character && /[.[\](){}:,]/.test(character)) {
             tokens.push({
                 from: index,
                 to: index + 1,

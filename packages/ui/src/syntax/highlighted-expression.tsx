@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/light";
+import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import { cn } from "../lib/utils";
 import { findTemplateSyntaxTokens } from "./codemirror-template-highlighting";
 import { JMESPATH_LANGUAGE, jmespathLanguage } from "./jmespath";

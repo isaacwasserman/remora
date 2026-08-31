@@ -10,12 +10,12 @@ import { createTemporalDurableExecutionAdapter } from "./temporal-adapter";
 function createAdapter() {
     return createTemporalDurableExecutionAdapter({
         workflowInfo,
-        sleep,
+        sleep: sleep as (duration: string | number) => Promise<void>,
         createActivities: (options) =>
             proxyActivities({
                 startToCloseTimeout: options.startToCloseTimeout ?? "1 minute",
                 retry: options.retry,
-            } satisfies ActivityOptions),
+            } as ActivityOptions),
     });
 }
 

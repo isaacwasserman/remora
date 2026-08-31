@@ -21,8 +21,7 @@ export function useWSExecution() {
         inputs: Record<string, unknown>;
     }): AsyncGenerator<ExecutionState> {
         const llmConfig = await loadOpenRouterConfig();
-        // biome-ignore lint/complexity/noBannedTypes: oRPC client types are opaque
-        const stream = await (wsRpc.workflow.execute as Function)({
+        const stream = await wsRpc.workflow.execute({
             workflow: params.workflow,
             input: params.inputs,
             llmConfig: llmConfig ?? undefined,
@@ -54,8 +53,7 @@ export function useWSExecution() {
         async (requestId: string, answer: string) => {
             const executionId = executionIdRef.current;
             if (!executionId) return;
-            // biome-ignore lint/complexity/noBannedTypes: oRPC client types are opaque
-            await (wsRpc.intervention.respond as Function)({
+            await wsRpc.intervention.respond({
                 executionId,
                 requestId,
                 answer,
