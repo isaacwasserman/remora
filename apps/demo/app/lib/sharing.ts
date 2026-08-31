@@ -51,7 +51,7 @@ export async function decodeWorkflow(
     const compressed = fromBase64Url(encoded);
     const ds = new DecompressionStream("deflate-raw");
     const writer = ds.writable.getWriter();
-    writer.write(compressed);
+    writer.write(compressed as Uint8Array<ArrayBuffer>);
     writer.close();
     const chunks: Uint8Array[] = [];
     const reader = ds.readable.getReader();

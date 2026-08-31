@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createOpenAI } from "@ai-sdk/openai";
+import { jsonSchemaToType } from "@ark/json-schema";
 import type { DeepPartial } from "ai";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
@@ -91,7 +92,7 @@ async function collectGenerationOutput(
     const generationOptions = {};
     const stream = generateWorkflowStream({
         taskDescription,
-        workflowOutputSchema,
+        workflowOutputSchema: jsonSchemaToType(workflowOutputSchema as object),
         tools,
         options: generationOptions,
         model,

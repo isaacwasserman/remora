@@ -77,8 +77,8 @@ describe("sanitizeSchemaForAI", () => {
         }) as Record<string, unknown>;
         expect(result.$defs).toBeDefined();
         expect(
-            (result.properties as Record<string, Record<string, unknown>>).name
-                .$ref,
+            (result.properties as Record<string, Record<string, unknown>>)?.name
+                ?.$ref,
         ).toBe("#/$defs/Name");
     });
 
@@ -105,10 +105,10 @@ describe("sanitizeSchemaForAI", () => {
         }) as Record<string, unknown>;
         const items = (
             result.properties as Record<string, Record<string, unknown>>
-        ).items;
-        expect(items.minItems).toBeUndefined();
+        )?.items;
+        expect(items?.minItems).toBeUndefined();
         expect(
-            (items.items as Record<string, unknown>).minimum,
+            (items?.items as Record<string, unknown>)?.minimum,
         ).toBeUndefined();
     });
 });
@@ -195,7 +195,7 @@ describe("sanitizePrompt", () => {
         ]);
         const toolPart = (result[1] as { content: unknown[] })
             .content[0] as Record<string, Record<string, unknown>>;
-        expect(toolPart.output.value).toContain("completed with no output");
+        expect(toolPart.output?.value).toContain("completed with no output");
     });
 });
 
@@ -297,6 +297,7 @@ describe("createTokenLimitMiddleware", () => {
             },
         ];
         const result = await mw.transformParams?.({
+            type: "generate" as const,
             params: { prompt } as never,
             model: {} as never,
         });
@@ -305,6 +306,6 @@ describe("createTokenLimitMiddleware", () => {
         const last = output[output.length - 1] as {
             content: { text: string }[];
         };
-        expect(last.content[0].text).toBe("short");
+        expect(last?.content[0]?.text).toBe("short");
     });
 });

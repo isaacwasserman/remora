@@ -247,7 +247,9 @@ export function WorkflowViewer({
             return;
         }
         let cancelled = false;
-        extractToolSchemas(tools).then((schemas) => {
+        extractToolSchemas(
+            tools as Parameters<typeof extractToolSchemas>[0],
+        ).then((schemas) => {
             if (!cancelled) setToolSchemas(schemas);
         });
         return () => {
@@ -661,7 +663,7 @@ export function WorkflowViewer({
             return scopeAt(
                 activeWorkflow,
                 selectedStep.id,
-                stubTools as ToolSet,
+                stubTools as Parameters<typeof scopeAt>[2],
             );
         } catch {
             return [];
@@ -796,7 +798,7 @@ export function WorkflowViewer({
 
     const onNodeDrag = useCallback(
         (
-            _: React.MouseEvent,
+            _: MouseEvent | TouchEvent,
             node: {
                 id: string;
                 parentId?: string;
@@ -811,7 +813,7 @@ export function WorkflowViewer({
 
     const onNodeDragStop = useCallback(
         (
-            _: React.MouseEvent,
+            _: MouseEvent | TouchEvent,
             node: {
                 id: string;
                 parentId?: string;

@@ -6,6 +6,7 @@ out
 dist
 *.tgz
 *.d.ts
+!**/env.d.ts
 *.d.ts.map
 
 # code coverage

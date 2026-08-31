@@ -2,7 +2,9 @@ import posthog from "posthog-js/dist/module.no-external";
 import type { EnhanceAppContext } from "vitepress";
 import Theme from "vitepress/theme";
 import { enhanceAppWithTabs } from "vitepress-plugin-tabs/client";
+// @ts-expect-error TS2882 — virtual module provided by vitepress-plugin-group-icons at build time
 import "virtual:group-icons.css";
+// @ts-expect-error TS2882 — CSS is handled by vite, not tsc
 import "./custom.css";
 
 export default {

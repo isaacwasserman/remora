@@ -1,5 +1,5 @@
-import * as jmespath from "jmespath";
 import type { Expression } from "../../schema";
+import { compileExpression } from "../../schemistry/jmespath/types";
 import { extractTemplateInserts } from "../../schemistry/template";
 import { expressionReferences } from "../../step-registry";
 import type { ValidationModule, ValidatorDiagnostic } from "../types";
@@ -17,7 +17,7 @@ function validateExpression(
     switch (expression.type) {
         case "jmespath": {
             try {
-                jmespath.compile(expression.expression);
+                compileExpression(expression.expression);
             } catch (error) {
                 diagnostics.push({
                     severity: "error",
@@ -33,7 +33,7 @@ function validateExpression(
                     expression.template,
                 )) {
                     try {
-                        jmespath.compile(insert.expression);
+                        compileExpression(insert.expression);
                     } catch (error) {
                         diagnostics.push({
                             severity: "error",

@@ -39,7 +39,7 @@ interface ToolbarProps {
     onReset: () => void;
     onLoadWorkflow: (workflow: WorkflowDefinition, key: string) => void;
     onExport: () => void;
-    onShare: () => void;
+    onShare: () => Promise<void>;
     onNewWorkflow: () => void;
     onAudit: () => void;
     onOpenSettings: () => void;
@@ -119,7 +119,6 @@ export function Toolbar({
             <div className="flex items-center gap-1.5">
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
                     <Switch
-                        size="sm"
                         checked={isEditing}
                         onCheckedChange={onEditingChange}
                     />

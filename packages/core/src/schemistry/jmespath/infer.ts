@@ -1,5 +1,3 @@
-import type { ExpressionNode, FunctionNode } from "jmespath";
-import * as jmespath from "jmespath";
 import type {
     JSONSchema7,
     JSONSchema7Definition,
@@ -7,6 +5,11 @@ import type {
 } from "json-schema";
 import type { JsonSchema } from "../json-schema/from-value";
 import { inferJsonSchema } from "../json-schema/from-value";
+import {
+    compileExpression,
+    type ExpressionNode,
+    type FunctionNode,
+} from "./types";
 
 /**
  * Annotation describing whether an access operation (field/index) is sound.
@@ -58,7 +61,7 @@ export function inferQueryOutputSchema(
     query: string,
 ): InferQueryOutputSchemaResult {
     const root = asSchemaObject(inputSchema);
-    const ast = jmespath.compile(query);
+    const ast = compileExpression(query);
 
     const inferNode = (
         node: ExpressionNode,
@@ -71,7 +74,7 @@ export function inferQueryOutputSchema(
                 );
             case "Index":
                 return accessWithNormalization(schema, (s) =>
-                    indexAccess(s, node.value),
+                    indexAccess(s, node.value as number),
                 );
             case "Slice":
                 return accessWithNormalization(schema, sliceAccess);
@@ -153,7 +156,10 @@ export function inferQueryOutputSchema(
                 const properties: { [key: string]: AnnotatedSchema } = {};
                 const required: string[] = [];
                 for (const pair of node.children) {
-                    properties[pair.name] = inferNode(pair.value, schema);
+                    properties[pair.name] = inferNode(
+                        pair.value as ExpressionNode,
+                        schema,
+                    );
                     required.push(pair.name);
                 }
                 return {
@@ -184,7 +190,10 @@ export function inferQueryOutputSchema(
                     "false",
                 );
             case "Function":
-                return ensureBadAccess(inferFunction(node, schema), "false");
+                return ensureBadAccess(
+                    inferFunction(node as FunctionNode, schema),
+                    "false",
+                );
             default:
                 // ExpressionReference and anything unhandled resolve to an
                 // unknown type.

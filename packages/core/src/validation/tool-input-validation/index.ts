@@ -29,7 +29,7 @@ function validateToolInput(
     input: (WorkflowStep & { type: "tool-call" })["params"]["toolInput"],
 ): SubsetDiagnostic[] {
     const resolvedParamTypes: Record<string, RemoraflowType> = {};
-    for (const [paramKey, paramExpression] of Object.entries(input)) {
+    for (const [paramKey, paramExpression] of Object.entries(input ?? {})) {
         resolvedParamTypes[paramKey] = getExpressionType(
             paramExpression,
             scope,

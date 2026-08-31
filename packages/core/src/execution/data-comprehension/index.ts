@@ -134,7 +134,7 @@ export function createDataPresentationResources(
     options: { maxDataTokens: number } = {
         maxDataTokens: 8192,
     },
-) {
+): DataPresentationResources {
     const {
         summarized,
         type: summarizationType,

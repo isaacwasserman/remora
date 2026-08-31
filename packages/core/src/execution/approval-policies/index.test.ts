@@ -12,7 +12,6 @@ function policy(
 ): ApprovalPolicy {
     return {
         id,
-        type: "approval",
         scope,
         decideFn: () => ({ policyId: id, decision }),
     };
@@ -61,7 +60,6 @@ describe("decideApproval", () => {
             policy("a", "allow"),
             {
                 id: "b",
-                type: "approval",
                 scope: "all",
                 decideFn: () => {
                     called = true;
@@ -102,7 +100,6 @@ describe("decideApproval", () => {
         const result = await decideApproval("tool-call", "t", {}, [
             {
                 id: "broken",
-                type: "approval",
                 scope: "all",
                 decideFn: () => {
                     throw new Error("boom");
