@@ -82,17 +82,17 @@ export function inferQueryOutputSchema(
             case "IndexExpression":
             case "Pipe":
                 return inferNode(
-                    node.children[1]!,
-                    asSchemaObject(inferNode(node.children[0]!, schema)),
+                    node.children[1],
+                    asSchemaObject(inferNode(node.children[0], schema)),
                 );
             case "Projection": {
                 const base = asSchemaObject(
-                    inferNode(node.children[0]!, schema),
+                    inferNode(node.children[0], schema),
                 );
                 if (isArraySchema(base)) {
                     return {
                         type: "array",
-                        items: inferNode(node.children[1]!, arrayElement(base)),
+                        items: inferNode(node.children[1], arrayElement(base)),
                         badAccess: "false",
                     };
                 }
@@ -104,13 +104,13 @@ export function inferQueryOutputSchema(
             }
             case "ValueProjection": {
                 const base = asSchemaObject(
-                    inferNode(node.children[0]!, schema),
+                    inferNode(node.children[0], schema),
                 );
                 if (isObjectSchema(base)) {
                     return {
                         type: "array",
                         items: inferNode(
-                            node.children[1]!,
+                            node.children[1],
                             objectValueUnion(base),
                         ),
                         badAccess: "false",
@@ -120,20 +120,20 @@ export function inferQueryOutputSchema(
             }
             case "FilterProjection": {
                 const base = asSchemaObject(
-                    inferNode(node.children[0]!, schema),
+                    inferNode(node.children[0], schema),
                 );
                 if (!isArraySchema(base)) {
                     return badNull();
                 }
                 return {
                     type: "array",
-                    items: inferNode(node.children[1]!, arrayElement(base)),
+                    items: inferNode(node.children[1], arrayElement(base)),
                     badAccess: "false",
                 };
             }
             case "Flatten": {
                 const base = asSchemaObject(
-                    inferNode(node.children[0]!, schema),
+                    inferNode(node.children[0], schema),
                 );
                 if (!isArraySchema(base)) {
                     return badNull();
@@ -156,7 +156,10 @@ export function inferQueryOutputSchema(
                 const properties: { [key: string]: AnnotatedSchema } = {};
                 const required: string[] = [];
                 for (const pair of node.children) {
-                    properties[pair.name] = inferNode(pair.value as ExpressionNode, schema);
+                    properties[pair.name] = inferNode(
+                        pair.value as ExpressionNode,
+                        schema,
+                    );
                     required.push(pair.name);
                 }
                 return {
@@ -181,13 +184,16 @@ export function inferQueryOutputSchema(
             case "OrExpression":
                 return ensureBadAccess(
                     unionSchemas([
-                        inferNode(node.children[0]!, schema),
-                        inferNode(node.children[1]!, schema),
+                        inferNode(node.children[0], schema),
+                        inferNode(node.children[1], schema),
                     ]),
                     "false",
                 );
             case "Function":
-                return ensureBadAccess(inferFunction(node as FunctionNode, schema), "false");
+                return ensureBadAccess(
+                    inferFunction(node as FunctionNode, schema),
+                    "false",
+                );
             default:
                 // ExpressionReference and anything unhandled resolve to an
                 // unknown type.
@@ -280,9 +286,7 @@ export function inferQueryOutputSchema(
             case "min_by":
                 return arrayElement(argSchema(0));
             case "not_null":
-                return unionSchemas(
-                    args.map((_, index) => argSchema(index)),
-                );
+                return unionSchemas(args.map((_, index) => argSchema(index)));
             case "map": {
                 const arrayArg = argSchema(1);
                 const element = arrayElement(arrayArg);
@@ -292,7 +296,7 @@ export function inferQueryOutputSchema(
                 }
                 const child =
                     exprNode.type === "ExpressionReference"
-                        ? exprNode.children[0]!
+                        ? exprNode.children[0]
                         : exprNode;
                 return {
                     type: "array",

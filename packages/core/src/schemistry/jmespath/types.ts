@@ -1,16 +1,23 @@
 import * as jmespath from "jmespath";
 
+type ChildrenTuple = [
+    ExpressionNode,
+    ExpressionNode,
+    ExpressionNode,
+    ...ExpressionNode[],
+];
+
 export interface ExpressionNode {
     type: string;
     name: string;
     value: unknown;
-    children: ExpressionNode[];
+    children: ChildrenTuple;
 }
 
 export interface FunctionNode extends ExpressionNode {
     type: "Function";
     name: string;
-    children: ExpressionNode[];
+    children: ChildrenTuple;
 }
 
 export const compileExpression: (expression: string) => ExpressionNode =
