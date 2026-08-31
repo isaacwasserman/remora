@@ -14,7 +14,10 @@
     "license": "GPL-3.0",
     "type": "module",
     "exports": {
-        ".": "./src/index.ts"
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
     },
     "files": [
         "dist",
@@ -22,6 +25,7 @@
         "LICENSE"
     ],
     "scripts": {
+        "prepublishOnly": "bun run build",
         "build": "bun scripts/build.ts",
         "typecheck": "bun tsc --noEmit",
         "fix": "biome check --fix --unsafe .",
