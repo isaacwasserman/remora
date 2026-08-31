@@ -50,7 +50,7 @@ console.log(
 );
 
 try {
-    await $`bunx tsc --project tsconfig.build.json`;
+    await $`bun tsc --project tsconfig.build.json`;
     console.log("Declaration emit complete");
 } catch {
     console.warn(
@@ -58,8 +58,8 @@ try {
     );
 }
 
-await $`bunx postcss src/styles.css -o dist/styles.css`;
+await $`bun postcss src/styles.css -o dist/styles.css`;
 console.log("CSS build complete");
 
-await $`bunx postcss src/theme.css -o dist/theme.css`;
+await $`bun postcss src/theme.css -o dist/theme.css`;
 console.log("Theme CSS build complete");
