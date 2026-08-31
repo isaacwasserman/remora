@@ -77,6 +77,10 @@ export default defineConfig({
                             text: "Durable Execution",
                             link: "/guide/durable-execution",
                         },
+                        {
+                            text: "Human-in-the-Loop",
+                            link: "/guide/human-in-the-loop",
+                        },
                     ],
                 },
             ],
