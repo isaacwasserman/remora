@@ -247,7 +247,9 @@ export function WorkflowViewer({
             return;
         }
         let cancelled = false;
-        extractToolSchemas(tools as Parameters<typeof extractToolSchemas>[0]).then((schemas) => {
+        extractToolSchemas(
+            tools as Parameters<typeof extractToolSchemas>[0],
+        ).then((schemas) => {
             if (!cancelled) setToolSchemas(schemas);
         });
         return () => {

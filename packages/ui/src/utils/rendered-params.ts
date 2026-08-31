@@ -16,7 +16,8 @@ function setAtPath(
         cursor = next as Record<string, unknown> | unknown[];
     }
     const last = path.at(-1);
-    if (last !== undefined) (cursor as Record<PropertyKey, unknown>)[last] = value;
+    if (last !== undefined)
+        (cursor as Record<PropertyKey, unknown>)[last] = value;
 }
 
 /** Resolves the expressions in a step's JSON parameters against its run scope. */
