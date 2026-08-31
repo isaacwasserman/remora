@@ -44,5 +44,5 @@ console.log(
     result.outputs.map((o) => o.path),
 );
 
-await $`bun tsc --project tsconfig.build.json`;
+await $`bun run --bun tsc --project tsconfig.build.json`;
 console.log("Declaration emit complete");

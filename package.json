@@ -18,7 +18,7 @@
         "test": "bun test",
         "lint": "biome check .",
         "lint:fix": "biome check --fix --unsafe .",
-        "typecheck": "bun tsc --build",
+        "typecheck": "bun run --bun tsc --build",
         "viewer": "bun run --filter demo dev",
         "docs:dev": "bun run --filter docs dev",
         "docs:build": "bun run --filter docs build",
