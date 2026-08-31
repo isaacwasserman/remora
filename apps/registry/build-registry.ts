@@ -13,42 +13,39 @@ interface FileEntry {
 }
 
 const VIEWER_FILES: FileEntry[] = [
-    { relPath: "components/ui/workflow-combobox.tsx", type: "registry:ui" },
-    { relPath: "components/ui/command.tsx", type: "registry:ui" },
-    { relPath: "components/ui/dialog.tsx", type: "registry:ui" },
-    { relPath: "components/ui/popover.tsx", type: "registry:ui" },
+    { relPath: "components/ui/combobox.tsx", type: "registry:ui" },
     { relPath: "workflow-viewer.tsx", type: "registry:component" },
     { relPath: "graph-layout.ts", type: "registry:component" },
     { relPath: "theme.tsx", type: "registry:component" },
     { relPath: "edit-context.tsx", type: "registry:component" },
     { relPath: "execution-state.ts", type: "registry:component" },
     { relPath: "tool-schemas-context.tsx", type: "registry:component" },
+    { relPath: "text-styles.ts", type: "registry:component" },
+    // layout
+    { relPath: "layout/index.ts", type: "registry:component" },
+    { relPath: "layout/constants.ts", type: "registry:component" },
+    { relPath: "layout/measure.ts", type: "registry:component" },
+    { relPath: "layout/types.ts", type: "registry:component" },
     // hooks
     { relPath: "hooks/use-editable-workflow.ts", type: "registry:component" },
     { relPath: "hooks/use-context-menu.ts", type: "registry:component" },
     { relPath: "hooks/use-selection-state.ts", type: "registry:component" },
+    { relPath: "hooks/use-workflow-execution.ts", type: "registry:component" },
     // utils
     { relPath: "utils/step-defaults.ts", type: "registry:component" },
-    { relPath: "utils/group-refs.ts", type: "registry:component" },
+    { relPath: "utils/nested-chain-refs.ts", type: "registry:component" },
+    { relPath: "utils/stub-tools.ts", type: "registry:component" },
+    { relPath: "utils/expression-display.ts", type: "registry:component" },
+    { relPath: "utils/diagnostic-matching.ts", type: "registry:component" },
+    { relPath: "utils/rendered-params.ts", type: "registry:component" },
     // edges
     { relPath: "edges/workflow-edge.tsx", type: "registry:component" },
     // nodes
-    { relPath: "nodes/base-node.tsx", type: "registry:component" },
-    { relPath: "nodes/tool-call-node.tsx", type: "registry:component" },
-    { relPath: "nodes/llm-prompt-node.tsx", type: "registry:component" },
-    { relPath: "nodes/extract-data-node.tsx", type: "registry:component" },
-    { relPath: "nodes/switch-case-node.tsx", type: "registry:component" },
-    { relPath: "nodes/for-each-node.tsx", type: "registry:component" },
+    { relPath: "nodes/node-shell.tsx", type: "registry:component" },
+    { relPath: "nodes/step-node.tsx", type: "registry:component" },
     { relPath: "nodes/start-node.tsx", type: "registry:component" },
-    { relPath: "nodes/start-step-node.tsx", type: "registry:component" },
-    { relPath: "nodes/end-node.tsx", type: "registry:component" },
     { relPath: "nodes/group-header-node.tsx", type: "registry:component" },
-    { relPath: "nodes/sleep-node.tsx", type: "registry:component" },
-    {
-        relPath: "nodes/wait-for-condition-node.tsx",
-        type: "registry:component",
-    },
-    { relPath: "nodes/agent-loop-node.tsx", type: "registry:component" },
+    { relPath: "nodes/group-container-node.tsx", type: "registry:component" },
     // components
     { relPath: "components/step-palette.tsx", type: "registry:component" },
     {
@@ -59,55 +56,111 @@ const VIEWER_FILES: FileEntry[] = [
         relPath: "components/workflow-json-dialog.tsx",
         type: "registry:component",
     },
+    { relPath: "components/replay-slider.tsx", type: "registry:component" },
+    // syntax
+    {
+        relPath: "syntax/codemirror-template-highlighting.ts",
+        type: "registry:component",
+    },
+    {
+        relPath: "syntax/highlighted-expression.tsx",
+        type: "registry:component",
+    },
+    { relPath: "syntax/jmespath.ts", type: "registry:component" },
+    { relPath: "syntax/remora-template.ts", type: "registry:component" },
     // editors
+    { relPath: "editors/code-input.tsx", type: "registry:component" },
     { relPath: "editors/codemirror-theme.ts", type: "registry:component" },
-    { relPath: "editors/json-code-editor.tsx", type: "registry:component" },
-    { relPath: "editors/json-viewer.tsx", type: "registry:component" },
-    { relPath: "editors/shared-editors.tsx", type: "registry:component" },
+    {
+        relPath: "editors/codemirror/use-codemirror.ts",
+        type: "registry:component",
+    },
     { relPath: "editors/expression-editor.tsx", type: "registry:component" },
     { relPath: "editors/expression-input.tsx", type: "registry:component" },
     {
         relPath: "editors/expression-scope-context.tsx",
         type: "registry:component",
     },
+    { relPath: "editors/jmespath-code-editor.tsx", type: "registry:component" },
+    { relPath: "editors/json-code-editor.tsx", type: "registry:component" },
+    { relPath: "editors/json-editor.tsx", type: "registry:component" },
+    { relPath: "editors/json-viewer.tsx", type: "registry:component" },
+    { relPath: "editors/shared-editors.tsx", type: "registry:component" },
+    { relPath: "editors/step-fields.tsx", type: "registry:component" },
+    { relPath: "editors/template-code-editor.tsx", type: "registry:component" },
     {
         relPath: "editors/template-expression-input.tsx",
         type: "registry:component",
     },
-    // param editors
-    { relPath: "editors/params/types.ts", type: "registry:component" },
+    // editor fields
+    { relPath: "editors/fields/boolean-field.tsx", type: "registry:component" },
     {
-        relPath: "editors/params/agent-loop-params.tsx",
-        type: "registry:component",
-    },
-    { relPath: "editors/params/end-params.tsx", type: "registry:component" },
-    {
-        relPath: "editors/params/extract-data-params.tsx",
+        relPath: "editors/fields/case-list-field.tsx",
         type: "registry:component",
     },
     {
-        relPath: "editors/params/for-each-params.tsx",
+        relPath: "editors/fields/constant-field.tsx",
         type: "registry:component",
     },
     {
-        relPath: "editors/params/llm-prompt-params.tsx",
-        type: "registry:component",
-    },
-    { relPath: "editors/params/sleep-params.tsx", type: "registry:component" },
-    { relPath: "editors/params/start-params.tsx", type: "registry:component" },
-    {
-        relPath: "editors/params/switch-case-params.tsx",
+        relPath: "editors/fields/expression-field.tsx",
         type: "registry:component",
     },
     {
-        relPath: "editors/params/tool-call-params.tsx",
+        relPath: "editors/fields/expression-map-field.tsx",
+        type: "registry:component",
+    },
+    { relPath: "editors/fields/field-row.tsx", type: "registry:component" },
+    {
+        relPath: "editors/fields/identifier-field.tsx",
         type: "registry:component",
     },
     {
-        relPath: "editors/params/wait-for-condition-params.tsx",
+        relPath: "editors/fields/json-schema-field.tsx",
         type: "registry:component",
     },
+    {
+        relPath: "editors/fields/read-only-step-params.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/schema-map-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/step-ref-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/template-text-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/tool-ref-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/tool-ref-list-field.tsx",
+        type: "registry:component",
+    },
+    {
+        relPath: "editors/fields/workflow-extras-editor.tsx",
+        type: "registry:component",
+    },
+    // step-ui
+    { relPath: "step-ui/constraint-hints.ts", type: "registry:component" },
+    { relPath: "step-ui/field-kinds.ts", type: "registry:component" },
+    { relPath: "step-ui/param-access.ts", type: "registry:component" },
+    { relPath: "step-ui/params.ts", type: "registry:component" },
+    { relPath: "step-ui/registry.ts", type: "registry:component" },
+    { relPath: "step-ui/tone-styles.ts", type: "registry:component" },
+    { relPath: "step-ui/tones.ts", type: "registry:component" },
+    { relPath: "step-ui/types.ts", type: "registry:component" },
     // panels
+    {
+        relPath: "panels/field-diagnostics-context.tsx",
+        type: "registry:component",
+    },
     { relPath: "panels/shared.tsx", type: "registry:component" },
     { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
     { relPath: "panels/step-editor-panel.tsx", type: "registry:component" },
@@ -179,7 +232,11 @@ async function processFiles(
     // Build a set of registry-relative paths (without extensions) for lookup.
     const registryFiles = new Set<string>();
     for (const { relPath } of files) {
-        registryFiles.add(relPath.replace(/\.[^.]+$/, ""));
+        const stem = relPath.replace(/\.[^.]+$/, "");
+        registryFiles.add(stem);
+        if (stem.endsWith("/index")) {
+            registryFiles.add(stem.slice(0, -"/index".length));
+        }
     }
 
     return Promise.all(
@@ -227,12 +284,19 @@ async function main() {
             "lucide-react",
         ],
         registryDependencies: [
+            "badge",
             "button",
+            "collapsible",
+            "command",
+            "dialog",
+            "dropdown-menu",
             "input",
-            "select",
-            "textarea",
             "label",
+            "popover",
+            "select",
+            "switch",
             "tabs",
+            "textarea",
         ],
         files: viewerFiles,
     };

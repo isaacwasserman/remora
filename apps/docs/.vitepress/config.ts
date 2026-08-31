@@ -74,10 +74,6 @@ export default defineConfig({
                             link: "/guide/getting-started",
                         },
                         {
-                            text: "Type Safety",
-                            link: "/guide/type-safety",
-                        },
-                        {
                             text: "Durable Execution",
                             link: "/guide/durable-execution",
                         },
