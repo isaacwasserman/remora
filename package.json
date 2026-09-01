@@ -24,7 +24,7 @@
         "docs:build": "bun run --filter docs build",
         "changeset": "changeset",
         "version-packages": "changeset version",
-        "ci:release": "bun run build && (cd packages/core && bun publish --provenance --access public) && (cd packages/ui && bun publish --provenance --access public)"
+        "ci:release": "bun run build && mkdir -p /tmp/tarballs && (cd packages/core && bun pm pack --destination /tmp/tarballs) && (cd packages/ui && bun pm pack --destination /tmp/tarballs) && npm publish /tmp/tarballs/remoraflow-core-*.tgz --provenance --access public && npm publish /tmp/tarballs/remoraflow-ui-*.tgz --provenance --access public"
     },
     "workspaces": [
         "packages/*",
