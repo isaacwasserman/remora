@@ -50,11 +50,8 @@ jobs:
       - name: Publish canary to npm
         if: steps.version.outputs.is_snapshot == 'true'
         run: |
-          mkdir -p /tmp/tarballs
-          (cd packages/core && bun pm pack --destination /tmp/tarballs)
-          (cd packages/ui && bun pm pack --destination /tmp/tarballs)
-          npm publish /tmp/tarballs/remoraflow-core-*.tgz --tag canary --provenance --access public
-          npm publish /tmp/tarballs/remoraflow-ui-*.tgz --tag canary --provenance --access public
+          cd packages/core && npm publish --tag canary --provenance --access public --no-git-checks && cd ../..
+          cd packages/ui && npm publish --tag canary --provenance --access public --no-git-checks
 
   release:
     runs-on: ubuntu-latest
