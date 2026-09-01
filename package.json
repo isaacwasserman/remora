@@ -24,7 +24,7 @@
         "docs:build": "bun run --filter docs build",
         "changeset": "changeset",
         "version-packages": "changeset version",
-        "ci:release": "bun run build && cd packages/core && npm publish --provenance --access public && cd ../ui && npm publish --provenance --access public"
+        "ci:release": "bun run build && cd packages/core && bun publish --provenance --access public && cd ../ui && bun publish --provenance --access public"
     },
     "workspaces": [
         "packages/*",
