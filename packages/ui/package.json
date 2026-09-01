@@ -30,8 +30,6 @@
     "scripts": {
         "build": "NODE_ENV=production bun scripts/build.ts",
         "prepublishOnly": "bun run build",
-        "prepack": "bun scripts/resolve-workspace-deps.ts",
-        "postpack": "bun scripts/restore-workspace-deps.ts",
         "test": "bun test"
     },
     "dependencies": {
