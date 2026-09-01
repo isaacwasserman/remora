@@ -50,8 +50,8 @@ jobs:
       - name: Publish canary to npm
         if: steps.version.outputs.is_snapshot == 'true'
         run: |
-          cd packages/core && bun publish --tag canary --provenance --access public --no-git-checks && cd ../..
-          cd packages/ui && bun publish --tag canary --provenance --access public --no-git-checks
+          (cd packages/core && bun publish --tag canary --provenance --access public --no-git-checks)
+          (cd packages/ui && bun publish --tag canary --provenance --access public --no-git-checks)
 
   release:
     runs-on: ubuntu-latest
