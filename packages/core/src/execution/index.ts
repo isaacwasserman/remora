@@ -314,9 +314,8 @@ export async function* executeWorkflowStream({
                     code: error.code,
                     message: error.message,
                     stepId:
-                        stepExecutions.findLast(
-                            (r) => r.status === "running",
-                        )?.stepId ?? null,
+                        stepExecutions.findLast((r) => r.status === "running")
+                            ?.stepId ?? null,
                 },
                 logs: latestLogs,
                 scope: latestUpdate?.scope ?? {},
