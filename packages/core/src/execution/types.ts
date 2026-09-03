@@ -36,6 +36,7 @@ export type ExecutionError = {
         | "POLICY_DENIED"
         | "UNKNOWN";
     message: string;
+    stepId: string | null;
     path?: PropertyKey[];
 };
 

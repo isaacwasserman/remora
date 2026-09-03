@@ -55,6 +55,7 @@ export async function* _executeWorkflow({
                 output: null,
                 error: {
                     code: "INVALID_WORKFLOW",
+                    stepId: currentStep.id,
                     path: ["steps", currentStep.index],
                     message: `Step "${currentStep.id}" has type "${currentStep.type}", which is not permitted by the current feature flags.`,
                 },
@@ -107,6 +108,7 @@ export async function* _executeWorkflow({
                     output: null,
                     error: {
                         code: error.code,
+                        stepId: currentStep.id,
                         message: error.message,
                         path: ["steps", currentStep.index],
                     },
@@ -121,6 +123,7 @@ export async function* _executeWorkflow({
                 output: null,
                 error: {
                     code: stepExecutor.errorCode,
+                    stepId: currentStep.id,
                     path: ["steps", currentStep.index],
                     message,
                 },

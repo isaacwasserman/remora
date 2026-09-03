@@ -89,7 +89,7 @@ async function runStep(
         const message = e instanceof Error ? e.message : String(e);
         return {
             scope: null,
-            error: { code: executor.errorCode, message },
+            error: { code: executor.errorCode, stepId: null, message },
         };
     }
     return last ?? { scope: null, error: null };

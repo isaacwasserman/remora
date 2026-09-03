@@ -241,7 +241,7 @@ async function runAgentLoopStep(
         return {
             scope: null,
             output: null,
-            error: { code: executor.errorCode, message },
+            error: { code: executor.errorCode, stepId: null, message },
             currentUniqueStepIdPath: [agentStep.id],
         };
     }

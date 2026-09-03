@@ -42,6 +42,7 @@ export const switchCaseExecutor: StepExecutor<"switch-case"> = {
                 output: null,
                 error: {
                     code: "UNRECOGNIZED_CASE",
+                    stepId: step.id,
                     path: ["steps", stepIndex(workflowDefinition, step.id)],
                     message: `Switch-case step with id "${step.id}" branches on ${JSON.stringify(step.params.switchOn)}, but this evaluated to "${branchingValue} for which there was no case defined and no default case given."`,
                 },

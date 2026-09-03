@@ -24,6 +24,7 @@ export const toolCallExecutor: StepExecutor<"tool-call"> = {
                 output: null,
                 error: {
                     code: "MISSING_TOOL",
+                    stepId: step.id,
                     message: `Tool "${step.params.toolName}" could not be found in the provided toolset.`,
                 },
             };
@@ -36,6 +37,7 @@ export const toolCallExecutor: StepExecutor<"tool-call"> = {
                 output: null,
                 error: {
                     code: "MISSING_TOOL_EXECUTION_FUNCTION",
+                    stepId: step.id,
                     message: `Tool "${step.params.toolName}" is missing its required execution function.`,
                 },
             };

@@ -131,6 +131,7 @@ export async function* executeWorkflowStream({
                 code: "INVALID_WORKFLOW",
                 message: firstError.message,
                 path: firstError.path,
+                stepId: null,
             },
             logs: [],
             scope: {},
@@ -153,6 +154,7 @@ export async function* executeWorkflowStream({
                 error: {
                     code: "INVALID_INPUT",
                     message: `Workflow input does not match the input schema: ${detail?.error ?? "validation failed"}`,
+                    stepId: null,
                 },
                 logs: [],
                 scope: {},
@@ -311,6 +313,10 @@ export async function* executeWorkflowStream({
                 error: {
                     code: error.code,
                     message: error.message,
+                    stepId:
+                        stepExecutions.findLast(
+                            (r) => r.status === "running",
+                        )?.stepId ?? null,
                 },
                 logs: latestLogs,
                 scope: latestUpdate?.scope ?? {},
@@ -336,6 +342,7 @@ export async function* executeWorkflowStream({
                 error: {
                     code: "INVALID_OUTPUT",
                     message: `Workflow output does not match the output schema: ${detail?.error ?? "validation failed"}`,
+                    stepId: null,
                 },
                 logs: latestLogs,
                 scope: latestUpdate?.scope ?? {},
