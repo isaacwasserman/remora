@@ -57,6 +57,11 @@
     }
 }
 
+.VPSocialLink[href*="npmjs.com"] > svg {
+    width: 28px;
+    height: 28px;
+}
+
 .VPHero .actions a[href*="github.com"]::before {
     content: "";
     display: inline-block;
