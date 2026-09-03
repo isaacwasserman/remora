@@ -29,6 +29,7 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                     output: null,
                     error: {
                         code: "TYPE_ERROR",
+                        stepId: step.id,
                         path: [
                             "steps",
                             stepIndex(workflowDefinition, step.id),
@@ -49,6 +50,7 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                     output: null,
                     error: {
                         code: "TYPE_ERROR",
+                        stepId: step.id,
                         path: [
                             "steps",
                             stepIndex(workflowDefinition, step.id),
@@ -66,6 +68,7 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                     output: null,
                     error: {
                         code: "TYPE_ERROR",
+                        stepId: step.id,
                         path: [
                             "steps",
                             stepIndex(workflowDefinition, step.id),
@@ -134,6 +137,7 @@ export const requestInterventionExecutor: StepExecutor<"request-intervention"> =
                     output: null,
                     error: {
                         code: "TYPE_ERROR",
+                        stepId: step.id,
                         path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message: `Intervention response "${answer}" in step "${step.id}" is not one of the allowed choices and free response is disabled.`,
                     },

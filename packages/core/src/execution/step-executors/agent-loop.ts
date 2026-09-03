@@ -67,6 +67,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                     output: null,
                     error: {
                         code: "AGENT_RUN_FAILED",
+                        stepId: step.id,
                         path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message: `Agent exhausted its step budget of ${maxSteps}.`,
                     },
@@ -123,6 +124,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                     output: null,
                     error: {
                         code: "AGENT_RUN_FAILED",
+                        stepId: step.id,
                         path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message:
                             record.status === "stalled"
@@ -139,6 +141,7 @@ export const agentLoopExecutor: StepExecutor<"agent-loop"> = {
                     output: null,
                     error: {
                         code: "AGENT_RUN_FAILED",
+                        stepId: step.id,
                         path: ["steps", stepIndex(workflowDefinition, step.id)],
                         message:
                             "Agent exhausted its step budget with a tool call still awaiting approval.",
