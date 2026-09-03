@@ -4,10 +4,7 @@ import dedent from "dedent";
 import type { JSONSchema7 } from "json-schema";
 import { resolveDurationLimits } from "./execution/execution-engine/duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
-import {
-    type ResolvedRemoraflowSettings,
-    remoraflowSettingsSchema,
-} from "./types";
+import { type RemoraflowSettings, remoraflowSettingsSchema } from "./types";
 
 const jsonSchemaArktypeSchema = type("object")
     .narrow((schema, ctx) => {
@@ -295,8 +292,9 @@ const extractDataParamsSchema = type({
 );
 
 export function createWorkflowDefinitionSchema(
-    options: ResolvedRemoraflowSettings,
+    settings: RemoraflowSettings = {},
 ) {
+    const options = remoraflowSettingsSchema.assert(settings);
     const limits = resolveDurationLimits(options.duration);
     const maxSleepDurationMs = 1000 * limits.maxSleepSeconds;
     const sleepParamsSchema = type({
@@ -577,6 +575,4 @@ export type WorkflowStep = StandardSchemaTypeInfer<WorkflowStepArktypeSchema>;
 export type WorkflowDefinition =
     StandardSchemaTypeInfer<WorkflowDefinitionArktypeSchema>;
 
-export const workflowDefinitionSchema = createWorkflowDefinitionSchema(
-    remoraflowSettingsSchema.assert({}),
-);
+export const workflowDefinitionSchema = createWorkflowDefinitionSchema();

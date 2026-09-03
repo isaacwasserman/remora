@@ -254,9 +254,8 @@ export function preparePrompt({
     tools: StubbedToolSet;
     options: GenerationOptions;
 }) {
-    const resolvedOptions = remoraflowSettingsSchema.assert(options);
     const { workflowDefinitionArktypeSchema } =
-        createWorkflowDefinitionSchema(resolvedOptions);
+        createWorkflowDefinitionSchema(options);
 
     const instructions = dedent`
         You are a workflow generation subagent. You generate workflows from a task description and a set of predefined tools. Workflows are written using a proprietary "Remoraflow" JSON definition.
