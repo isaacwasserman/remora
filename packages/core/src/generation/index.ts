@@ -1,4 +1,3 @@
-import { toJsonSchema } from "@standard-community/standard-json";
 import {
     asSchema,
     type DeepPartial,
@@ -13,7 +12,7 @@ import {
 import { type } from "arktype";
 import dedent from "dedent";
 import type { JSONSchema7 } from "json-schema";
-import type { StandardSchemaV1 } from "..";
+import type { StandardJSONSchemaV1 } from "..";
 import { createAsyncQueue } from "../execution/execution-engine/async-queue";
 import {
     createWorkflowDefinitionSchema,
@@ -250,7 +249,7 @@ export function preparePrompt({
     options,
 }: {
     taskDescription: string;
-    workflowOutputSchema?: StandardSchemaV1;
+    workflowOutputSchema?: StandardJSONSchemaV1;
     tools: StubbedToolSet;
     options: GenerationOptions;
 }) {
@@ -299,7 +298,7 @@ export function preparePrompt({
                 ? dedent`
                     The generated workflow must declare and produce output matching this JSON Schema:
                     <RequiredWorkflowOutputSchema>
-                        ${JSON.stringify(toJsonSchema(workflowOutputSchema))}
+                        ${JSON.stringify(workflowOutputSchema["~standard"].jsonSchema.input({ target: "draft-07" }))}
                     </RequiredWorkflowOutputSchema>
                 `
                 : ""
@@ -325,7 +324,7 @@ export async function* generateWorkflowStream({
     onDiagnosticEvent,
 }: {
     taskDescription: string;
-    workflowOutputSchema?: StandardSchemaV1;
+    workflowOutputSchema?: StandardJSONSchemaV1;
     tools: StubbedToolSet;
     options: GenerationOptions;
     model: LanguageModel;
@@ -487,7 +486,9 @@ export async function* generateWorkflowStream({
                         const subsetDiagnostics =
                             requestedOutputSchemaDiagnostics(
                                 correctedDefinition.outputSchema,
-                                await toJsonSchema(workflowOutputSchema),
+                                workflowOutputSchema[
+                                    "~standard"
+                                ].jsonSchema.input({ target: "draft-07" }),
                             );
                         if (subsetDiagnostics.length > 0) {
                             throw new Error(
