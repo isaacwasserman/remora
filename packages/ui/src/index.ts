@@ -1,5 +1,4 @@
 /** @module viewer */
-import "./styles.css";
 
 export type { ReplaySliderProps } from "./components/replay-slider";
 export { ReplaySlider } from "./components/replay-slider";

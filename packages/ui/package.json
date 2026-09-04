@@ -13,7 +13,6 @@
     },
     "license": "GPL-3.0",
     "type": "module",
-    "style": "./dist/styles.css",
     "exports": {
         ".": {
             "import": "./dist/index.js",
