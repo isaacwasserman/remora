@@ -62,6 +62,91 @@ export function inferQueryOutputSchema(
 ): InferQueryOutputSchemaResult {
     const root = asSchemaObject(inputSchema);
     const ast = compileExpression(query);
+    const functionDiagnostics: BadAccessDiagnostic[] = [];
+
+    const reportArgDiagnostic = (
+        fnName: string,
+        argIndex: number,
+        schema: AnnotatedSchema,
+        allowedTypes: JSONSchema7TypeName[],
+    ): void => {
+        const compat = typeCompatibility(schema, allowedTypes);
+        if (compat === "compatible" || compat === "unknown") return;
+        const actual = describeSchemaType(schema);
+        const expected = formatTypeList(allowedTypes);
+        functionDiagnostics.push({
+            badAccess: compat === "incompatible" ? "true" : "maybe",
+            path: [],
+            message:
+                compat === "incompatible"
+                    ? `${fnName}(): argument ${argIndex + 1} must be ${expected}, got ${actual}.`
+                    : `${fnName}(): argument ${argIndex + 1} must be ${expected}, but may receive incompatible type ${actual}.`,
+        });
+    };
+
+    const reportArrayElementDiagnostic = (
+        fnName: string,
+        argIndex: number,
+        schema: AnnotatedSchema,
+        allowedElementTypes: JSONSchema7TypeName[],
+        description: string,
+    ): void => {
+        const arrayCompat = typeCompatibility(schema, ["array"]);
+        if (arrayCompat === "unknown") return;
+        if (arrayCompat === "incompatible") {
+            const actual = describeSchemaType(schema);
+            functionDiagnostics.push({
+                badAccess: "true",
+                path: [],
+                message: `${fnName}(): argument ${argIndex + 1} must be ${description}, got ${actual}.`,
+            });
+            return;
+        }
+        const items = schema.items;
+        if (items === undefined) return;
+        if (Array.isArray(items)) {
+            let worstCompat: Compatibility = "compatible";
+            for (const item of items) {
+                const elemCompat = typeCompatibility(
+                    asSchemaObject(item),
+                    allowedElementTypes,
+                );
+                if (elemCompat === "unknown") return;
+                if (elemCompat === "incompatible") {
+                    worstCompat = "incompatible";
+                    break;
+                }
+                if (elemCompat === "maybe" && worstCompat === "compatible") {
+                    worstCompat = "maybe";
+                }
+            }
+            if (worstCompat === "compatible") return;
+            functionDiagnostics.push({
+                badAccess: worstCompat === "incompatible" ? "true" : "maybe",
+                path: [],
+                message:
+                    worstCompat === "incompatible"
+                        ? `${fnName}(): argument ${argIndex + 1} must be ${description}, but the array contains incompatible element types.`
+                        : `${fnName}(): argument ${argIndex + 1} must be ${description}, but the array may contain incompatible element types.`,
+            });
+        } else {
+            const elemSchema = asSchemaObject(items);
+            const elemCompat = typeCompatibility(
+                elemSchema,
+                allowedElementTypes,
+            );
+            if (elemCompat === "compatible" || elemCompat === "unknown") return;
+            const actual = describeSchemaType(elemSchema);
+            functionDiagnostics.push({
+                badAccess: elemCompat === "incompatible" ? "true" : "maybe",
+                path: [],
+                message:
+                    elemCompat === "incompatible"
+                        ? `${fnName}(): argument ${argIndex + 1} must be ${description}, but the array contains ${actual} elements.`
+                        : `${fnName}(): argument ${argIndex + 1} must be ${description}, but the array may contain incompatible ${actual} elements.`,
+            });
+        }
+    };
 
     const inferNode = (
         node: ExpressionNode,
@@ -215,9 +300,25 @@ export function inferQueryOutputSchema(
             case "abs":
             case "ceil":
             case "floor":
+                reportArgDiagnostic(node.name, 0, argSchema(0), ["number"]);
+                return { type: "number" };
             case "avg":
             case "sum":
+                reportArrayElementDiagnostic(
+                    node.name,
+                    0,
+                    argSchema(0),
+                    ["number"],
+                    "an array of numbers",
+                );
+                return { type: "number" };
             case "length":
+                reportArgDiagnostic(node.name, 0, argSchema(0), [
+                    "string",
+                    "array",
+                    "object",
+                ]);
+                return { type: "number" };
             case "to_number":
                 return { type: "number" };
             case "find_first":
@@ -225,22 +326,42 @@ export function inferQueryOutputSchema(
                 return { anyOf: [{ type: "number" }, { type: "null" }] };
             case "lower":
             case "upper":
+            case "trim":
+            case "trim_left":
+            case "trim_right":
+                reportArgDiagnostic(node.name, 0, argSchema(0), ["string"]);
+                return { type: "string" };
             case "join":
+                reportArgDiagnostic(node.name, 0, argSchema(0), ["string"]);
+                reportArrayElementDiagnostic(
+                    node.name,
+                    1,
+                    argSchema(1),
+                    ["string"],
+                    "an array of strings",
+                );
+                return { type: "string" };
             case "pad_left":
             case "pad_right":
             case "replace":
             case "to_string":
-            case "trim":
-            case "trim_left":
-            case "trim_right":
             case "type":
                 return { type: "string" };
             case "contains":
+                reportArgDiagnostic(node.name, 0, argSchema(0), [
+                    "string",
+                    "array",
+                ]);
+                return { type: "boolean" };
             case "ends_with":
             case "starts_with":
+                reportArgDiagnostic(node.name, 0, argSchema(0), ["string"]);
+                reportArgDiagnostic(node.name, 1, argSchema(1), ["string"]);
                 return { type: "boolean" };
             case "split":
+                return { type: "array", items: { type: "string" } };
             case "keys":
+                reportArgDiagnostic(node.name, 0, argSchema(0), ["object"]);
                 return { type: "array", items: { type: "string" } };
             case "items":
             case "zip":
@@ -258,19 +379,30 @@ export function inferQueryOutputSchema(
                 }
                 return { type: "object", properties };
             }
-            case "values":
-                return {
-                    type: "array",
-                    items: objectValueUnion(argSchema(0)),
-                };
+            case "values": {
+                const arg = argSchema(0);
+                reportArgDiagnostic(node.name, 0, arg, ["object"]);
+                return { type: "array", items: objectValueUnion(arg) };
+            }
             case "reverse": {
                 const arg = argSchema(0);
+                reportArgDiagnostic(node.name, 0, arg, ["string", "array"]);
                 if (singleType(arg) === "string") {
                     return { type: "string" };
                 }
                 return { type: "array", items: arrayElement(arg) };
             }
-            case "sort":
+            case "sort": {
+                const arg = argSchema(0);
+                reportArrayElementDiagnostic(
+                    node.name,
+                    0,
+                    arg,
+                    ["string", "number"],
+                    "an array of strings or numbers",
+                );
+                return { type: "array", items: arrayElement(arg) };
+            }
             case "sort_by":
                 return { type: "array", items: arrayElement(argSchema(0)) };
             case "to_array": {
@@ -304,7 +436,6 @@ export function inferQueryOutputSchema(
                 };
             }
             default:
-                // Unknown or custom function: type is unknown.
                 return {};
         }
     };
@@ -315,6 +446,7 @@ export function inferQueryOutputSchema(
     );
     const diagnostics: BadAccessDiagnostic[] = [];
     collectDiagnostics(schema, [], diagnostics);
+    diagnostics.push(...functionDiagnostics);
     return { schema, diagnostics };
 }
 
@@ -500,6 +632,62 @@ function isUnknown(schema: AnnotatedSchema): boolean {
         return false;
     }
     return true;
+}
+
+type Compatibility = "compatible" | "maybe" | "incompatible" | "unknown";
+
+function typeCompatibility(
+    schema: AnnotatedSchema,
+    allowedTypes: JSONSchema7TypeName[],
+): Compatibility {
+    if (isUnknown(schema)) return "unknown";
+    // A null with a badAccess marker is the "unknown value" sentinel produced
+    // by accessing into an unknown or invalid schema — not a real null type.
+    if (
+        singleType(schema) === "null" &&
+        schema.badAccess &&
+        schema.badAccess !== "false"
+    ) {
+        return "unknown";
+    }
+
+    const members = unionMembers(schema);
+    if (members) {
+        let allCompatible = true;
+        let allIncompatible = true;
+        for (const m of members) {
+            const r = typeCompatibility(m, allowedTypes);
+            if (r === "unknown") return "unknown";
+            if (r !== "compatible") allCompatible = false;
+            if (r !== "incompatible") allIncompatible = false;
+        }
+        if (allIncompatible) return "incompatible";
+        if (allCompatible) return "compatible";
+        return "maybe";
+    }
+
+    const type = singleType(schema);
+    if (!type) return "unknown";
+    return allowedTypes.includes(type) ? "compatible" : "incompatible";
+}
+
+function formatTypeList(types: JSONSchema7TypeName[]): string {
+    if (types.length <= 2) return types.join(" or ");
+    return `${types.slice(0, -1).join(", ")}, or ${types.at(-1)}`;
+}
+
+function describeSchemaType(schema: AnnotatedSchema): string {
+    const type = singleType(schema);
+    if (type) return type;
+
+    const members = unionMembers(schema);
+    if (members) {
+        return members.map(describeSchemaType).join(" | ");
+    }
+
+    if (isArraySchema(schema)) return "array";
+    if (isObjectSchema(schema)) return "object";
+    return "unknown";
 }
 
 function asSchemaObject(definition: JsonSchema | undefined): AnnotatedSchema {

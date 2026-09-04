@@ -422,4 +422,179 @@ describe("inferQueryOutputSchema", () => {
             ]);
         });
     });
+
+    describe("function argument diagnostics", () => {
+        const mixedSchema: JSONSchema7Definition = {
+            type: "object",
+            properties: {
+                s: { type: "string" },
+                n: { type: "number" },
+                arr_n: { type: "array", items: { type: "number" } },
+                arr_s: { type: "array", items: { type: "string" } },
+                obj: {
+                    type: "object",
+                    properties: { x: { type: "string" } },
+                },
+            },
+            required: ["s", "n", "arr_n", "arr_s", "obj"],
+        };
+
+        test("join with a tuple containing a number element is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "join(',', [s, n])",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("join"),
+                }),
+            ]);
+        });
+
+        test("join with correct types produces no diagnostic", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "join(',', arr_s)",
+            );
+            expect(diagnostics).toEqual([]);
+        });
+
+        test("abs of a string is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "abs(s)",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("abs"),
+                }),
+            ]);
+        });
+
+        test("avg of an array of strings is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "avg(arr_s)",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("avg"),
+                }),
+            ]);
+        });
+
+        test("keys of a string is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "keys(s)",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("keys"),
+                }),
+            ]);
+        });
+
+        test("length of a number is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "length(n)",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("length"),
+                }),
+            ]);
+        });
+
+        test("sort of an array of objects is an error", () => {
+            const schema: JSONSchema7Definition = {
+                type: "object",
+                properties: {
+                    arr: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: { x: { type: "string" } },
+                        },
+                    },
+                },
+                required: ["arr"],
+            };
+            const { diagnostics } = inferQueryOutputSchema(schema, "sort(arr)");
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("sort"),
+                }),
+            ]);
+        });
+
+        test("nullable argument produces a warning", () => {
+            const schema: JSONSchema7Definition = {
+                type: "object",
+                properties: {
+                    n: { type: ["number", "null"] },
+                },
+                required: ["n"],
+            };
+            const { diagnostics } = inferQueryOutputSchema(schema, "abs(n)");
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "maybe",
+                    message: expect.stringContaining("abs"),
+                }),
+            ]);
+        });
+
+        test("unknown argument type produces no diagnostic", () => {
+            const { diagnostics } = inferQueryOutputSchema(true, "abs(x)");
+            const fnDiagnostics = diagnostics.filter((d) =>
+                d.message.includes("abs()"),
+            );
+            expect(fnDiagnostics).toEqual([]);
+        });
+
+        test("output schema is unaffected by argument validation", () => {
+            const { schema } = inferQueryOutputSchema(
+                mixedSchema,
+                "join(',', [s, n])",
+            );
+            expect(schema).toEqual({
+                type: "string",
+                badAccess: "false",
+            });
+        });
+
+        test("starts_with with number arguments is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "starts_with(n, s)",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("starts_with"),
+                }),
+            ]);
+        });
+
+        test("contains with a number subject is an error", () => {
+            const { diagnostics } = inferQueryOutputSchema(
+                mixedSchema,
+                "contains(n, s)",
+            );
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    badAccess: "true",
+                    message: expect.stringContaining("contains"),
+                }),
+            ]);
+        });
+    });
 });
