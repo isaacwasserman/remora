@@ -205,8 +205,8 @@
 
 .rf-highlighted-expression {
     color: var(--color-foreground, var(--foreground));
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-        monospace;
+    font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     /* This component is used for both the read-only display and edit overlay.
      * Do not inherit a surrounding panel's type scale: it can differ between
      * those two contexts. */
@@ -377,11 +377,13 @@
 }
 
 .code-input-transparent-background .cm-editor {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides CodeMirror inline styles */
     background-color: transparent !important;
 }
 
 .code-input-overlay-only .cm-content,
 .code-input-overlay-only .cm-line {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides CodeMirror inline styles */
     color: transparent !important;
     caret-color: var(--color-foreground, var(--foreground));
 }
