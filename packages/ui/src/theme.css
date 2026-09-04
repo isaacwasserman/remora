@@ -202,3 +202,188 @@
         transparent
     );
 }
+
+.rf-highlighted-expression {
+    color: var(--color-foreground, var(--foreground));
+    font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    /* This component is used for both the read-only display and edit overlay.
+     * Do not inherit a surrounding panel's type scale: it can differ between
+     * those two contexts. */
+    font-size: 12px;
+    line-height: 20px;
+    white-space: pre-wrap;
+}
+
+.rf-highlighted-expression .hljs-subst,
+.rf-highlighted-expression .hljs-built_in {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .hljs-string {
+    color: var(--color-emerald-700);
+}
+
+.rf-highlighted-expression .hljs-number {
+    color: var(--color-fuchsia-700);
+}
+
+.rf-highlighted-expression .hljs-literal {
+    color: var(--color-amber-700);
+}
+
+.rf-highlighted-expression .hljs-operator {
+    color: var(--color-sky-700);
+}
+
+.rf-highlighted-expression .hljs-punctuation {
+    color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.dark .rf-highlighted-expression .hljs-subst,
+.dark .rf-highlighted-expression .hljs-built_in {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .hljs-string {
+    color: var(--color-emerald-300);
+}
+
+.dark .rf-highlighted-expression .hljs-number {
+    color: var(--color-fuchsia-300);
+}
+
+.dark .rf-highlighted-expression .hljs-literal {
+    color: var(--color-amber-300);
+}
+
+.dark .rf-highlighted-expression .hljs-operator {
+    color: var(--color-sky-300);
+}
+
+.rf-highlighted-expression-overlay {
+    height: 100%;
+    overflow: hidden;
+    padding: 0.25rem 0.75rem;
+    white-space: pre;
+}
+
+.rf-highlighted-expression-overlay-textarea {
+    padding: 0.5rem 0.625rem;
+    white-space: pre-wrap;
+}
+
+.rf-highlighted-expression-overlay-code {
+    padding: 0.5rem;
+    white-space: pre-wrap;
+}
+
+.code-input-json-appearance .rf-highlighted-expression-overlay-code {
+    padding: 0.5rem 0.625rem;
+}
+
+.jmespath-code-editor .cm-content {
+    padding-top: 9px;
+    padding-bottom: 7px;
+}
+
+.rf-highlighted-expression .rf-template-interpolation,
+.rf-highlighted-expression .rf-jmes-identifier,
+.cm-content .rf-template-interpolation,
+.cm-content .rf-jmes-identifier {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .rf-template-delimiter,
+.cm-content .rf-template-delimiter {
+    color: var(--color-rose-600);
+}
+
+.dark .rf-highlighted-expression .rf-template-interpolation,
+.dark .rf-highlighted-expression .rf-jmes-identifier,
+.dark .cm-content .rf-template-interpolation,
+.dark .cm-content .rf-jmes-identifier {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .rf-template-delimiter,
+.dark .cm-content .rf-template-delimiter {
+    color: var(--color-rose-300);
+}
+
+.rf-highlighted-expression .rf-jmes-built-in,
+.cm-content .rf-jmes-built-in {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .rf-jmes-string,
+.cm-content .rf-jmes-string {
+    color: var(--color-emerald-700);
+}
+
+.rf-highlighted-expression .rf-jmes-number,
+.cm-content .rf-jmes-number {
+    color: var(--color-fuchsia-700);
+}
+
+.rf-highlighted-expression .rf-jmes-literal,
+.cm-content .rf-jmes-literal {
+    color: var(--color-amber-700);
+}
+
+.rf-highlighted-expression .rf-jmes-operator,
+.cm-content .rf-jmes-operator {
+    color: var(--color-sky-700);
+}
+
+.rf-highlighted-expression .rf-jmes-punctuation,
+.cm-content .rf-jmes-punctuation {
+    color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.rf-highlighted-expression .rf-jmes-member-separator,
+.cm-content .rf-jmes-member-separator {
+    color: #64748b;
+}
+
+.dark .rf-highlighted-expression .rf-jmes-built-in,
+.dark .cm-content .rf-jmes-built-in {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-string,
+.dark .cm-content .rf-jmes-string {
+    color: var(--color-emerald-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-number,
+.dark .cm-content .rf-jmes-number {
+    color: var(--color-fuchsia-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-literal,
+.dark .cm-content .rf-jmes-literal {
+    color: var(--color-amber-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-operator,
+.dark .cm-content .rf-jmes-operator {
+    color: var(--color-sky-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-member-separator,
+.dark .cm-content .rf-jmes-member-separator {
+    color: #94a3b8;
+}
+
+.code-input-transparent-background .cm-editor {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides CodeMirror inline styles */
+    background-color: transparent !important;
+}
+
+.code-input-overlay-only .cm-content,
+.code-input-overlay-only .cm-line {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides CodeMirror inline styles */
+    color: transparent !important;
+    caret-color: var(--color-foreground, var(--foreground));
+}
