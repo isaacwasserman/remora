@@ -36,6 +36,7 @@ export type {
     ExecutionOptions,
     ExecutionState,
     LogLine,
+    RunningExecutionStatus,
     StepExecutionRecord,
     StepExecutionUpdate,
 } from "./types";

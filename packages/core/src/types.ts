@@ -316,7 +316,7 @@ export type ResolvedRemoraflowSettings =
  * that gate which step types a workflow may contain. */
 export type RemoraflowFeatures = ResolvedRemoraflowSettings["features"];
 
-export type { ExecutionState } from "./execution/types";
+export type { ExecutionState, RunningExecutionStatus } from "./execution/types";
 
 export interface ToolSchemaDefinition {
     displayName?: string;
