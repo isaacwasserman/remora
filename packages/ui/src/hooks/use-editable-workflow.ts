@@ -41,10 +41,11 @@ function clearIncomingRefs(
     targetId: string,
 ): WorkflowStep[] {
     return steps.map((s) => {
-        let updated =
-            s.nextStepId === targetId
-                ? ({ ...s, nextStepId: undefined } as WorkflowStep)
-                : s;
+        let updated = s;
+        if (s.nextStepId === targetId) {
+            const { nextStepId, ...rest } = s;
+            updated = rest as WorkflowStep;
+        }
         updated = clearChildRef(updated, targetId);
         return updated;
     });
@@ -239,11 +240,9 @@ export function useEditableWorkflow({
                 // Merge updates into the step
                 const merged = { ...s } as Record<string, unknown>;
                 for (const [key, value] of Object.entries(updates)) {
-                    if (
-                        key === "params" &&
-                        value &&
-                        typeof value === "object"
-                    ) {
+                    if (value === undefined) {
+                        delete merged[key];
+                    } else if (key === "params" && typeof value === "object") {
                         merged.params = {
                             ...(merged.params as Record<string, unknown>),
                             ...(value as Record<string, unknown>),
@@ -347,7 +346,13 @@ export function useEditableWorkflow({
     const updateWorkflowMeta = useCallback(
         (updates: Partial<WorkflowDefinition>) => {
             if (!workingWorkflow) return;
-            emit({ ...workingWorkflow, ...updates });
+            const merged = { ...workingWorkflow, ...updates };
+            for (const key of Object.keys(
+                updates,
+            ) as (keyof typeof updates)[]) {
+                if (updates[key] === undefined) delete merged[key];
+            }
+            emit(merged);
         },
         [workingWorkflow, emit],
     );
