@@ -32,6 +32,18 @@ function emptyWorkflow(): WorkflowDefinition {
     return { initialStepId: "", steps: [] };
 }
 
+function stripUndefined<T>(value: T): T {
+    if (Array.isArray(value)) return value.map(stripUndefined) as T;
+    if (typeof value === "object" && value !== null) {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) {
+            if (v !== undefined) out[k] = stripUndefined(v);
+        }
+        return out as T;
+    }
+    return value;
+}
+
 /**
  * Clear all incoming references to `targetId` across all steps.
  * This includes nextStepId and group child references.
@@ -41,11 +53,10 @@ function clearIncomingRefs(
     targetId: string,
 ): WorkflowStep[] {
     return steps.map((s) => {
-        let updated = s;
-        if (s.nextStepId === targetId) {
-            const { nextStepId, ...rest } = s;
-            updated = rest as WorkflowStep;
-        }
+        let updated =
+            s.nextStepId === targetId
+                ? ({ ...s, nextStepId: undefined } as WorkflowStep)
+                : s;
         updated = clearChildRef(updated, targetId);
         return updated;
     });
@@ -147,7 +158,7 @@ export function useEditableWorkflow({
     }, [workflow]);
 
     const emit = useCallback((next: WorkflowDefinition) => {
-        const repaired = repairCycles(next);
+        const repaired = stripUndefined(repairCycles(next));
         setWorkingWorkflow(repaired);
         onChangeRef.current?.(repaired);
     }, []);
@@ -240,9 +251,11 @@ export function useEditableWorkflow({
                 // Merge updates into the step
                 const merged = { ...s } as Record<string, unknown>;
                 for (const [key, value] of Object.entries(updates)) {
-                    if (value === undefined) {
-                        delete merged[key];
-                    } else if (key === "params" && typeof value === "object") {
+                    if (
+                        key === "params" &&
+                        value &&
+                        typeof value === "object"
+                    ) {
                         merged.params = {
                             ...(merged.params as Record<string, unknown>),
                             ...(value as Record<string, unknown>),
@@ -346,13 +359,7 @@ export function useEditableWorkflow({
     const updateWorkflowMeta = useCallback(
         (updates: Partial<WorkflowDefinition>) => {
             if (!workingWorkflow) return;
-            const merged = { ...workingWorkflow, ...updates };
-            for (const key of Object.keys(
-                updates,
-            ) as (keyof typeof updates)[]) {
-                if (updates[key] === undefined) delete merged[key];
-            }
-            emit(merged);
+            emit({ ...workingWorkflow, ...updates });
         },
         [workingWorkflow, emit],
     );
