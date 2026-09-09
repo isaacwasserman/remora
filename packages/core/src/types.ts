@@ -1,6 +1,11 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: Needed for proper inference. */
 import type { Schema } from "@ai-sdk/provider-utils";
-import { type LanguageModel as AnyLanguageModel, asSchema } from "ai";
+import {
+    type LanguageModel as AnyLanguageModel,
+    asSchema,
+    type JSONSchema7,
+    jsonSchema,
+} from "ai";
 import { type } from "arktype";
 import type * as z3 from "zod/v3";
 import type * as z4 from "zod/v4";
@@ -329,6 +334,22 @@ export interface ToolSchemaDefinition {
 }
 
 export type ToolDefinitionMap = Record<string, ToolSchemaDefinition>;
+
+export function buildStubTools(toolSchemas: ToolDefinitionMap): StubbedToolSet {
+    const stubs: Record<string, unknown> = {};
+    for (const [name, schema] of Object.entries(toolSchemas)) {
+        stubs[name] = {
+            inputSchema: jsonSchema(
+                schema.inputSchema as unknown as JSONSchema7,
+            ),
+            outputSchema: schema.outputSchema
+                ? jsonSchema(schema.outputSchema as unknown as JSONSchema7)
+                : undefined,
+            description: schema.description,
+        };
+    }
+    return stubs as unknown as StubbedToolSet;
+}
 
 export async function extractToolSchemas(
     tools: StubbedToolSet,
