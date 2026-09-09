@@ -29,14 +29,17 @@ const jsonSchemaArktypeSchema = type("object")
 const expressionSchema = type({
     type: "'literal'",
     value: "unknown",
+    "+": "reject",
 })
     .or({
         type: "'jmespath'",
         expression: "string",
+        "+": "reject",
     })
     .or({
         type: "'template'",
         template: "string",
+        "+": "reject",
     })
     .describe(
         "a value that must always be wrapped as an expression object — use { type: 'literal', value: ... } for any static value (strings, numbers, booleans, etc.), { type: 'jmespath', expression: '...' } for dynamic data extracted from previous steps' outputs (via their step ids, e.g. `stepId.someKey`) or loop variables (e.g. `itemName.someKey` within a for-each loop body), or { type: 'template', template: '...' } for string interpolation with embedded JMESPath expressions using ${...} syntax (e.g. 'Hello ${user.name}, order ${order.id}') — template expressions always resolve to a string",
@@ -57,7 +60,25 @@ function assertLiteralExpressionConstraint(
 
 export type Expression = typeof expressionSchema.inferOut;
 
+// A leading `__` in the id is reserved for the runtime's own checkpoint keys.
+const baseStepProperties = {
+    id: [/^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/, "@", "unique step id"],
+    name: "string",
+    description: "string",
+    "nextStepId?": "string",
+    "+": "reject",
+} as const;
+
+const baseStepSchema = type({
+    id: [/^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/, "@", "unique step id"],
+    name: "string",
+    description: "string",
+    "nextStepId?": "string",
+    "+": "reject",
+});
+
 const toolCallParamsSchema = type({
+    ...baseStepProperties,
     type: "'tool-call'",
     params: {
         toolName: "string",
@@ -68,12 +89,15 @@ const toolCallParamsSchema = type({
             "@",
             "a map of input parameter names to their values; ALL values must be wrapped as expression objects — even static strings like email addresses must use { type: 'literal', value: '...' }, never plain primitives",
         ],
+        "+": "reject",
     },
+    "+": "reject",
 }).describe(
     "a step that calls a tool with specified input parameters (which can be static values or expressions)",
 );
 
 const switchCaseParamsSchema = type({
+    ...baseStepProperties,
     type: "'switch-case'",
     params: {
         switchOn: expressionSchema,
@@ -85,9 +109,11 @@ const switchCaseParamsSchema = type({
                     "@",
                     "the id of the first step in the branch body chain to execute if this case matches",
                 ],
+                "+": "reject",
             },
             "[]",
         ],
+        "+": "reject",
     },
 }).describe(
     dedent`
@@ -123,6 +149,7 @@ const switchCaseParamsSchema = type({
 );
 
 const forEachParamsSchema = type({
+    ...baseStepProperties,
     type: "'for-each'",
     params: {
         target: expressionSchema,
@@ -146,7 +173,9 @@ const forEachParamsSchema = type({
             "@",
             "the starting value of the accumulator, evaluated once before the first iteration; required when accumulatorName is provided",
         ],
+        "+": "reject",
     },
+    "+": "reject",
 })
     .narrow((step, ctx) => {
         const hasName = step.params.accumulatorName !== undefined;
@@ -192,6 +221,7 @@ const forEachParamsSchema = type({
     );
 
 const whileParamsSchema = type({
+    ...baseStepProperties,
     type: "'while'",
     params: {
         conditionStepId: [
@@ -214,7 +244,9 @@ const whileParamsSchema = type({
             "@",
             "the starting value of the accumulator, evaluated once before the first iteration; required when accumulatorName is provided",
         ],
+        "+": "reject",
     },
+    "+": "reject",
 })
     .narrow((step, ctx) => {
         const hasName = step.params.accumulatorName !== undefined;
@@ -258,6 +290,7 @@ const whileParamsSchema = type({
     );
 
 const llmPromptSchema = type({
+    ...baseStepProperties,
     type: "'llm-prompt'",
     params: {
         prompt: [
@@ -270,12 +303,15 @@ const llmPromptSchema = type({
             .describe(
                 "JSON schema specifying the output format expected from the LLM",
             ),
+        "+": "reject",
     },
+    "+": "reject",
 }).describe(
     "a step that prompts an LLM with a text prompt to produce an output in a specified format",
 );
 
 const extractDataParamsSchema = type({
+    ...baseStepProperties,
     type: "'extract-data'",
     params: {
         sourceData: [
@@ -286,18 +322,41 @@ const extractDataParamsSchema = type({
         outputFormat: jsonSchemaArktypeSchema.describe(
             "JSON schema specifying the output format expected from the data extraction",
         ),
+        "+": "reject",
     },
+    "+": "reject",
 }).describe(
     "a step that uses an LLM to extract structured data from a larger blob of source data (e.g. llm responses or tool outputs with unknown output formats) based on a specified output format",
 );
 
+const startParamsSchema = type({
+    ...baseStepProperties,
+    type: "'start'",
+    "+": "reject",
+}).describe(
+    "a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
+);
+
+const endParamsSchema = type({
+    ...baseStepProperties,
+    type: "'end'",
+    "params?": {
+        output: expressionSchema,
+        "+": "reject",
+    },
+    "+": "reject",
+}).describe(
+    "Ends the current execution chain and returns its evaluated output to the enclosing block or workflow. Use this like a return statement within loop bodies (to contribute to map or write to accumulator) and switch case bodies.",
+);
+
 export function createWorkflowDefinitionSchema(
-    settings: RemoraflowSettings = {},
+    remoraflowSettings: RemoraflowSettings = {},
 ) {
-    const options = remoraflowSettingsSchema.assert(settings);
+    const options = remoraflowSettingsSchema.assert(remoraflowSettings);
     const limits = resolveDurationLimits(options.duration);
     const maxSleepDurationMs = 1000 * limits.maxSleepSeconds;
     const sleepParamsSchema = type({
+        ...baseStepProperties,
         type: "'sleep'",
         params: {
             durationMs: type([
@@ -310,12 +369,15 @@ export function createWorkflowDefinitionSchema(
                     type(`number <= ${maxSleepDurationMs}`),
                 ),
             ),
+            "+": "reject",
         },
+        "+": "reject",
     }).describe(
         "a step that pauses workflow execution for a specified duration in milliseconds; the durationMs parameter must evaluate to a non-negative number",
     );
 
     const waitForConditionParamsSchema = type({
+        ...baseStepProperties,
         type: "'wait-for-condition'",
         params: {
             conditionStepId: [
@@ -365,7 +427,9 @@ export function createWorkflowDefinitionSchema(
                 "@",
                 `hard timeout in milliseconds; if the total elapsed time exceeds this, the step fails regardless of remaining attempts; must be less than ${limits.maxWaitSeconds * 1000}`,
             ],
+            "+": "reject",
         },
+        "+": "reject",
     }).describe(
         dedent`
             a step that repeatedly executes a condition-check chain (starting at conditionStepId) and then evaluates the condition expression against the updated scope; if the condition expression evaluates to a truthy value, the step completes with that value as its output; otherwise it waits for intervalMs milliseconds (multiplied by backoffMultiplier after each attempt) and tries again, up to maxAttempts times or until timeoutMs milliseconds have elapsed; the condition-check chain runs until a step with no nextStepId, at which point the condition expression is evaluated; all step outputs from the condition chain are available in scope for the condition expression
@@ -403,6 +467,7 @@ export function createWorkflowDefinitionSchema(
     );
 
     const agentLoopParamsSchema = type({
+        ...baseStepProperties,
         type: "'agent-loop'",
         params: {
             instructions: [
@@ -435,12 +500,15 @@ export function createWorkflowDefinitionSchema(
                 "@",
                 `maximum number of tool-calling steps the agent may take; must be less than or equal to ${options.tokenBudgets.maxAgentSteps}`,
             ],
+            "+": "reject",
         },
+        "+": "reject",
     }).describe(
         "a step that delegates work to an autonomous agent with its own tool-calling loop; USE SPARINGLY — this sacrifices the determinism that is the core value of the workflow DSL. Prefer explicit tool-call, llm-prompt, and control flow steps whenever the task can be decomposed into predictable operations",
     );
 
     const requestInterventionParamsSchema = type({
+        "...": baseStepSchema,
         type: "'request-intervention'",
         params: {
             type: "'multiple-choice'",
@@ -459,7 +527,9 @@ export function createWorkflowDefinitionSchema(
                 "@",
                 "whether to include a free response option in addition to the choices given",
             ],
+            "+": "reject",
         },
+        "+": "reject",
     })
         .narrow((step, ctx) => {
             // A question with no choices and no free response is unanswerable. Only
@@ -482,22 +552,7 @@ export function createWorkflowDefinitionSchema(
             "a step that pauses execution to ask the supervising user how to proceed",
         );
 
-    const startParamsSchema = type({
-        type: "'start'",
-    }).describe(
-        "a step that marks the entry point of a workflow; a no-op marker whose execution continues to the next step",
-    );
-
-    const endParamsSchema = type({
-        type: "'end'",
-        "params?": {
-            output: expressionSchema,
-        },
-    }).describe(
-        "Ends the current execution chain and returns its evaluated output to the enclosing block or workflow. Use this like a return statement within loop bodies (to contribute to map or write to accumulator) and switch case bodies.",
-    );
-
-    let stepParamsSchema = toolCallParamsSchema
+    let workflowStepArktypeSchema = toolCallParamsSchema
         .or(llmPromptSchema)
         .or(extractDataParamsSchema)
         .or(switchCaseParamsSchema)
@@ -511,25 +566,18 @@ export function createWorkflowDefinitionSchema(
         .or(endParamsSchema);
 
     if (!options.features.allowAgentLoops) {
-        stepParamsSchema = stepParamsSchema.exclude(agentLoopParamsSchema);
+        workflowStepArktypeSchema = workflowStepArktypeSchema.exclude(
+            agentLoopParamsSchema,
+        );
     }
     if (!options.features.allowUserIntervention) {
-        stepParamsSchema = stepParamsSchema.exclude(
+        workflowStepArktypeSchema = workflowStepArktypeSchema.exclude(
             requestInterventionParamsSchema,
         );
     }
 
-    const workflowStepArktypeSchema = type({
-        // A leading `__` is reserved for the runtime's own checkpoint keys.
-        id: [/^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/, "@", "unique step id"],
-        name: "string",
-        description: "string",
-        "nextStepId?": "string",
-    }).and(stepParamsSchema);
-
     /** Schema for validating workflow definitions. */
     const workflowDefinitionArktypeSchema = type({
-        "+": "reject",
         initialStepId: [
             "string",
             "@",
@@ -550,6 +598,7 @@ export function createWorkflowDefinitionSchema(
             "@",
             "a list of steps to execute in the workflow; these should be in no particular order as execution flow is determined by the nextStepId fields and branching logic within the steps",
         ],
+        "+": "reject",
     });
 
     return { workflowStepArktypeSchema, workflowDefinitionArktypeSchema };

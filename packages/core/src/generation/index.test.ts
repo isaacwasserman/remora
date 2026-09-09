@@ -265,7 +265,7 @@ test("reports provider retries and invalid tool calls", async () => {
     expect(stepEnd.invalidToolCalls[0]?.error.message).not.toContain("Value:");
 });
 
-test("requests strict, closed input generation for workflow submissions", async () => {
+test("requests closed input generation for workflow submissions", async () => {
     let submittedTools: Parameters<
         MockLanguageModelV4["doGenerate"]
     >[0]["tools"];

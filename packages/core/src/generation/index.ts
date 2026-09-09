@@ -322,6 +322,7 @@ export async function* generateWorkflowStream({
     timeoutMs = 5 * 60 * 1000,
     abortSignal,
     onDiagnosticEvent,
+    strictToolCalls = true,
 }: {
     taskDescription: string;
     workflowOutputSchema?: StandardJSONSchemaV1;
@@ -332,6 +333,7 @@ export async function* generateWorkflowStream({
     timeoutMs?: number;
     abortSignal?: AbortSignal;
     onDiagnosticEvent?: (event: WorkflowGenerationDiagnosticEvent) => void;
+    strictToolCalls?: boolean;
 }): AsyncGenerator<DeepPartial<WorkflowDefinition>, GenerationOutput> {
     const { instructions, prompt, workflowDefinitionArktypeSchema } =
         preparePrompt({
@@ -456,7 +458,7 @@ export async function* generateWorkflowStream({
         tools: {
             "submit-workflow": tool({
                 description: "Submits a candidate workflow for validation",
-                strict: true,
+                strict: strictToolCalls,
                 inputSchema: submitWorkflowInputSchema,
                 execute: async (
                     { definition, ignoreWarnings },

@@ -399,9 +399,7 @@ describe("syntaxValidator", () => {
             {
                 severity: "error",
                 path: ["steps", 0, "type"],
-                message: expect.stringContaining(
-                    'steps[0].type must be "request-intervention"',
-                ),
+                message: expect.stringContaining('(was "nonsense")'),
             },
         ]);
     });
@@ -926,9 +924,7 @@ describe("validateWorkflowDefinition", () => {
             {
                 severity: "error",
                 path: ["steps", 0, "type"],
-                message: expect.stringContaining(
-                    'steps[0].type must be "request-intervention"',
-                ),
+                message: expect.stringContaining('(was "nonsense")'),
             },
         ]);
     });
