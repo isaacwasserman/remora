@@ -4,7 +4,7 @@ import type { JSONSchema7Definition } from "json-schema";
 import { inferJsonSchema } from "..";
 import type { WorkflowDefinition } from "../schema";
 import { inferQueryOutputSchema } from "../schemistry/jmespath/infer";
-import type { ToolSet } from "../types";
+import type { StubbedToolSet } from "../types";
 import {
     buildScopeSnapshotsById,
     scopeToJsonSchema,
@@ -40,7 +40,7 @@ function simplifyInputSpace(
 
 export function auditWorkflow(
     workflowDefinition: WorkflowDefinition,
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ): { capabilities: WorkflowCapabilities } {
     const toolEntries: Record<
         string,

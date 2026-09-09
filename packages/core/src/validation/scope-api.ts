@@ -1,6 +1,6 @@
 import type { JSONSchema7 } from "json-schema";
 import type { WorkflowDefinition, WorkflowStep } from "../schema";
-import type { ToolSet } from "../types";
+import type { StubbedToolSet } from "../types";
 import { buildStepIndex } from "../utils";
 import type { RemoraflowType } from "./types";
 import {
@@ -54,7 +54,7 @@ function typeScopeToBindings(
 export function scopeAt(
     workflow: WorkflowDefinition,
     stepId: string,
-    tools: ToolSet,
+    tools: StubbedToolSet,
     options?: { position?: "step-entry" | "after-nested-chain" },
 ): ScopeBinding[] {
     const snapshots = buildScopeSnapshotsById(workflow, tools);
@@ -68,7 +68,7 @@ export function scopeAt(
 
 export function scopesByStepId(
     workflow: WorkflowDefinition,
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ): Map<string, ScopeBinding[]> {
     const snapshots = buildScopeSnapshotsById(workflow, tools);
     const result = new Map<string, ScopeBinding[]>();

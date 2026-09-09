@@ -33,10 +33,8 @@ export function validateWorkflowDefinition(
         options = remoraflowSettingsSchema.assert({}),
     }: { tools: StubbedToolSet; options?: RemoraflowSettings },
     toolAssertions: {
-        assertToolsHaveExecutionFunctions: boolean;
         assertToolsHaveOutputSchemas: boolean;
     } = {
-        assertToolsHaveExecutionFunctions: true,
         assertToolsHaveOutputSchemas: true,
     },
 ): {

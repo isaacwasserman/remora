@@ -48,10 +48,7 @@ export const router = os.router({
                 const { isValid, diagnostics } = validateWorkflowDefinition(
                     input.workflow as WorkflowDefinition,
                     { tools: DEMO_TOOLS },
-                    {
-                        assertToolsHaveExecutionFunctions: false,
-                        assertToolsHaveOutputSchemas: false,
-                    },
+                    { assertToolsHaveOutputSchemas: false },
                 );
                 return { isValid, diagnostics };
             }),

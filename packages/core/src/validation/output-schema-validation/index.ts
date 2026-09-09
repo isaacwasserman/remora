@@ -4,7 +4,7 @@ import {
     schemaSubsetDiagnostics,
 } from "../../schemistry";
 import { type NestedChain, nestedChains } from "../../step-registry";
-import type { ToolSet } from "../../types";
+import type { StubbedToolSet } from "../../types";
 import { buildStepIndex } from "../../utils";
 import type { ValidationModule, ValidatorDiagnostic } from "../types";
 import {
@@ -70,7 +70,7 @@ function subsetDiagnosticsToValidatorDiagnostics(
 
 export function validateOutputSchema(
     workflowDefinition: WorkflowDefinition,
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ): ValidatorDiagnostic[] {
     if (!workflowDefinition.outputSchema) return [];
 

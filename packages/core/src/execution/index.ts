@@ -115,6 +115,27 @@ export async function* executeWorkflowStream({
     const approvalPolicies = executionOptions?.approvalPolicies ?? [];
     const silenceLogs = executionOptions?.silenceLogs ?? false;
 
+    const toolsMissingExecute = Object.entries(tools)
+        .filter(([, def]) => !def.execute)
+        .map(([name]) => name);
+    if (toolsMissingExecute.length > 0) {
+        yield {
+            status: "error",
+            output: null,
+            error: {
+                code: "INVALID_WORKFLOW",
+                message: `Tools missing execution functions: ${toolsMissingExecute.join(", ")}`,
+                path: undefined,
+                stepId: null,
+            },
+            logs: [],
+            scope: {},
+            executionPath: [],
+            stepExecutions: [],
+        };
+        return;
+    }
+
     const { isValid, diagnostics: validationDiagnostics } =
         validateWorkflowDefinition(workflowDefinition, {
             tools,

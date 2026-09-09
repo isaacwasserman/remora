@@ -6,7 +6,7 @@ import type { Expression, WorkflowDefinition, WorkflowStep } from "../schema";
 import {
     type RemoraflowSettings,
     remoraflowSettingsSchema,
-    type ToolSet,
+    type StubbedToolSet,
 } from "../types";
 import { step, workflow } from "../workflow-fixtures";
 import { validateWorkflowDefinition } from ".";
@@ -18,14 +18,14 @@ import { toolReferenceValidator } from "./tool-reference-validation";
 import type { ValidationContext, ValidatorDiagnostic } from "./types";
 import { variableReferenceValidator } from "./variable-reference-validation";
 
-const tools: ToolSet = {
+const tools: StubbedToolSet = {
     known: tool({ inputSchema: type({}), execute: async () => 1 }),
 };
 
 const defaultOptions = remoraflowSettingsSchema.assert({});
 
 const ctx = (
-    toolSet: ToolSet = tools,
+    toolSet: StubbedToolSet = tools,
     optionOverrides: RemoraflowSettings = {},
 ): ValidationContext => ({
     tools: toolSet,
@@ -434,21 +434,8 @@ describe("syntaxValidator", () => {
 describe("toolDefinitionValidator", () => {
     const anyWorkflow = workflow(step("start", { type: "start" }));
 
-    test("errors when a tool has no execution function", () => {
-        const brokenTools: ToolSet = {
-            broken: tool({ inputSchema: type({}) }),
-        };
-        const { diagnostics } = createToolDefinitionValidator({
-            assertToolsHaveExecutionFunctions: true,
-            assertToolsHaveOutputSchemas: false,
-        }).validate(anyWorkflow, ctx(brokenTools));
-        expect(hasError(diagnostics)).toBe(true);
-        expect(diagnostics[0]?.message).toContain("broken");
-    });
-
     test("warns (not errors) when a tool has no output schema", () => {
         const { diagnostics } = createToolDefinitionValidator({
-            assertToolsHaveExecutionFunctions: false,
             assertToolsHaveOutputSchemas: true,
         }).validate(anyWorkflow, ctx());
         expect(hasError(diagnostics)).toBe(false);
@@ -459,9 +446,8 @@ describe("toolDefinitionValidator", () => {
         ).toBe(true);
     });
 
-    test("emits nothing when both assertions are disabled", () => {
+    test("emits nothing when assertion is disabled", () => {
         const { diagnostics } = createToolDefinitionValidator({
-            assertToolsHaveExecutionFunctions: false,
             assertToolsHaveOutputSchemas: false,
         }).validate(anyWorkflow, ctx());
         expect(diagnostics).toEqual([]);
@@ -562,7 +548,7 @@ describe("variableReferenceValidator", () => {
     });
 
     test("infers for-each items from switch branch return values", () => {
-        const routingTools: ToolSet = {
+        const routingTools: StubbedToolSet = {
             run: tool({
                 inputSchema: type({ jobId: "string" }),
                 outputSchema: type({ jobId: "string", status: "'ran'" }),
@@ -942,7 +928,7 @@ describe("validateWorkflowDefinition", () => {
 });
 
 describe("toolInputValidator", () => {
-    const typedTools: ToolSet = {
+    const typedTools: StubbedToolSet = {
         adder: tool({ inputSchema: type({ n: "number" }) }),
     };
 
