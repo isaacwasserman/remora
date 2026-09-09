@@ -32,6 +32,18 @@ function emptyWorkflow(): WorkflowDefinition {
     return { initialStepId: "", steps: [] };
 }
 
+function stripUndefined<T>(value: T): T {
+    if (Array.isArray(value)) return value.map(stripUndefined) as T;
+    if (typeof value === "object" && value !== null) {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) {
+            if (v !== undefined) out[k] = stripUndefined(v);
+        }
+        return out as T;
+    }
+    return value;
+}
+
 /**
  * Clear all incoming references to `targetId` across all steps.
  * This includes nextStepId and group child references.
@@ -147,7 +159,7 @@ export function useEditableWorkflow({
     }, [workflow]);
 
     const emit = useCallback((next: WorkflowDefinition) => {
-        const repaired = repairCycles(next);
+        const repaired = stripUndefined(repairCycles(next));
         setWorkingWorkflow(repaired);
         onChangeRef.current?.(repaired);
     }, []);
