@@ -17,7 +17,7 @@ import {
     nestedChainEntryPoints,
 } from "../../step-registry";
 import { assertNeverStep } from "../../step-types";
-import type { ToolSet } from "../../types";
+import type { StubbedToolSet } from "../../types";
 import { buildStepIndex } from "../../utils";
 import type {
     RemoraflowType,
@@ -154,7 +154,7 @@ export function getExpressionType(
 export function getStepOutputType(
     step: WorkflowStep,
     scope: TypeScope,
-    tools: ToolSet,
+    tools: StubbedToolSet,
     inputSchema?: JSONSchema7,
 ): RemoraflowType {
     switch (step.type) {
@@ -300,7 +300,7 @@ type BlockScopeProcessor<T extends WorkflowStep["type"]> = (args: {
     step: Extract<WorkflowStep, { type: T }>;
     /** Scope after this step's own output binding is applied. */
     scope: TypeScope;
-    tools: ToolSet;
+    tools: StubbedToolSet;
     snapshots: ScopeSnapshots;
     /** Returns the scope and returned value type at the end of a nested chain. */
     walkChain: (node: StepGraphNode, scope: TypeScope) => ChainAnalysis;
@@ -472,7 +472,7 @@ function processChain(
     stepsById: Map<string, WorkflowStep>,
     node: StepGraphNode,
     scope: TypeScope,
-    tools: ToolSet,
+    tools: StubbedToolSet,
     snapshots: ScopeSnapshots,
     inputSchema?: JSONSchema7,
 ): ChainAnalysis {
@@ -528,7 +528,7 @@ function processChain(
 
 export function buildScopeSnapshotsById(
     workflowDefinition: WorkflowDefinition,
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ): ScopeSnapshots {
     const stepsById = buildStepIndex(workflowDefinition);
     const stepGraph = buildStepGraph(
@@ -569,7 +569,7 @@ function badAccessDiagnosticsToValidatorDiagnostics(
 
 export function validateVariableReferences(
     workflowDefinition: WorkflowDefinition,
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ): ValidatorDiagnostic[] {
     const scopeSnapshots = buildScopeSnapshotsById(workflowDefinition, tools);
     const diagnostics: ValidatorDiagnostic[] = [];

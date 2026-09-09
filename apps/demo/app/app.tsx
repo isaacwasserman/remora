@@ -1,5 +1,10 @@
-import type { ToolDefinitionMap, WorkflowDefinition } from "@remoraflow/core";
+import type {
+    StubbedToolSet,
+    ToolDefinitionMap,
+    WorkflowDefinition,
+} from "@remoraflow/core";
 import {
+    buildStubTools,
     type LayoutDirection,
     useDarkMode,
     useWorkflowExecution,
@@ -29,7 +34,7 @@ import defaultWorkflow from "./workflows/pokemon-lookup.json";
 export function App() {
     const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
     const [isEditing, setIsEditing] = useState(false);
-    const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
+    const [tools, setTools] = useState<StubbedToolSet>({});
     const [layout, setLayout] = useState<LayoutDirection>("vertical");
     const [hasLLMConfig, setHasLLMConfig] = useState(false);
     const [isOAuthCallback, setIsOAuthCallback] = useState(() =>
@@ -63,7 +68,7 @@ export function App() {
 
     useEffect(() => {
         (rpc.tools.list as unknown as () => Promise<ToolDefinitionMap>)()
-            .then(setToolSchemas)
+            .then((schemas) => setTools(buildStubTools(schemas)))
             .catch(() => {});
     }, []);
 
@@ -198,7 +203,7 @@ export function App() {
                         isEditing={isEditing}
                         onWorkflowChange={handleWorkflowChange}
                         executionState={executionState ?? undefined}
-                        toolSchemas={toolSchemas}
+                        tools={tools}
                         paused={false}
                         layout={layout}
                         settings={{ features: { allowUserIntervention: true } }}

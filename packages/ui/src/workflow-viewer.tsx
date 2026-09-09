@@ -4,6 +4,7 @@ import {
     type RemoraflowSettings,
     remoraflowSettingsSchema,
     type ScopeBinding,
+    type StubbedToolSet,
     scopeAt,
     type ToolDefinitionMap,
     type ValidatorDiagnostic,
@@ -26,7 +27,6 @@ import {
     useReactFlow,
     useUpdateNodeInternals,
 } from "@xyflow/react";
-import type { ToolSet } from "ai";
 import { Braces, LayoutGrid } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -59,7 +59,6 @@ import { useDarkMode } from "./theme";
 import { ToolSchemasContext } from "./tool-schemas-context";
 import { groupStructuralKey } from "./utils/nested-chain-refs";
 import { createDefaultStep } from "./utils/step-defaults";
-import { buildStubTools } from "./utils/stub-tools";
 
 const nodeTypes: NodeTypes = {
     stepNode: StepNode,
@@ -109,8 +108,7 @@ function HandlePositionUpdater({ direction }: { direction: LayoutDirection }) {
     return null;
 }
 
-/** Props for the {@link WorkflowViewer} component. */
-export interface WorkflowViewerProps {
+interface WorkflowViewerBaseProps {
     /** The workflow definition to visualize. Pass `null` to start with an empty canvas (requires `isEditing`). */
     workflow: WorkflowDefinition | null;
     /** Compiler diagnostics to display on affected nodes. */
@@ -134,15 +132,6 @@ export interface WorkflowViewerProps {
     isEditing?: boolean;
     /** Called when the workflow is modified in edit mode. */
     onWorkflowChange?: (workflow: WorkflowDefinition) => void;
-    /** Tool definitions (AI SDK ToolSet). Used for tool name autocomplete in the editor. Execute functions are optional. */
-    tools?: ToolSet;
-    /**
-     * Pre-extracted tool schemas. When provided, skips extracting schemas from
-     * `tools`. Each schema may include an optional `displayName` to render a
-     * human-friendly label in the UI; the compiled workflow continues to
-     * reference tools by their actual keys.
-     */
-    toolSchemas?: ToolDefinitionMap;
     /** Hide the built-in detail/editor panel. Use this when rendering `StepDetailPanel` or `StepEditorPanel` externally. */
     hideDetailPanel?: boolean;
     /** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). @see {@link LayoutDirection} */
@@ -154,18 +143,23 @@ export interface WorkflowViewerProps {
      * `allowUserIntervention: false`).
      */
     settings?: RemoraflowSettings;
-    /**
-     * Controls who owns validation.
-     * - `"internal"` (default): the viewer runs its own validator and merges
-     *   results with any `diagnostics` prop. When internal validation finds
-     *   zero errors, the viewer shows a clean state even if the consumer's
-     *   `diagnostics` prop is stale.
-     * - `"external"`: the viewer does not run its own validator and uses
-     *   `diagnostics` as-is.
-     */
-    validation?: "internal" | "external";
     onDiagnosticsChange?: (diagnostics: ValidatorDiagnostic[]) => void;
 }
+
+/** Props for the {@link WorkflowViewer} component. */
+export type WorkflowViewerProps = WorkflowViewerBaseProps &
+    (
+        | {
+              /** @default "internal" */
+              validation?: "internal";
+              /** Required when validation is internal. Execute functions are not needed. */
+              tools: StubbedToolSet;
+          }
+        | {
+              validation: "external";
+              tools?: StubbedToolSet;
+          }
+    );
 
 /**
  * React component that renders a workflow as an interactive DAG using React Flow.
@@ -188,7 +182,6 @@ export function WorkflowViewer({
     isEditing = false,
     onWorkflowChange,
     tools,
-    toolSchemas: toolSchemasProp,
     hideDetailPanel = false,
     layout: direction = "vertical",
     settings,
@@ -238,44 +231,33 @@ export function WorkflowViewer({
     // --- Tool schemas ---
     const [toolSchemas, setToolSchemas] = useState<ToolDefinitionMap>({});
     useEffect(() => {
-        if (toolSchemasProp) {
-            setToolSchemas(toolSchemasProp);
-            return;
-        }
         if (!tools) {
             setToolSchemas({});
             return;
         }
         let cancelled = false;
-        extractToolSchemas(
-            tools as Parameters<typeof extractToolSchemas>[0],
-        ).then((schemas) => {
+        extractToolSchemas(tools).then((schemas) => {
             if (!cancelled) setToolSchemas(schemas);
         });
         return () => {
             cancelled = true;
         };
-    }, [tools, toolSchemasProp]);
+    }, [tools]);
 
     // --- Live diagnostics ---
     const [localDiagnostics, setLocalDiagnostics] = useState<
         ValidatorDiagnostic[]
     >([]);
     useEffect(() => {
-        if (validation === "external" || !activeWorkflow) {
+        if (validation === "external" || !activeWorkflow || !tools) {
             setLocalDiagnostics([]);
             return;
         }
-        const validationTools = tools ?? buildStubTools(toolSchemas);
         const timer = setTimeout(() => {
             const { diagnostics: result } = validateWorkflowDefinition(
                 activeWorkflow,
-                // biome-ignore lint/suspicious/noExplicitAny: ToolSet is structurally compatible with StubbedToolSet
-                { tools: validationTools as any, options: resolvedSettings },
-                {
-                    assertToolsHaveExecutionFunctions: false,
-                    assertToolsHaveOutputSchemas: false,
-                },
+                { tools, options: resolvedSettings },
+                { assertToolsHaveOutputSchemas: false },
             );
             setLocalDiagnostics(result);
             onDiagnosticsChange?.(result);
@@ -284,7 +266,6 @@ export function WorkflowViewer({
     }, [
         activeWorkflow,
         tools,
-        toolSchemas,
         resolvedSettings,
         validation,
         onDiagnosticsChange,
@@ -626,13 +607,8 @@ export function WorkflowViewer({
 
     // --- Derived data ---
     const availableToolNames = useMemo(
-        () =>
-            toolSchemasProp
-                ? Object.keys(toolSchemasProp)
-                : tools
-                  ? Object.keys(tools)
-                  : [],
-        [tools, toolSchemasProp],
+        () => (tools ? Object.keys(tools) : []),
+        [tools],
     );
 
     const allStepIds = useMemo(
@@ -657,18 +633,13 @@ export function WorkflowViewer({
     });
 
     const selectedStepBindings = useMemo<ScopeBinding[]>(() => {
-        if (!selectedStep || !activeWorkflow) return [];
-        const stubTools = tools ?? buildStubTools(toolSchemas);
+        if (!selectedStep || !activeWorkflow || !tools) return [];
         try {
-            return scopeAt(
-                activeWorkflow,
-                selectedStep.id,
-                stubTools as Parameters<typeof scopeAt>[2],
-            );
+            return scopeAt(activeWorkflow, selectedStep.id, tools);
         } catch {
             return [];
         }
-    }, [selectedStep, activeWorkflow, tools, toolSchemas]);
+    }, [selectedStep, activeWorkflow, tools]);
 
     // --- Context menu ---
     const {

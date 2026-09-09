@@ -331,7 +331,7 @@ export interface ToolSchemaDefinition {
 export type ToolDefinitionMap = Record<string, ToolSchemaDefinition>;
 
 export async function extractToolSchemas(
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ): Promise<ToolDefinitionMap> {
     const schemas: ToolDefinitionMap = {};
     for (const [name, toolDef] of Object.entries(tools)) {

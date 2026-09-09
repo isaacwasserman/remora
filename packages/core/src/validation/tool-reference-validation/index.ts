@@ -1,11 +1,11 @@
 import type { WorkflowDefinition } from "../../schema";
 import { toolReferences } from "../../step-registry";
-import type { ToolSet } from "../../types";
+import type { StubbedToolSet } from "../../types";
 import type { ValidationModule, ValidatorError } from "../types";
 
 export function validateWorkflowToolNames(
     workflowDefinition: WorkflowDefinition,
-    tools: ToolSet,
+    tools: StubbedToolSet,
 ) {
     const diagnostics: ValidatorError[] = [];
     for (

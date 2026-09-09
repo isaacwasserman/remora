@@ -10,7 +10,7 @@ import {
     type StepOfType,
     type StepType,
 } from "../../step-types";
-import type { AnyTool, ToolSet } from "../../types";
+import type { AnyStubbedTool, StubbedToolSet } from "../../types";
 import type {
     RemoraflowType,
     ValidationModule,
@@ -24,7 +24,7 @@ import {
 
 function validateToolInput(
     scope: TypeScope,
-    tool: AnyTool,
+    tool: AnyStubbedTool,
     toolName: string,
     input: (WorkflowStep & { type: "tool-call" })["params"]["toolInput"],
 ): SubsetDiagnostic[] {
@@ -56,7 +56,7 @@ function validateToolInput(
 type StepInputValidator<T extends StepType> = (args: {
     step: StepOfType<T>;
     stepIndex: number;
-    tools: ToolSet;
+    tools: StubbedToolSet;
     scopeSnapshot?: TypeScope;
 }) => ValidatorDiagnostic[];
 
@@ -141,7 +141,7 @@ const STEP_INPUT_VALIDATORS: { [T in StepType]: StepInputValidator<T> } = {
 function validateStepInputs(
     step: WorkflowStep,
     stepIndex: number,
-    tools: ToolSet,
+    tools: StubbedToolSet,
     scopeSnapshot: TypeScope | undefined,
 ): ValidatorDiagnostic[] {
     const validator = STEP_INPUT_VALIDATORS[

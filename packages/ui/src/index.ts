@@ -30,5 +30,6 @@ export {
     useToolSchemas,
 } from "./tool-schemas-context";
 export { createDefaultStep, resetStepCounter } from "./utils/step-defaults";
+export { buildStubTools } from "./utils/stub-tools";
 export type { WorkflowViewerProps } from "./workflow-viewer";
 export { WorkflowViewer } from "./workflow-viewer";
