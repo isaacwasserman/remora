@@ -306,7 +306,7 @@ test("requests closed input generation for workflow submissions", async () => {
     );
     expect(submitWorkflowTool).toMatchObject({
         type: "function",
-        strict: false,
+        strict: true,
         inputSchema: {
             additionalProperties: false,
             properties: {
