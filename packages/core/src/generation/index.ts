@@ -322,7 +322,7 @@ export async function* generateWorkflowStream({
     timeoutMs = 5 * 60 * 1000,
     abortSignal,
     onDiagnosticEvent,
-    strictToolCalls = true,
+    strictToolCalls = false,
 }: {
     taskDescription: string;
     workflowOutputSchema?: StandardJSONSchemaV1;

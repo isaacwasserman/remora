@@ -296,6 +296,7 @@ test("requests closed input generation for workflow submissions", async () => {
         options: {},
         model,
         maxGenerationSteps: 1,
+        strictToolCalls: true,
     });
 
     const result = await stream.next();
