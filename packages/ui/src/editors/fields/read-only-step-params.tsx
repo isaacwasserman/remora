@@ -78,8 +78,8 @@ function FieldDiagnostics({ diagnostics }: { diagnostics?: unknown[] }) {
                             key={`${d.severity}-${i}`}
                             className={
                                 isError
-                                    ? "flex gap-1.5 items-center text-[10px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded px-1.5 py-1 border border-red-200/80 dark:border-red-900/60 text-left"
-                                    : "flex gap-1.5 items-center text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded px-1.5 py-1 border border-amber-200/80 dark:border-amber-900/60 text-left"
+                                    ? "flex gap-1.5 items-center text-[10px] text-status-danger bg-status-danger-surface rounded-md px-1.5 py-1 border border-status-danger/30 text-left"
+                                    : "flex gap-1.5 items-center text-[10px] text-status-warning bg-status-warning-surface rounded-md px-1.5 py-1 border border-status-warning/30 text-left"
                             }
                         >
                             <span className="shrink-0 font-semibold">
@@ -185,7 +185,7 @@ function renderReadOnlyValue(
                                 className="space-y-1.5 border border-border/70 rounded-lg p-3 bg-muted/20"
                             >
                                 <div className="flex gap-2 items-baseline">
-                                    <span className="font-mono font-medium text-muted-foreground shrink-0">
+                                    <span className="text-sm font-mono font-medium text-muted-foreground shrink-0">
                                         {key}
                                     </span>
                                 </div>

@@ -297,8 +297,8 @@ export function StepDetailPanel({
                                             key={`${d.severity}-${i}-${d.message}`}
                                             className={`text-xs p-2.5 rounded-md ${
                                                 d.severity === "error"
-                                                    ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                                    : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                                    ? "bg-status-danger-surface text-status-danger border border-status-danger/30"
+                                                    : "bg-status-warning-surface text-status-warning border border-status-warning/30"
                                             }`}
                                         >
                                             <div className="font-semibold font-mono">

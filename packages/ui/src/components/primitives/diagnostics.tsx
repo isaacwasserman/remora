@@ -15,10 +15,10 @@ export function SeverityNote({
     return (
         <div
             className={cn(
-                "flex items-center gap-1.5 rounded px-1.5 py-1 text-left text-2xs",
+                "flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-2xs",
                 severity === "error"
-                    ? "bg-status-danger/10 text-status-danger border border-status-danger/30"
-                    : "bg-status-warning/10 text-status-warning border border-status-warning/30",
+                    ? "bg-status-danger-surface text-status-danger border border-status-danger/30"
+                    : "bg-status-warning-surface text-status-warning border border-status-warning/30",
                 className,
             )}
         >

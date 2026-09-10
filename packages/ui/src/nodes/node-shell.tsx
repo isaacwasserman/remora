@@ -32,7 +32,7 @@ function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
             if (paused) {
                 return (
                     <svg
-                        className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                        className="w-3.5 h-3.5 text-status-warning shrink-0"
                         viewBox="0 0 16 16"
                         fill="currentColor"
                         aria-hidden="true"
@@ -45,12 +45,12 @@ function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
                 );
             }
             return (
-                <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
+                <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-status-running border-t-transparent animate-spin shrink-0" />
             );
         case "completed":
             return (
                 <svg
-                    className="w-3.5 h-3.5 text-green-500 shrink-0"
+                    className="w-3.5 h-3.5 text-status-success shrink-0"
                     viewBox="0 0 16 16"
                     fill="currentColor"
                     aria-hidden="true"
@@ -63,7 +63,7 @@ function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
         case "failed":
             return (
                 <svg
-                    className="w-3.5 h-3.5 text-red-500 shrink-0"
+                    className="w-3.5 h-3.5 text-status-danger shrink-0"
                     viewBox="0 0 16 16"
                     fill="currentColor"
                     aria-hidden="true"
@@ -116,22 +116,22 @@ export function NodeShell({
         switch (executionSummary.status) {
             case "running":
                 ringClass = paused
-                    ? "ring-2 ring-amber-400"
-                    : "ring-2 ring-blue-400 animate-pulse";
+                    ? "ring-2 ring-status-warning"
+                    : "ring-2 ring-status-running animate-pulse";
                 break;
             case "completed":
-                ringClass = "ring-2 ring-green-400";
+                ringClass = "ring-2 ring-status-success";
                 break;
             case "failed":
-                ringClass = "ring-2 ring-red-500";
+                ringClass = "ring-2 ring-status-danger";
                 break;
             case "pending":
                 opacityClass = "opacity-50";
                 break;
         }
     } else {
-        if (hasErrors) ringClass = "ring-2 ring-red-500";
-        else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
+        if (hasErrors) ringClass = "ring-2 ring-status-danger";
+        else if (hasWarnings) ringClass = "ring-2 ring-status-warning";
         else if (selected) ringClass = "ring-2 ring-blue-400";
     }
 
@@ -221,8 +221,8 @@ export function NodeShell({
                             <span
                                 className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                                     hasErrors
-                                        ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400"
-                                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
+                                        ? "bg-status-danger-surface text-status-danger"
+                                        : "bg-status-warning-surface text-status-warning"
                                 }`}
                             >
                                 {diagnostics.length}

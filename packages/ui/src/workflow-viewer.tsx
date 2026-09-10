@@ -32,6 +32,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CanvasContextMenu } from "./components/canvas-context-menu";
 import { StepPalette } from "./components/step-palette";
+import { WorkflowDiagnostics } from "./components/workflow-diagnostics";
 import { WorkflowJsonDialog } from "./components/workflow-json-dialog";
 import { WorkflowEdge } from "./edges/workflow-edge";
 import { EditContext } from "./edit-context";
@@ -992,6 +993,16 @@ export function WorkflowViewer({
                                 />
                             )}
                         </ReactFlow>
+                        <WorkflowDiagnostics
+                            diagnostics={activeDiagnostics}
+                            bottomOffset={
+                                showMinimap ? effectiveMinimapHeight + 24 : 12
+                            }
+                            onStepDiagnosticClick={(stepIndex) => {
+                                const step = activeWorkflow?.steps[stepIndex];
+                                if (step) selectStepForEditing(step.id);
+                            }}
+                        />
                         <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
                             <div className="flex rounded-lg border border-border shadow-md overflow-hidden bg-card divide-x divide-border">
                                 {isEditing && (
