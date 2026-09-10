@@ -107,9 +107,9 @@ function DiagnosticsSection({
             {errors.map((d) => (
                 <div
                     key={`err-${d.message}`}
-                    className="flex gap-2 items-start text-[11px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded-md px-2.5 py-2 border border-red-200/80 dark:border-red-900/60"
+                    className="flex gap-2 items-start text-[11px] text-status-danger bg-status-danger-surface rounded-md px-2.5 py-2 border border-status-danger/30"
                 >
-                    <span className="shrink-0 font-semibold bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded text-[10px]">
+                    <span className="shrink-0 font-semibold bg-status-danger/10 px-1.5 py-0.5 rounded text-[10px]">
                         Error
                     </span>
                     <span className="leading-relaxed">{d.message}</span>
@@ -118,9 +118,9 @@ function DiagnosticsSection({
             {warnings.map((d) => (
                 <div
                     key={`warn-${d.message}`}
-                    className="flex gap-2 items-start text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-md px-2.5 py-2 border border-amber-200/80 dark:border-amber-900/60"
+                    className="flex gap-2 items-start text-[11px] text-status-warning bg-status-warning-surface rounded-md px-2.5 py-2 border border-status-warning/30"
                 >
-                    <span className="shrink-0 font-semibold bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px]">
+                    <span className="shrink-0 font-semibold bg-status-warning/10 px-1.5 py-0.5 rounded text-[10px]">
                         Warn
                     </span>
                     <span className="leading-relaxed">{d.message}</span>

@@ -37,7 +37,9 @@
     --color-tone-request-intervention: var(--rf-tone-request-intervention);
 
     --color-status-danger: var(--rf-status-danger);
+    --color-status-danger-surface: var(--rf-status-danger-surface);
     --color-status-warning: var(--rf-status-warning);
+    --color-status-warning-surface: var(--rf-status-warning-surface);
     --color-status-success: var(--rf-status-success);
     --color-status-running: var(--rf-status-running);
 
@@ -65,7 +67,9 @@
     --rf-tone-request-intervention: #e11d48;
 
     --rf-status-danger: #b91c1c;
+    --rf-status-danger-surface: #fee2e2;
     --rf-status-warning: #b45309;
+    --rf-status-warning-surface: #fef3c7;
     --rf-status-success: #16a34a;
     --rf-status-running: #2563eb;
 }
@@ -84,8 +88,10 @@
     --rf-tone-agent-loop: #2dd4bf;
     --rf-tone-request-intervention: #fb7185;
 
-    --rf-status-danger: #fca5a5;
-    --rf-status-warning: #fcd34d;
+    --rf-status-danger: #f87171;
+    --rf-status-danger-surface: #7f1d1d;
+    --rf-status-warning: #fbbf24;
+    --rf-status-warning-surface: #78350f;
     --rf-status-success: #4ade80;
     --rf-status-running: #60a5fa;
 }

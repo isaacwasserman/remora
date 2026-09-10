@@ -42,19 +42,19 @@ export function GroupContainerNode({ data }: NodeProps) {
         switch (executionSummary.status) {
             case "running":
                 ringClass = paused
-                    ? "ring-2 ring-amber-400"
-                    : "ring-2 ring-blue-400 animate-pulse";
+                    ? "ring-2 ring-status-warning"
+                    : "ring-2 ring-status-running animate-pulse";
                 break;
             case "completed":
-                ringClass = "ring-2 ring-green-400";
+                ringClass = "ring-2 ring-status-success";
                 break;
             case "failed":
-                ringClass = "ring-2 ring-red-500";
+                ringClass = "ring-2 ring-status-danger";
                 break;
         }
     } else {
-        if (hasErrors) ringClass = "ring-2 ring-red-500";
-        else if (hasWarnings) ringClass = "ring-2 ring-amber-400";
+        if (hasErrors) ringClass = "ring-2 ring-status-danger";
+        else if (hasWarnings) ringClass = "ring-2 ring-status-warning";
     }
 
     const isPathHighlighted = (pathSequenceIndexes?.length ?? 0) > 0;
