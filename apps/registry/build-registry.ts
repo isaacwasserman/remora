@@ -56,7 +56,15 @@ const VIEWER_FILES: FileEntry[] = [
         relPath: "components/workflow-json-dialog.tsx",
         type: "registry:component",
     },
+    {
+        relPath: "components/workflow-diagnostics.tsx",
+        type: "registry:component",
+    },
     { relPath: "components/replay-slider.tsx", type: "registry:component" },
+    {
+        relPath: "components/primitives/diagnostics.tsx",
+        type: "registry:component",
+    },
     // syntax
     {
         relPath: "syntax/codemirror-template-highlighting.ts",

@@ -4,9 +4,9 @@ if (!globalThis.document) {
     GlobalRegistrator.register();
 }
 
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import type { ValidatorDiagnostic } from "@remoraflow/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { WorkflowDiagnostics } from "./workflow-diagnostics";
 
 const WARNING: ValidatorDiagnostic = {
@@ -20,6 +20,8 @@ const ERROR: ValidatorDiagnostic = {
 };
 
 describe("WorkflowDiagnostics", () => {
+    afterEach(cleanup);
+
     test("renders nothing when there are no diagnostics", () => {
         const { container } = render(<WorkflowDiagnostics diagnostics={[]} />);
 
@@ -27,30 +29,33 @@ describe("WorkflowDiagnostics", () => {
     });
 
     test("replaces the severity-colored count with a neutral panel that closes on outside click", () => {
-        render(<WorkflowDiagnostics diagnostics={[WARNING, ERROR]} />);
+        const { container } = render(
+            <WorkflowDiagnostics diagnostics={[WARNING, ERROR]} />,
+        );
+        const view = within(container);
 
-        const button = screen.getByRole("button", {
+        const button = view.getByRole("button", {
             name: "Show 2 diagnostics",
         });
         expect(button.textContent).toBe("2");
         expect(button.getAttribute("data-severity")).toBe("error");
-        expect(screen.queryByLabelText("Diagnostics")).toBeNull();
+        expect(view.queryByLabelText("Diagnostics")).toBeNull();
 
         fireEvent.click(button);
 
         expect(
-            screen.queryByRole("button", { name: "Show 2 diagnostics" }),
+            view.queryByRole("button", { name: "Show 2 diagnostics" }),
         ).toBeNull();
-        const panel = screen.getByLabelText("Diagnostics");
+        const panel = view.getByLabelText("Diagnostics");
         expect(panel.className).toContain("bg-card");
         expect(panel.textContent).toContain(WARNING.message);
         expect(panel.textContent).toContain(ERROR.message);
 
         fireEvent.pointerDown(document.body);
 
-        expect(screen.queryByLabelText("Diagnostics")).toBeNull();
+        expect(view.queryByLabelText("Diagnostics")).toBeNull();
         expect(
-            screen.getByRole("button", { name: "Show 2 diagnostics" }),
+            view.getByRole("button", { name: "Show 2 diagnostics" }),
         ).toBeDefined();
     });
 
@@ -60,7 +65,7 @@ describe("WorkflowDiagnostics", () => {
             path: ["steps", 1, "params", "toolName"],
         };
         let selectedStepIndex: number | undefined;
-        render(
+        const { container } = render(
             <WorkflowDiagnostics
                 diagnostics={[stepDiagnostic]}
                 onStepDiagnosticClick={(stepIndex) => {
@@ -68,13 +73,14 @@ describe("WorkflowDiagnostics", () => {
                 }}
             />,
         );
+        const view = within(container);
 
         fireEvent.click(
-            screen.getByRole("button", { name: "Show 1 diagnostic" }),
+            view.getByRole("button", { name: "Show 1 diagnostic" }),
         );
-        fireEvent.click(screen.getByText(stepDiagnostic.message));
+        fireEvent.click(view.getByText(stepDiagnostic.message));
 
         expect(selectedStepIndex).toBe(1);
-        expect(screen.queryByLabelText("Diagnostics")).toBeNull();
+        expect(view.queryByLabelText("Diagnostics")).toBeNull();
     });
 });
