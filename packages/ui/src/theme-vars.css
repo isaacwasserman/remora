@@ -1,0 +1,322 @@
+/*
+ * Step tones and status colors. Declared at :where(:root) with zero
+ * specificity so a host app overrides any of them with a plain :root rule.
+ * Tone values seed the light theme; dark values sit in the .dark block below.
+ */
+:where(:root) {
+    --rf-tone-start: #16a34a;
+    --rf-tone-end: #6b7280;
+    --rf-tone-tool-call: #2563eb;
+    --rf-tone-llm-prompt: #7c3aed;
+    --rf-tone-extract-data: #9333ea;
+    --rf-tone-switch-case: #d97706;
+    --rf-tone-for-each: #059669;
+    --rf-tone-sleep: #ca8a04;
+    --rf-tone-while: #4f46e5;
+    --rf-tone-wait-for-condition: #ea580c;
+    --rf-tone-agent-loop: #0d9488;
+    --rf-tone-request-intervention: #e11d48;
+
+    --rf-status-danger: #b91c1c;
+    --rf-status-danger-surface: #fee2e2;
+    --rf-status-warning: #b45309;
+    --rf-status-warning-surface: #fef3c7;
+    --rf-status-success: #16a34a;
+    --rf-status-running: #2563eb;
+}
+
+:where(.dark) {
+    --rf-tone-start: #4ade80;
+    --rf-tone-end: #9ca3af;
+    --rf-tone-tool-call: #60a5fa;
+    --rf-tone-llm-prompt: #a78bfa;
+    --rf-tone-extract-data: #c084fc;
+    --rf-tone-switch-case: #fbbf24;
+    --rf-tone-for-each: #34d399;
+    --rf-tone-sleep: #facc15;
+    --rf-tone-while: #818cf8;
+    --rf-tone-wait-for-condition: #fb923c;
+    --rf-tone-agent-loop: #2dd4bf;
+    --rf-tone-request-intervention: #fb7185;
+
+    --rf-status-danger: #f87171;
+    --rf-status-danger-surface: #7f1d1d;
+    --rf-status-warning: #fbbf24;
+    --rf-status-warning-surface: #78350f;
+    --rf-status-success: #4ade80;
+    --rf-status-running: #60a5fa;
+}
+
+/*
+ * Tailwind v4's preflight sets `border: 0 solid` on `*` without a color,
+ * which defaults to `currentColor`. Override so that bare `border` utilities
+ * use the theme's border color instead of black.
+ */
+*,
+::after,
+::before,
+::backdrop,
+::file-selector-button {
+    border-color: var(--color-border, var(--border, currentColor));
+}
+
+/* React Flow's minimap nodes follow the foreground color: translucent black
+ * in light mode and translucent white in dark mode. */
+.react-flow__minimap-node {
+    fill: color-mix(
+        in oklab,
+        var(--color-foreground, var(--foreground)) 14%,
+        transparent
+    );
+}
+
+/*
+ * Map React Flow's --xy-* variables to shadcn/Tailwind theme tokens.
+ * This lets the host app's theme control the entire viewer appearance.
+ * React Flow resolves: var(--xy-foo, var(--xy-foo-default))
+ * so setting --xy-foo here wins over the built-in defaults.
+ */
+.react-flow {
+    --xy-background-color: var(--color-background, var(--background));
+    --xy-node-color: var(--color-card-foreground, var(--card-foreground));
+    --xy-node-border: 1px solid var(--color-border, var(--border));
+    --xy-node-background-color: var(--color-card, var(--card));
+    --xy-node-group-background-color: var(--color-muted, var(--muted));
+    --xy-node-border-radius: var(--radius-lg, 0.625rem);
+    --xy-node-boxshadow-hover: 0 1px 4px 1px
+        color-mix(
+            in oklab,
+            var(--color-foreground, var(--foreground)) 8%,
+            transparent
+        );
+    --xy-node-boxshadow-selected: 0 0 0 1.5px
+        var(--color-primary, var(--primary));
+    --xy-handle-background-color: var(--color-primary, var(--primary));
+    --xy-edge-stroke: var(--color-border, var(--border));
+    --xy-edge-stroke-selected: var(--color-primary, var(--primary));
+    --xy-connectionline-stroke: var(
+        --color-muted-foreground,
+        var(--muted-foreground)
+    );
+    --xy-selection-background-color: color-mix(
+        in oklab,
+        var(--color-primary, var(--primary)) 8%,
+        transparent
+    );
+    --xy-minimap-background-color: var(--color-card, var(--card));
+    --xy-minimap-mask-background-color: color-mix(
+        in oklab,
+        var(--color-background, var(--background)) 70%,
+        transparent
+    );
+    --xy-minimap-node-background-color: var(--color-muted, var(--muted));
+    --xy-controls-button-background-color: var(--color-card, var(--card));
+    --xy-controls-button-background-color-hover: var(
+        --color-accent,
+        var(--accent)
+    );
+    --xy-controls-button-color: var(--color-foreground, var(--foreground));
+    --xy-controls-button-color-hover: var(
+        --color-foreground,
+        var(--foreground)
+    );
+    --xy-controls-button-border-color: var(--color-border, var(--border));
+    --xy-controls-box-shadow: 0 0 2px 1px
+        color-mix(
+            in oklab,
+            var(--color-foreground, var(--foreground)) 6%,
+            transparent
+        );
+    --xy-edge-label-background-color: var(--color-card, var(--card));
+    --xy-background-pattern-color: var(--color-border, var(--border));
+    --xy-attribution-background-color: color-mix(
+        in oklab,
+        var(--color-card, var(--card)) 50%,
+        transparent
+    );
+}
+
+.rf-highlighted-expression {
+    color: var(--color-foreground, var(--foreground));
+    font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    /* This component is used for both the read-only display and edit overlay.
+     * Do not inherit a surrounding panel's type scale: it can differ between
+     * those two contexts. */
+    font-size: 12px;
+    line-height: 20px;
+    white-space: pre-wrap;
+}
+
+.rf-highlighted-expression .hljs-subst,
+.rf-highlighted-expression .hljs-built_in {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .hljs-string {
+    color: var(--color-emerald-700);
+}
+
+.rf-highlighted-expression .hljs-number {
+    color: var(--color-fuchsia-700);
+}
+
+.rf-highlighted-expression .hljs-literal {
+    color: var(--color-amber-700);
+}
+
+.rf-highlighted-expression .hljs-operator {
+    color: var(--color-sky-700);
+}
+
+.rf-highlighted-expression .hljs-punctuation {
+    color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.dark .rf-highlighted-expression .hljs-subst,
+.dark .rf-highlighted-expression .hljs-built_in {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .hljs-string {
+    color: var(--color-emerald-300);
+}
+
+.dark .rf-highlighted-expression .hljs-number {
+    color: var(--color-fuchsia-300);
+}
+
+.dark .rf-highlighted-expression .hljs-literal {
+    color: var(--color-amber-300);
+}
+
+.dark .rf-highlighted-expression .hljs-operator {
+    color: var(--color-sky-300);
+}
+
+.rf-highlighted-expression-overlay {
+    height: 100%;
+    overflow: hidden;
+    padding: 0.25rem 0.75rem;
+    white-space: pre;
+}
+
+.rf-highlighted-expression-overlay-textarea {
+    padding: 0.5rem 0.625rem;
+    white-space: pre-wrap;
+}
+
+.rf-highlighted-expression-overlay-code {
+    padding: 0.5rem;
+    white-space: pre-wrap;
+}
+
+.code-input-json-appearance .rf-highlighted-expression-overlay-code {
+    padding: 0.5rem 0.625rem;
+}
+
+.jmespath-code-editor .cm-content {
+    padding-top: 9px;
+    padding-bottom: 7px;
+}
+
+.rf-highlighted-expression .rf-template-interpolation,
+.rf-highlighted-expression .rf-jmes-identifier,
+.cm-content .rf-template-interpolation,
+.cm-content .rf-jmes-identifier {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .rf-template-delimiter,
+.cm-content .rf-template-delimiter {
+    color: var(--color-rose-600);
+}
+
+.dark .rf-highlighted-expression .rf-template-interpolation,
+.dark .rf-highlighted-expression .rf-jmes-identifier,
+.dark .cm-content .rf-template-interpolation,
+.dark .cm-content .rf-jmes-identifier {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .rf-template-delimiter,
+.dark .cm-content .rf-template-delimiter {
+    color: var(--color-rose-300);
+}
+
+.rf-highlighted-expression .rf-jmes-built-in,
+.cm-content .rf-jmes-built-in {
+    color: var(--color-violet-600);
+}
+
+.rf-highlighted-expression .rf-jmes-string,
+.cm-content .rf-jmes-string {
+    color: var(--color-emerald-700);
+}
+
+.rf-highlighted-expression .rf-jmes-number,
+.cm-content .rf-jmes-number {
+    color: var(--color-fuchsia-700);
+}
+
+.rf-highlighted-expression .rf-jmes-literal,
+.cm-content .rf-jmes-literal {
+    color: var(--color-amber-700);
+}
+
+.rf-highlighted-expression .rf-jmes-operator,
+.cm-content .rf-jmes-operator {
+    color: var(--color-sky-700);
+}
+
+.rf-highlighted-expression .rf-jmes-punctuation,
+.cm-content .rf-jmes-punctuation {
+    color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.rf-highlighted-expression .rf-jmes-member-separator,
+.cm-content .rf-jmes-member-separator {
+    color: #64748b;
+}
+
+.dark .rf-highlighted-expression .rf-jmes-built-in,
+.dark .cm-content .rf-jmes-built-in {
+    color: var(--color-violet-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-string,
+.dark .cm-content .rf-jmes-string {
+    color: var(--color-emerald-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-number,
+.dark .cm-content .rf-jmes-number {
+    color: var(--color-fuchsia-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-literal,
+.dark .cm-content .rf-jmes-literal {
+    color: var(--color-amber-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-operator,
+.dark .cm-content .rf-jmes-operator {
+    color: var(--color-sky-300);
+}
+
+.dark .rf-highlighted-expression .rf-jmes-member-separator,
+.dark .cm-content .rf-jmes-member-separator {
+    color: #94a3b8;
+}
+
+.code-input-transparent-background .cm-editor {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides CodeMirror inline styles */
+    background-color: transparent !important;
+}
+
+.code-input-overlay-only .cm-content,
+.code-input-overlay-only .cm-line {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides CodeMirror inline styles */
+    color: transparent !important;
+    caret-color: var(--color-foreground, var(--foreground));
+}

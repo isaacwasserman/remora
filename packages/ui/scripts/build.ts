@@ -62,4 +62,5 @@ await $`bun run --bun postcss src/styles.css -o dist/styles.css`;
 console.log("CSS build complete");
 
 await $`cp src/theme.css dist/theme.css`;
+await $`cp src/theme-vars.css dist/theme-vars.css`;
 console.log("Theme CSS copied (source — processed by consumer's Tailwind)");
