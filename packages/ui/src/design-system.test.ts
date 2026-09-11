@@ -83,11 +83,15 @@ function themeTokenBridgeGaps(): string[] {
     const themeSrc = readFileSync(join(SRC_ROOT, "theme.css"), "utf8");
 
     const rfVarNames = new Set(
-        [...themeSrc.matchAll(/--rf-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+        [...themeSrc.matchAll(/--rf-([a-z0-9-]+)\s*:/g)]
+            .map((m) => m[1])
+            .filter((v): v is string => v != null),
     );
 
     const bridged = new Set(
-        [...themeSrc.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+        [...themeSrc.matchAll(/--color-([a-z0-9-]+)\s*:/g)]
+            .map((m) => m[1])
+            .filter((v): v is string => v != null),
     );
 
     return [...rfVarNames].filter((name) => !bridged.has(name));
@@ -116,9 +120,10 @@ describe("design system", () => {
             throw new Error(
                 `These --rf-* variables lack a --color-* entry in the @theme inline block of theme.css. ` +
                     `Consumers using @source will not be able to generate utilities for them.\n` +
-                    missing.map((n) => `  --rf-${n}  →  --color-${n}`).join("\n"),
+                    missing
+                        .map((n) => `  --rf-${n}  →  --color-${n}`)
+                        .join("\n"),
             );
         }
     });
-
 });
