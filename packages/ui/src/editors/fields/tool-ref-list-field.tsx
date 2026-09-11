@@ -62,9 +62,11 @@ export function ToolRefListField({
                             />
                             <span className="flex flex-col gap-0.5 min-w-0">
                                 <span>{schema?.displayName ?? name}</span>
-                                {schema?.description && (
+                                {(schema?.displayDescription ??
+                                    schema?.description) && (
                                     <span className="text-[10px] text-muted-foreground leading-snug">
-                                        {schema.description}
+                                        {schema.displayDescription ??
+                                            schema.description}
                                     </span>
                                 )}
                             </span>

@@ -39,7 +39,7 @@ export function ToolRefField({
         return {
             value: name,
             label: schema?.displayName ?? name,
-            description: schema?.description,
+            description: schema?.displayDescription ?? schema?.description,
         };
     });
     const selected = toolOptions.find((opt) => opt.value === value) ?? null;

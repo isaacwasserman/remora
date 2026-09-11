@@ -205,9 +205,9 @@ export function ExpressionMapField({
                     </div>
                 </div>
             )}
-            {schema?.description && (
+            {(schema?.displayDescription ?? schema?.description) && (
                 <p className="text-[10px] text-muted-foreground leading-snug">
-                    {schema.description}
+                    {schema.displayDescription ?? schema.description}
                 </p>
             )}
             {schema?.outputSchema && (

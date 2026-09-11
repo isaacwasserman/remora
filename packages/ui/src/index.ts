@@ -26,6 +26,7 @@ export { StepEditorPanel } from "./panels/step-editor-panel";
 export { useDarkMode } from "./theme";
 export {
     ToolSchemasContext,
+    useToolDisplayDescription,
     useToolDisplayName,
     useToolSchemas,
 } from "./tool-schemas-context";

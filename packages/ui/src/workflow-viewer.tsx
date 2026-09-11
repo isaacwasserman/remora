@@ -1,10 +1,10 @@
 import {
+    type DisplayToolSet,
     type ExecutionState,
     extractToolSchemas,
     type RemoraflowSettings,
     remoraflowSettingsSchema,
     type ScopeBinding,
-    type StubbedToolSet,
     scopeAt,
     type ToolDefinitionMap,
     type ValidatorDiagnostic,
@@ -154,11 +154,11 @@ export type WorkflowViewerProps = WorkflowViewerBaseProps &
               /** @default "internal" */
               validation?: "internal";
               /** Required when validation is internal. Execute functions are not needed. */
-              tools: StubbedToolSet;
+              tools: DisplayToolSet;
           }
         | {
               validation: "external";
-              tools?: StubbedToolSet;
+              tools?: DisplayToolSet;
           }
     );
 
