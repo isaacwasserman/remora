@@ -84,9 +84,16 @@ export type AnyStubbedTool = {
     description?: string | ((options: any) => string);
 };
 
+export type AnyDisplayTool = AnyStubbedTool & {
+    displayName?: string;
+    displayDescription?: string;
+};
+
 export type ToolSet = Record<string, AnyTool>;
 
 export type StubbedToolSet = Record<string, AnyStubbedTool>;
+
+export type DisplayToolSet = Record<string, AnyDisplayTool>;
 
 export type LanguageModel = Exclude<AnyLanguageModel, string>;
 
@@ -325,6 +332,7 @@ export type { ExecutionState, RunningExecutionStatus } from "./execution/types";
 
 export interface ToolSchemaDefinition {
     displayName?: string;
+    displayDescription?: string;
     description?: string;
     inputSchema: {
         required?: string[];
@@ -352,7 +360,7 @@ export function buildStubTools(toolSchemas: ToolDefinitionMap): StubbedToolSet {
 }
 
 export async function extractToolSchemas(
-    tools: StubbedToolSet,
+    tools: DisplayToolSet,
 ): Promise<ToolDefinitionMap> {
     const schemas: ToolDefinitionMap = {};
     for (const [name, toolDef] of Object.entries(tools)) {
@@ -364,6 +372,9 @@ export async function extractToolSchemas(
             inputSchema: asSchema(toolDef.inputSchema)
                 .jsonSchema as ToolSchemaDefinition["inputSchema"],
         };
+        if (toolDef.displayName) schema.displayName = toolDef.displayName;
+        if (toolDef.displayDescription)
+            schema.displayDescription = toolDef.displayDescription;
         if (toolDef.outputSchema) {
             schema.outputSchema = asSchema(toolDef.outputSchema)
                 .jsonSchema as Record<string, unknown>;
