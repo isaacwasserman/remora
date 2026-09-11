@@ -19,7 +19,8 @@
             "types": "./dist/index.d.ts"
         },
         "./styles.css": "./dist/styles.css",
-        "./theme.css": "./dist/theme.css"
+        "./theme.css": "./dist/theme.css",
+        "./theme-vars.css": "./dist/theme-vars.css"
     },
     "files": [
         "dist",
