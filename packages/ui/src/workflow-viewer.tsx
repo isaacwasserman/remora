@@ -934,7 +934,7 @@ export function WorkflowViewer({
             <EditContext.Provider value={editContextValue}>
                 <div
                     role="application"
-                    className="flex h-full w-full min-h-0 overflow-hidden"
+                    className="remoraflow flex h-full w-full min-h-0 overflow-hidden"
                     onKeyDown={onKeyDown}
                     tabIndex={-1}
                 >
