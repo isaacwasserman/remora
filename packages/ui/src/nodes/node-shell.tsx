@@ -93,7 +93,7 @@ export function NodeShell({
     icon,
     children,
     selected,
-    hasSourceEdge = false,
+    hasSourceEdge,
     hasTargetEdge = true,
     executionSummary,
     pathSequenceIndexes,
