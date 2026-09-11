@@ -126,4 +126,14 @@ describe("design system", () => {
             );
         }
     });
+
+    test("scopes the border fallback to the workflow viewer", () => {
+        const themeVarsSrc = readFileSync(
+            join(SRC_ROOT, "theme-vars.css"),
+            "utf8",
+        );
+
+        expect(themeVarsSrc).toMatch(/:where\(\s+\.remoraflow,/);
+        expect(themeVarsSrc).not.toContain("*,\n::after,\n::before,");
+    });
 });

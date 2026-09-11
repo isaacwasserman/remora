@@ -48,15 +48,18 @@
 }
 
 /*
- * Tailwind v4's preflight sets `border: 0 solid` on `*` without a color,
- * which defaults to `currentColor`. Override so that bare `border` utilities
- * use the theme's border color instead of black.
+ * Tailwind v4's preflight sets `border: 0 solid` without a color, which
+ * defaults to `currentColor`. Keep the fallback inside the viewer so it does
+ * not override a host application's border utilities.
  */
-*,
-::after,
-::before,
-::backdrop,
-::file-selector-button {
+:where(
+        .remoraflow,
+        .remoraflow *,
+        .remoraflow ::after,
+        .remoraflow ::before,
+        .remoraflow ::backdrop,
+        .remoraflow ::file-selector-button
+    ) {
     border-color: var(--color-border, var(--border, currentColor));
 }
 
