@@ -79,6 +79,24 @@ function violations(): {
     return found;
 }
 
+function themeTokenBridgeGaps(): string[] {
+    const themeSrc = readFileSync(join(SRC_ROOT, "theme.css"), "utf8");
+
+    const rfVarNames = new Set(
+        [...themeSrc.matchAll(/--rf-([a-z0-9-]+)\s*:/g)]
+            .map((m) => m[1])
+            .filter((v): v is string => v != null),
+    );
+
+    const bridged = new Set(
+        [...themeSrc.matchAll(/--color-([a-z0-9-]+)\s*:/g)]
+            .map((m) => m[1])
+            .filter((v): v is string => v != null),
+    );
+
+    return [...rfVarNames].filter((name) => !bridged.has(name));
+}
+
 describe("design system", () => {
     // Report-only while the tokenization refactor lands. Flip to failing
     // mode in phase G once the palette classes are gone.
@@ -94,5 +112,18 @@ describe("design system", () => {
         }, {});
         console.log("design-system violations:", byRule);
         expect(Object.keys(byRule).length).toBeGreaterThanOrEqual(0);
+    });
+
+    test("every --rf-* variable has a --color-* bridge in @theme", () => {
+        const missing = themeTokenBridgeGaps();
+        if (missing.length > 0) {
+            throw new Error(
+                `These --rf-* variables lack a --color-* entry in the @theme inline block of theme.css. ` +
+                    `Consumers using @source will not be able to generate utilities for them.\n` +
+                    missing
+                        .map((n) => `  --rf-${n}  →  --color-${n}`)
+                        .join("\n"),
+            );
+        }
     });
 });
