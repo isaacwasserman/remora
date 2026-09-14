@@ -19,6 +19,7 @@ import {
     type EdgeTypes,
     MiniMap,
     type NodeTypes,
+    type OnEdgesChange,
     type OnNodesChange,
     ReactFlow,
     useEdgesState,
@@ -356,12 +357,26 @@ export function WorkflowViewer({
     ]);
 
     const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
+    const [edges, setEdges, onEdgesChangeBase] = useEdgesState(layout.edges);
+
+    const onEdgesChange: OnEdgesChange = useCallback(
+        (changes) => {
+            onEdgesChangeBase(
+                isEditing
+                    ? changes
+                    : changes.filter((change) => change.type !== "remove"),
+            );
+        },
+        [onEdgesChangeBase, isEditing],
+    );
 
     const onNodesChange: OnNodesChange = useCallback(
         (changes) => {
-            onNodesChangeBase(changes);
-            for (const change of changes) {
+            const applied = isEditing
+                ? changes
+                : changes.filter((change) => change.type !== "remove");
+            onNodesChangeBase(applied);
+            for (const change of applied) {
                 if (
                     change.type === "dimensions" &&
                     change.dimensions?.width &&
@@ -374,7 +389,7 @@ export function WorkflowViewer({
                 }
             }
         },
-        [onNodesChangeBase],
+        [onNodesChangeBase, isEditing],
     );
 
     useEffect(() => {
@@ -973,6 +988,7 @@ export function WorkflowViewer({
                             minZoom={0.1}
                             nodesDraggable={isEditing}
                             nodesConnectable={isEditing}
+                            deleteKeyCode={isEditing ? undefined : null}
                             defaultEdgeOptions={{
                                 type: "workflow",
                             }}
