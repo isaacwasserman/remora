@@ -74,7 +74,11 @@ export const switchCaseExecutor: StepExecutor<"switch-case"> = {
         }
         const branchScope = lastUpdate?.scope ?? scope;
         yield {
-            scope: { ...scope, ...branchScope },
+            scope: {
+                ...scope,
+                ...branchScope,
+                [step.id]: lastUpdate?.output ?? null,
+            },
             output: null,
             error: null,
             ...(step.nextStepId

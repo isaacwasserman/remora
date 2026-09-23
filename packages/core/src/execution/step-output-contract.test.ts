@@ -208,11 +208,13 @@ const CONTRACT_CASES: Record<WorkflowStep["type"], ContractCase> = {
                     ],
                 },
             }),
-            step("body", { type: "start" }),
+            step("body", {
+                type: "end",
+                params: { output: { type: "literal", value: "picked" } },
+            }),
         ],
-        // `switch-case` merges the branch scope but binds nothing under its own id.
-        expectedOutput: undefined,
-        conformance: "verified",
+        expectedOutput: "picked",
+        conformance: "unconstrained",
     },
     "wait-for-condition": {
         steps: [

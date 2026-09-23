@@ -144,7 +144,7 @@ const switchCaseParamsSchema = type({
         }
         \`\`\`
 
-        After this step completes, execution continues from its \`nextStepId\` when present.
+        The value returned by the selected branch becomes this step's output. After this step completes, execution continues from its \`nextStepId\` when present.
     `,
 );
 

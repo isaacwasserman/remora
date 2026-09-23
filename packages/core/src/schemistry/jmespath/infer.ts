@@ -595,12 +595,19 @@ function accessWithNormalization(
         const everyMemberFails = accessed.every(
             (member) => member.badAccess === "true",
         );
+        const everyMemberSucceeds = accessed.every(
+            (member) => member.badAccess === "false",
+        );
         return {
             anyOf: accessed.map((member) => ({
                 ...member,
                 badAccess: "false" as const,
             })),
-            badAccess: everyMemberFails ? "true" : "maybe",
+            badAccess: everyMemberFails
+                ? "true"
+                : everyMemberSucceeds
+                  ? "false"
+                  : "maybe",
         };
     }
     return single(s);

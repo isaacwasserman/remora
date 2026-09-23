@@ -1296,6 +1296,31 @@ describe("switch-case branch bindings", () => {
         ]);
     });
 
+    test("types the switch output as the union of its branch outputs", () => {
+        const { isValid, diagnostics } = validateWorkflowDefinition(
+            readingAfterSwitch("pick.n"),
+            ctx(),
+        );
+        expect(isValid).toBe(true);
+        expect(diagnostics.filter((d) => d.message.includes("access"))).toEqual(
+            [],
+        );
+        expect(
+            errorsIn(
+                validateWorkflowDefinition(
+                    readingAfterSwitch("pick.nope"),
+                    ctx(),
+                ).diagnostics,
+            ),
+        ).toEqual([
+            {
+                severity: "error",
+                path: ["steps", 3, "params", "output", "expression"],
+                message: "Invalid access: always resolves to null.",
+            },
+        ]);
+    });
+
     test("still errors on a field the branch output never has", () => {
         // Nullability must not swallow genuine mistakes.
         const { isValid, diagnostics } = validateWorkflowDefinition(

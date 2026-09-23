@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { jsonSchemaToType } from "@ark/json-schema";
 import type { DeepPartial } from "ai";
 import { type } from "arktype";
@@ -19,11 +19,13 @@ const apiKey = process.env.OPENROUTER_API_KEY;
 const modelId = process.env.OPENROUTER_MODEL_ID;
 const describeLive = apiKey && modelId ? describe : describe.skip;
 
-const openrouter = createOpenAI({
+const openrouter = createOpenAICompatible({
+    name: "openrouter",
     apiKey: apiKey ?? "missing-openrouter-api-key",
     baseURL: "https://openrouter.ai/api/v1",
+    supportsStructuredOutputs: true,
 });
-const model = openrouter.chat(modelId ?? "missing-openrouter-model-id");
+const model = openrouter.chatModel(modelId ?? "missing-openrouter-model-id");
 
 const GENERATION_TIMEOUT_MS = 180_000;
 const GENERATION_OUTER_TIMEOUT_MS = 210_000;
@@ -121,6 +123,7 @@ async function collectGenerationOutput(
                 continue;
             }
 
+            logToolCalls(scenarioName, generationDiagnostics);
             if (next.value.gaveUp) {
                 logWorkflowAttempts(
                     scenarioName,
@@ -132,6 +135,7 @@ async function collectGenerationOutput(
             return next.value;
         }
     } catch (error) {
+        logToolCalls(scenarioName, generationDiagnostics);
         logWorkflowAttempts(
             scenarioName,
             attempts,
@@ -156,6 +160,22 @@ function logWorkflowAttempts(
             null,
             2,
         )}`,
+    );
+}
+
+function logToolCalls(
+    scenarioName: string,
+    generationDiagnostics: WorkflowGenerationDiagnosticEvent[],
+) {
+    const toolCalls = generationDiagnostics.flatMap((event) =>
+        event.type === "step-end"
+            ? event.toolCalls.map(({ toolName, status }) =>
+                  status === "succeeded" ? toolName : `${toolName} (${status})`,
+              )
+            : [],
+    );
+    console.log(
+        `[workflow generation tool calls] ${scenarioName}: ${toolCalls.join(" → ") || "none"}`,
     );
 }
 

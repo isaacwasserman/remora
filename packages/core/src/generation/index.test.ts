@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import {
+    generateWorkflow,
     generateWorkflowStream,
     type WorkflowGenerationDiagnosticEvent,
 } from "./index";
@@ -38,8 +39,8 @@ function createRepairingThenHangingModel() {
                         content: [
                             {
                                 type: "tool-call" as const,
-                                toolCallId: "invalid-submission",
-                                toolName: "submit-workflow",
+                                toolCallId: "invalid-write",
+                                toolName: "write-workflow",
                                 input: JSON.stringify({
                                     definition: {
                                         initialStepId: "start",
@@ -152,10 +153,11 @@ test("reports provider retries and invalid tool calls", async () => {
 
             return {
                 content: [
+                    { type: "reasoning" as const, text: "Write a workflow." },
                     {
                         type: "tool-call" as const,
-                        toolCallId: "malformed-submission",
-                        toolName: "submit-workflow",
+                        toolCallId: "malformed-write",
+                        toolName: "write-workflow",
                         input: "{}",
                     },
                 ],
@@ -244,10 +246,18 @@ test("reports provider retries and invalid tool calls", async () => {
         stepNumber: 0,
         finishReason: "tool-calls",
         rawFinishReason: "tool_calls",
+        reasoningText: "Write a workflow.",
+        toolCalls: [
+            {
+                toolCallId: "malformed-write",
+                toolName: "write-workflow",
+                status: "invalid",
+            },
+        ],
         invalidToolCalls: [
             {
-                toolCallId: "malformed-submission",
-                toolName: "submit-workflow",
+                toolCallId: "malformed-write",
+                toolName: "write-workflow",
                 input: {},
                 error: {
                     name: "AI_InvalidToolInputError",
@@ -265,7 +275,7 @@ test("reports provider retries and invalid tool calls", async () => {
     expect(stepEnd.invalidToolCalls[0]?.error.message).not.toContain("Value:");
 });
 
-test("requests closed input generation for workflow submissions", async () => {
+test("requests closed input generation for workflow writes", async () => {
     let submittedTools: Parameters<
         MockLanguageModelV4["doGenerate"]
     >[0]["tools"];
@@ -302,10 +312,10 @@ test("requests closed input generation for workflow submissions", async () => {
     const result = await stream.next();
 
     expect(result.done).toBe(true);
-    const submitWorkflowTool = submittedTools?.find(
-        (tool) => tool.name === "submit-workflow",
+    const writeWorkflowTool = submittedTools?.find(
+        (tool) => tool.name === "write-workflow",
     );
-    expect(submitWorkflowTool).toMatchObject({
+    expect(writeWorkflowTool).toMatchObject({
         type: "function",
         strict: true,
         inputSchema: {
@@ -315,4 +325,141 @@ test("requests closed input generation for workflow submissions", async () => {
             },
         },
     });
+});
+
+function createScriptedModel(
+    toolCalls: Array<{ toolName: string; input: unknown }>,
+) {
+    const prompts: unknown[] = [];
+    const model = new MockLanguageModelV4({
+        doGenerate: async ({ prompt }) => {
+            prompts.push(prompt);
+            const toolCall = toolCalls[prompts.length - 1];
+            if (!toolCall) throw new Error("The script has no more steps.");
+            return {
+                content: [
+                    {
+                        type: "tool-call" as const,
+                        toolCallId: `call-${prompts.length}`,
+                        toolName: toolCall.toolName,
+                        input: JSON.stringify(toolCall.input),
+                    },
+                ],
+                finishReason: {
+                    unified: "tool-calls" as const,
+                    raw: undefined,
+                },
+                usage,
+                warnings: [],
+            };
+        },
+    });
+    return { model, prompts };
+}
+
+test("writes, edits, and submits a workflow", async () => {
+    const start = {
+        id: "start",
+        name: "Start",
+        description: "",
+        type: "start",
+        nextStepId: "missing",
+    };
+    const end = { id: "done", name: "Done", description: "", type: "end" };
+    const { model, prompts } = createScriptedModel([
+        {
+            toolName: "write-workflow",
+            input: { definition: { initialStepId: "start", steps: [start] } },
+        },
+        {
+            toolName: "edit-workflow",
+            input: {
+                operations: [
+                    { op: "add", path: "/steps/-", value: end },
+                    {
+                        op: "replace",
+                        path: "/steps/0/nextStepId",
+                        value: "done",
+                    },
+                ],
+            },
+        },
+        { toolName: "submit-workflow", input: {} },
+    ]);
+    const events: WorkflowGenerationDiagnosticEvent[] = [];
+    const stream = generateWorkflowStream({
+        taskDescription: "Create an empty workflow.",
+        tools: {},
+        options: {},
+        model,
+        maxGenerationSteps: 5,
+        onDiagnosticEvent: (event) => events.push(event),
+    });
+
+    const yielded: unknown[] = [];
+    let result = await stream.next();
+    while (!result.done) {
+        yielded.push(result.value);
+        result = await stream.next();
+    }
+
+    const fixed = {
+        initialStepId: "start",
+        steps: [{ ...start, nextStepId: "done" }, end],
+    };
+    expect(yielded).toEqual([
+        { initialStepId: "start", steps: [start] },
+        fixed,
+        fixed,
+    ]);
+    expect(result.value).toEqual({
+        gaveUp: false,
+        reason: null,
+        workflowDefinition: fixed as never,
+    });
+    expect(
+        events.flatMap((event) =>
+            event.type === "step-end" ? event.toolCalls : [],
+        ),
+    ).toEqual([
+        {
+            toolCallId: "call-1",
+            toolName: "write-workflow",
+            status: "succeeded",
+        },
+        {
+            toolCallId: "call-2",
+            toolName: "edit-workflow",
+            status: "succeeded",
+        },
+        {
+            toolCallId: "call-3",
+            toolName: "submit-workflow",
+            status: "succeeded",
+        },
+    ]);
+    expect(JSON.stringify(prompts[1])).toContain("diagnostics");
+    expect(JSON.stringify(prompts[1])).not.toContain("error-text");
+});
+
+test("rejects a submission before a workflow is written", async () => {
+    const { model, prompts } = createScriptedModel([
+        { toolName: "submit-workflow", input: {} },
+        { toolName: "give-up", input: { reason: "Test complete." } },
+    ]);
+    const events: WorkflowGenerationDiagnosticEvent[] = [];
+    const result = await generateWorkflow({
+        taskDescription: "Submit without a workflow.",
+        tools: {},
+        options: {},
+        model,
+        maxGenerationSteps: 5,
+        onDiagnosticEvent: (event) => events.push(event),
+    });
+
+    expect(result.gaveUp).toBe(true);
+    expect(events.find((event) => event.type === "step-end")).toMatchObject({
+        toolCalls: [{ toolName: "submit-workflow", status: "failed" }],
+    });
+    expect(JSON.stringify(prompts[1])).toContain("No workflow exists yet");
 });

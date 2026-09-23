@@ -180,6 +180,22 @@ describe("inferQueryOutputSchema", () => {
                 badAccess: "maybe",
             });
         });
+
+        test("access into a union whose members all have the field resolves cleanly", () => {
+            const schema: JSONSchema7Definition = {
+                anyOf: [
+                    stringA,
+                    { ...stringA, properties: { a: { const: "x" } } },
+                ],
+            };
+            expect(inferQueryOutputSchema(schema, "a").schema).toEqual({
+                anyOf: [
+                    { type: "string", badAccess: "false" },
+                    { const: "x", badAccess: "false" },
+                ],
+                badAccess: "false",
+            });
+        });
     });
 
     describe("projections and flatten", () => {

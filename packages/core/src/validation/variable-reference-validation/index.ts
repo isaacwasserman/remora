@@ -191,7 +191,9 @@ export function getStepOutputType(
             return inputSchema ?? { type: "null" };
         }
         case "switch-case": {
-            return { type: "null" };
+            // The switch-case block processor narrows this to the union of its
+            // branch outputs.
+            return true;
         }
         case "tool-call": {
             const tool = tools[step.params.toolName];
@@ -379,14 +381,16 @@ const blockScopeProcessors: {
                 outputType: scope.bindings.get(node.stepId) ?? true,
             };
         }
+        const outputType = unionSchemas(
+            branchAnalyses.map((analysis) => analysis.outputType),
+        );
+        scope.bindings.set(node.stepId, outputType);
         return {
             scope: mergeBranchScopes(
                 scope,
                 branchAnalyses.map((analysis) => analysis.scope),
             ),
-            outputType: unionSchemas(
-                branchAnalyses.map((analysis) => analysis.outputType),
-            ),
+            outputType,
         };
     },
     "wait-for-condition": ({ node, scope, snapshots, walkChain }) => {

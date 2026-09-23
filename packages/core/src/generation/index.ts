@@ -4,14 +4,12 @@ import {
     type FlexibleSchema,
     generateText,
     hasToolCall,
-    jsonSchema,
     stepCountIs,
     tool,
     wrapLanguageModel,
 } from "ai";
 import { type } from "arktype";
 import dedent from "dedent";
-import type { JSONSchema7 } from "json-schema";
 import type { StandardJSONSchemaV1 } from "..";
 import { createAsyncQueue } from "../execution/execution-engine/async-queue";
 import {
@@ -30,6 +28,7 @@ import {
     findLastSuccessfulToolCall,
     hasSuccessfulToolCall,
 } from "./stop-condition";
+import { WorkflowEditor } from "./workflow-editor";
 
 export type GenerationOptions = RemoraflowSettings & {};
 
@@ -96,7 +95,13 @@ export type WorkflowGenerationDiagnosticEvent =
           stepNumber: number;
           finishReason: string;
           rawFinishReason?: string;
+          reasoningText?: string;
           performance: unknown;
+          toolCalls: Array<{
+              toolCallId: string;
+              toolName: string;
+              status: "succeeded" | "failed" | "invalid";
+          }>;
           invalidToolCalls: Array<{
               toolCallId: string;
               toolName: string;
@@ -260,7 +265,9 @@ export function preparePrompt({
         You are a workflow generation subagent. You generate workflows from a task description and a set of predefined tools. Workflows are written using a proprietary "Remoraflow" JSON definition.
 
         Notes:
-        - Workflows undergo a validation step after submission. If your workflow fails this validation, remediate and resubmit.
+        - Write the workflow with write-workflow. It returns the validation diagnostics of the workflow.
+        - To fix diagnostics, change the workflow with edit-workflow (a JSON Patch). Do not write the full workflow again. Use read-workflow to look at parts of the workflow.
+        - When the diagnostics are clean, call submit-workflow for the final validation. If your workflow fails this validation, fix it and submit again.
     `;
 
     const prompt = dedent`
@@ -343,36 +350,44 @@ export async function* generateWorkflowStream({
             options,
         });
     const resolvedOptions = remoraflowSettingsSchema.assert(options);
-    const submitWorkflowInputArktypeSchema = type({
-        "+": "reject",
-        definition: workflowDefinitionArktypeSchema,
-        "ignoreWarnings?": [
-            "boolean",
-            "@",
-            "Some workflow definitions will produce warnings during validation. These warnings will cause the workflow to be rejected. You should generally attempt to resolve these warnings, but if they are minor or difficult to fix, you can set this to `true` and the warnings will be ignored while errors will continue to be caught.",
-        ],
-    });
-    const submitWorkflowInputSchema = jsonSchema<{
-        definition: WorkflowDefinition;
-        ignoreWarnings?: boolean;
-    }>(
-        submitWorkflowInputArktypeSchema.toJsonSchema({
-            target: "draft-07",
-            fallback: (ctx) => ctx.base,
-        }) as JSONSchema7,
-        {
-            validate: (value) => {
-                const result = submitWorkflowInputArktypeSchema(value);
-                return result instanceof type.errors
-                    ? { success: false, error: new Error(result.summary) }
-                    : { success: true, value: result };
-            },
-        },
+    const requestedOutputSchema = workflowOutputSchema?.[
+        "~standard"
+    ].jsonSchema.input({ target: "draft-07" });
+    const validateDraft = (draft: unknown) => {
+        const validation = validateWorkflowDefinition(
+            draft as WorkflowDefinition,
+            { tools, options: resolvedOptions },
+        );
+        if (!validation.isValid || !requestedOutputSchema) return validation;
+        const outputSchemaDiagnostics = requestedOutputSchemaDiagnostics(
+            validation.correctedDefinition.outputSchema,
+            requestedOutputSchema,
+        ).map(({ path, message }) => ({
+            severity: "error" as const,
+            path,
+            message: `The workflow's output schema must be a subset of the required output schema: ${message}`,
+        }));
+        return {
+            ...validation,
+            isValid: outputSchemaDiagnostics.length === 0,
+            diagnostics: [
+                ...validation.diagnostics,
+                ...outputSchemaDiagnostics,
+            ],
+        };
+    };
+    const editor = new WorkflowEditor(
+        workflowDefinitionArktypeSchema,
+        (draft) => validateDraft(draft).diagnostics,
     );
+    let lastYieldedDraft: unknown;
 
     const yieldQueue = createAsyncQueue<
         | { type: "final-output"; payload: WorkflowDefinition }
-        | { type: "intermediate-output"; payload: WorkflowDefinition }
+        | {
+              type: "intermediate-output";
+              payload: DeepPartial<WorkflowDefinition>;
+          }
         | { type: "give-up"; payload: string }
         | { type: "error"; payload: string }
     >();
@@ -456,23 +471,28 @@ export async function* generateWorkflowStream({
         instructions,
         prompt,
         tools: {
+            ...editor.getTools({ strict: strictToolCalls }),
             "submit-workflow": tool({
-                description: "Submits a candidate workflow for validation",
+                description:
+                    "Submits the current workflow for final validation.",
                 strict: strictToolCalls,
-                inputSchema: submitWorkflowInputSchema,
-                execute: async (
-                    { definition, ignoreWarnings },
-                    { toolCallId },
-                ) => {
-                    yieldQueue.push({
-                        type: "intermediate-output",
-                        payload: definition,
-                    });
+                inputSchema: type({
+                    "+": "reject",
+                    "ignoreWarnings?": [
+                        "boolean",
+                        "@",
+                        "Some workflow definitions will produce warnings during validation. These warnings will cause the workflow to be rejected. You should generally attempt to resolve these warnings, but if they are minor or difficult to fix, you can set this to `true` and the warnings will be ignored while errors will continue to be caught.",
+                    ],
+                }),
+                execute: ({ ignoreWarnings }, { toolCallId }) => {
+                    const draft = editor.getDraft();
+                    if (draft === undefined) {
+                        throw new Error(
+                            "No workflow exists yet. Use write-workflow to write one.",
+                        );
+                    }
                     const { isValid, diagnostics, correctedDefinition } =
-                        validateWorkflowDefinition(definition, {
-                            tools,
-                            options: resolvedOptions,
-                        });
+                        validateDraft(draft);
                     if (
                         !isValid ||
                         (!ignoreWarnings &&
@@ -484,19 +504,6 @@ export async function* generateWorkflowStream({
                         throw new Error(
                             `Workflow rejected with the following diagnostics: ${JSON.stringify(diagnostics)}`,
                         );
-                    } else if (workflowOutputSchema) {
-                        const subsetDiagnostics =
-                            requestedOutputSchemaDiagnostics(
-                                correctedDefinition.outputSchema,
-                                workflowOutputSchema[
-                                    "~standard"
-                                ].jsonSchema.input({ target: "draft-07" }),
-                            );
-                        if (subsetDiagnostics.length > 0) {
-                            throw new Error(
-                                `Workflow's output schema must be a valid subset of ${JSON.stringify(workflowOutputSchema)}, but subset validation produced the following diagnostics: ${JSON.stringify(subsetDiagnostics)}`,
-                            );
-                        }
                     }
                     acceptedWorkflowDefinitions.set(
                         toolCallId,
@@ -538,6 +545,14 @@ export async function* generateWorkflowStream({
             });
         },
         onStepEnd: (step) => {
+            const draft = editor.getDraft();
+            if (draft !== undefined && draft !== lastYieldedDraft) {
+                lastYieldedDraft = draft;
+                yieldQueue.push({
+                    type: "intermediate-output",
+                    payload: draft as DeepPartial<WorkflowDefinition>,
+                });
+            }
             emitDiagnostic({
                 type: "step-end",
                 atMs: elapsedMs(),
@@ -546,7 +561,22 @@ export async function* generateWorkflowStream({
                 ...(step.rawFinishReason
                     ? { rawFinishReason: step.rawFinishReason }
                     : {}),
+                ...(step.reasoningText
+                    ? { reasoningText: step.reasoningText }
+                    : {}),
                 performance: step.performance,
+                toolCalls: step.toolCalls.map((toolCall) => ({
+                    toolCallId: toolCall.toolCallId,
+                    toolName: toolCall.toolName,
+                    status: toolCall.invalid
+                        ? "invalid"
+                        : step.toolResults.some(
+                                (result) =>
+                                    result.toolCallId === toolCall.toolCallId,
+                            )
+                          ? "succeeded"
+                          : "failed",
+                })),
                 invalidToolCalls: step.toolCalls
                     .filter((toolCall) => toolCall.invalid)
                     .map((toolCall) => ({
