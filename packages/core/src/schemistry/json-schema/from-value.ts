@@ -9,6 +9,9 @@ export function inferJsonSchema(value: unknown): JsonSchema {
             if (value === null) {
                 return { type: "null" };
             } else if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return { type: "array", items: false };
+                }
                 const itemTypes = value.map((item) => inferJsonSchema(item));
                 const itemTypesHashable = itemTypes.map((itemType) =>
                     JSON.stringify(itemType),

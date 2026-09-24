@@ -17,6 +17,7 @@ import { requestedOutputSchemaDiagnostics } from "./output-schema";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 const modelId = process.env.OPENROUTER_MODEL_ID;
+const reasoning = process.env.OPENROUTER_REASONING;
 const describeLive = apiKey && modelId ? describe : describe.skip;
 
 const openrouter = createOpenAICompatible({
@@ -24,6 +25,18 @@ const openrouter = createOpenAICompatible({
     apiKey: apiKey ?? "missing-openrouter-api-key",
     baseURL: "https://openrouter.ai/api/v1",
     supportsStructuredOutputs: true,
+    // "off" disables reasoning; "low", "medium", or "high" sets its effort.
+    ...(reasoning
+        ? {
+              transformRequestBody: (body: Record<string, unknown>) => ({
+                  ...body,
+                  reasoning:
+                      reasoning === "off"
+                          ? { enabled: false }
+                          : { effort: reasoning },
+              }),
+          }
+        : {}),
 });
 const model = openrouter.chatModel(modelId ?? "missing-openrouter-model-id");
 
@@ -144,8 +157,42 @@ async function collectGenerationOutput(
         );
         throw error;
     } finally {
+        logUsage(
+            scenarioName,
+            generationDiagnostics,
+            Date.now() - generationStartedAt,
+        );
         await stream.return(undefined as never);
     }
+}
+
+type ProviderUsage = {
+    inputTokens?: { total?: number; cacheRead?: number };
+    outputTokens?: { total?: number; reasoning?: number };
+};
+
+function logUsage(
+    scenarioName: string,
+    generationDiagnostics: WorkflowGenerationDiagnosticEvent[],
+    elapsedMs: number,
+) {
+    const usages = generationDiagnostics.flatMap((event) =>
+        event.type === "provider-attempt-end"
+            ? [event.usage as ProviderUsage]
+            : [],
+    );
+    const sum = (tokens: (usage: ProviderUsage) => number | undefined) =>
+        usages.reduce((total, usage) => total + (tokens(usage) ?? 0), 0);
+    console.log(
+        `[workflow generation usage] ${scenarioName}: ${JSON.stringify({
+            elapsedMs,
+            providerCalls: usages.length,
+            inputTokens: sum((usage) => usage.inputTokens?.total),
+            cachedInputTokens: sum((usage) => usage.inputTokens?.cacheRead),
+            outputTokens: sum((usage) => usage.outputTokens?.total),
+            reasoningTokens: sum((usage) => usage.outputTokens?.reasoning),
+        })}`,
+    );
 }
 
 function logWorkflowAttempts(
@@ -163,16 +210,41 @@ function logWorkflowAttempts(
     );
 }
 
+function formatToolCall(
+    toolCall: Extract<
+        WorkflowGenerationDiagnosticEvent,
+        { type: "step-end" }
+    >["toolCalls"][number],
+): string {
+    // A full definition is too long for this summary.
+    const { definition, operations, ...options } =
+        typeof toolCall.input === "object" && toolCall.input !== null
+            ? (toolCall.input as Record<string, unknown>)
+            : {};
+    const args = [
+        ...(Array.isArray(operations)
+            ? operations.map(
+                  ({ op, path }: { op: string; path: string }) =>
+                      `${op} ${path}`,
+              )
+            : []),
+        ...Object.entries(options).map(
+            ([name, value]) => `${name}: ${JSON.stringify(value)}`,
+        ),
+    ];
+    const call = `${toolCall.toolName}(${args.join(", ")})`;
+    if (toolCall.status === "failed") {
+        return `${call} [failed: ${toolCall.error.message}]`;
+    }
+    return toolCall.status === "invalid" ? `${call} [invalid]` : call;
+}
+
 function logToolCalls(
     scenarioName: string,
     generationDiagnostics: WorkflowGenerationDiagnosticEvent[],
 ) {
     const toolCalls = generationDiagnostics.flatMap((event) =>
-        event.type === "step-end"
-            ? event.toolCalls.map(({ toolName, status }) =>
-                  status === "succeeded" ? toolName : `${toolName} (${status})`,
-              )
-            : [],
+        event.type === "step-end" ? event.toolCalls.map(formatToolCall) : [],
     );
     console.log(
         `[workflow generation tool calls] ${scenarioName}: ${toolCalls.join(" → ") || "none"}`,

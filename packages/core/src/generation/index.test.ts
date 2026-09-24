@@ -1,6 +1,9 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
+import { type } from "arktype";
+import { createScriptedMockModel } from "../execution/test-support";
+import { step, workflow } from "../workflow-fixtures";
 import {
     generateWorkflow,
     generateWorkflowStream,
@@ -327,73 +330,98 @@ test("requests closed input generation for workflow writes", async () => {
     });
 });
 
-function createScriptedModel(
-    toolCalls: Array<{ toolName: string; input: unknown }>,
+const cleanWorkflow = workflow(
+    step("start", { type: "start", nextStepId: "done" }),
+    step("done", { type: "end" }),
+);
+/** Valid, but warns because its first step is not a "start" step. */
+const warningWorkflow = workflow(step("done", { type: "end" }));
+
+/** Runs generation with a model that makes one tool call per step. */
+async function generateScripted(
+    calls: Array<{ toolName: string; input: unknown }>,
+    overrides: Partial<Parameters<typeof generateWorkflow>[0]> = {},
 ) {
-    const prompts: unknown[] = [];
-    const model = new MockLanguageModelV4({
-        doGenerate: async ({ prompt }) => {
-            prompts.push(prompt);
-            const toolCall = toolCalls[prompts.length - 1];
-            if (!toolCall) throw new Error("The script has no more steps.");
-            return {
-                content: [
-                    {
-                        type: "tool-call" as const,
-                        toolCallId: `call-${prompts.length}`,
-                        toolName: toolCall.toolName,
-                        input: JSON.stringify(toolCall.input),
-                    },
-                ],
-                finishReason: {
-                    unified: "tool-calls" as const,
-                    raw: undefined,
-                },
-                usage,
-                warnings: [],
-            };
-        },
+    const model = createScriptedMockModel(
+        calls.map((call, index) => ({
+            type: "tool-calls" as const,
+            calls: [{ toolCallId: `call-${index + 1}`, ...call }],
+        })),
+    );
+    const events: WorkflowGenerationDiagnosticEvent[] = [];
+    const result = await generateWorkflow({
+        taskDescription: "Test.",
+        tools: {},
+        options: {},
+        model,
+        maxGenerationSteps: 5,
+        onDiagnosticEvent: (event) => events.push(event),
+        ...overrides,
     });
-    return { model, prompts };
+    const toolCalls = events.flatMap((event) =>
+        event.type === "step-end" ? event.toolCalls : [],
+    );
+    /** The result of a tool call, as the model received it. */
+    const toolOutput = (toolCallId: string) =>
+        model.doGenerateCalls
+            .flatMap((call) => call.prompt)
+            .flatMap((message) =>
+                message.role === "tool" ? message.content : [],
+            )
+            .find(
+                (part) =>
+                    part.type === "tool-result" &&
+                    part.toolCallId === toolCallId,
+            );
+    return { model, result, toolCalls, toolOutput };
 }
 
 test("writes, edits, and submits a workflow", async () => {
-    const start = {
-        id: "start",
-        name: "Start",
-        description: "",
-        type: "start",
-        nextStepId: "missing",
-    };
-    const end = { id: "done", name: "Done", description: "", type: "end" };
-    const { model, prompts } = createScriptedModel([
+    const draft = workflow(
+        step("start", { type: "start", nextStepId: "missing" }),
+    );
+    const operations = [
+        { op: "add", path: "/steps/-", value: step("done", { type: "end" }) },
+        { op: "replace", path: "/steps/0/nextStepId", value: "done" },
+    ];
+    const model = createScriptedMockModel([
         {
-            toolName: "write-workflow",
-            input: { definition: { initialStepId: "start", steps: [start] } },
+            type: "tool-calls",
+            calls: [
+                {
+                    toolCallId: "call-1",
+                    toolName: "write-workflow",
+                    input: { definition: draft },
+                },
+            ],
         },
         {
-            toolName: "edit-workflow",
-            input: {
-                operations: [
-                    { op: "add", path: "/steps/-", value: end },
-                    {
-                        op: "replace",
-                        path: "/steps/0/nextStepId",
-                        value: "done",
-                    },
-                ],
-            },
+            type: "tool-calls",
+            calls: [
+                {
+                    toolCallId: "call-2",
+                    toolName: "edit-workflow",
+                    input: { operations },
+                },
+            ],
         },
-        { toolName: "submit-workflow", input: {} },
+        {
+            type: "tool-calls",
+            calls: [
+                {
+                    toolCallId: "call-3",
+                    toolName: "submit-workflow",
+                    input: {},
+                },
+            ],
+        },
     ]);
-    const events: WorkflowGenerationDiagnosticEvent[] = [];
     const stream = generateWorkflowStream({
         taskDescription: "Create an empty workflow.",
         tools: {},
         options: {},
         model,
         maxGenerationSteps: 5,
-        onDiagnosticEvent: (event) => events.push(event),
     });
 
     const yielded: unknown[] = [];
@@ -403,63 +431,244 @@ test("writes, edits, and submits a workflow", async () => {
         result = await stream.next();
     }
 
-    const fixed = {
-        initialStepId: "start",
-        steps: [{ ...start, nextStepId: "done" }, end],
-    };
-    expect(yielded).toEqual([
-        { initialStepId: "start", steps: [start] },
-        fixed,
-        fixed,
-    ]);
+    expect(yielded).toEqual([draft, cleanWorkflow, cleanWorkflow]);
     expect(result.value).toEqual({
         gaveUp: false,
         reason: null,
-        workflowDefinition: fixed as never,
+        workflowDefinition: cleanWorkflow,
     });
-    expect(
-        events.flatMap((event) =>
-            event.type === "step-end" ? event.toolCalls : [],
-        ),
-    ).toEqual([
+    const toolResults = model.doGenerateCalls[2]?.prompt.flatMap((message) =>
+        message.role === "tool" ? message.content : [],
+    );
+    expect(toolResults).toMatchObject([
+        {
+            toolCallId: "call-1",
+            output: {
+                type: "json",
+                value: {
+                    diagnostics: [
+                        { severity: "error", path: ["steps", 0, "nextStepId"] },
+                    ],
+                    submitted: false,
+                },
+            },
+        },
+        {
+            toolCallId: "call-2",
+            output: {
+                type: "json",
+                value: {
+                    definition: cleanWorkflow,
+                    diagnostics: [],
+                    submitted: false,
+                },
+            },
+        },
+    ]);
+});
+
+test("records the input and status of each tool call", async () => {
+    const { toolCalls } = await generateScripted([
+        { toolName: "write-workflow", input: { definition: cleanWorkflow } },
+        { toolName: "submit-workflow", input: {} },
+    ]);
+
+    expect(toolCalls).toEqual([
         {
             toolCallId: "call-1",
             toolName: "write-workflow",
+            input: { definition: cleanWorkflow },
             status: "succeeded",
         },
         {
             toolCallId: "call-2",
-            toolName: "edit-workflow",
-            status: "succeeded",
-        },
-        {
-            toolCallId: "call-3",
             toolName: "submit-workflow",
+            input: {},
             status: "succeeded",
         },
     ]);
-    expect(JSON.stringify(prompts[1])).toContain("diagnostics");
-    expect(JSON.stringify(prompts[1])).not.toContain("error-text");
 });
 
 test("rejects a submission before a workflow is written", async () => {
-    const { model, prompts } = createScriptedModel([
+    const { result, toolCalls, toolOutput } = await generateScripted([
         { toolName: "submit-workflow", input: {} },
         { toolName: "give-up", input: { reason: "Test complete." } },
     ]);
-    const events: WorkflowGenerationDiagnosticEvent[] = [];
-    const result = await generateWorkflow({
-        taskDescription: "Submit without a workflow.",
-        tools: {},
-        options: {},
-        model,
-        maxGenerationSteps: 5,
-        onDiagnosticEvent: (event) => events.push(event),
-    });
 
     expect(result.gaveUp).toBe(true);
-    expect(events.find((event) => event.type === "step-end")).toMatchObject({
-        toolCalls: [{ toolName: "submit-workflow", status: "failed" }],
+    expect(toolCalls[0]).toMatchObject({ status: "failed" });
+    expect(toolOutput("call-1")).toMatchObject({
+        output: {
+            type: "error-text",
+            value: "Error: No workflow exists yet. Use write-workflow to write one.",
+        },
     });
-    expect(JSON.stringify(prompts[1])).toContain("No workflow exists yet");
+});
+
+test("submitIfValid ends generation after a clean write", async () => {
+    const { model, result } = await generateScripted([
+        {
+            toolName: "write-workflow",
+            input: { definition: cleanWorkflow, submitIfValid: true },
+        },
+    ]);
+
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(result.workflowDefinition).toEqual(cleanWorkflow);
+});
+
+test("submitIfValid does not submit a workflow that has warnings", async () => {
+    const { result, toolOutput } = await generateScripted([
+        {
+            toolName: "write-workflow",
+            input: { definition: warningWorkflow, submitIfValid: true },
+        },
+        { toolName: "give-up", input: { reason: "Test complete." } },
+    ]);
+
+    expect(toolOutput("call-1")).toMatchObject({
+        output: { value: { submitted: false } },
+    });
+    expect(result.gaveUp).toBe(true);
+});
+
+test("submit-workflow accepts warnings only with ignoreWarnings", async () => {
+    const { result, toolCalls } = await generateScripted([
+        { toolName: "write-workflow", input: { definition: warningWorkflow } },
+        { toolName: "submit-workflow", input: {} },
+        { toolName: "submit-workflow", input: { ignoreWarnings: true } },
+    ]);
+
+    expect(toolCalls.map((toolCall) => toolCall.status)).toEqual([
+        "succeeded",
+        "failed",
+        "succeeded",
+    ]);
+    expect(result.workflowDefinition).toEqual(warningWorkflow);
+});
+
+test("reports the error of a failed tool call", async () => {
+    const { toolCalls } = await generateScripted([
+        { toolName: "write-workflow", input: { definition: cleanWorkflow } },
+        {
+            toolName: "edit-workflow",
+            input: { operations: [{ op: "remove", path: "/steps/3" }] },
+        },
+        { toolName: "give-up", input: { reason: "Test complete." } },
+    ]);
+
+    expect(toolCalls[1]).toMatchObject({
+        toolName: "edit-workflow",
+        status: "failed",
+        input: { operations: [{ op: "remove", path: "/steps/3" }] },
+        error: {
+            message:
+                'Patch operation 0 ({"op":"remove","path":"/steps/3"}) failed with OPERATION_PATH_UNRESOLVABLE.',
+        },
+    });
+});
+
+test("marks the instructions as an Anthropic cache breakpoint", async () => {
+    const { model } = await generateScripted(
+        [{ toolName: "give-up", input: { reason: "Test complete." } }],
+        { maxGenerationSteps: 1 },
+    );
+
+    expect(model.doGenerateCalls[0]?.prompt[0]).toMatchObject({
+        role: "system",
+        providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+    });
+});
+
+test("repairs arguments that were sent as JSON strings", async () => {
+    const { model, result } = await generateScripted([
+        {
+            toolName: "write-workflow",
+            input: { definition: JSON.stringify(cleanWorkflow) },
+        },
+        {
+            toolName: "edit-workflow",
+            input: {
+                operations: JSON.stringify([
+                    { op: "replace", path: "/steps/1/name", value: "End" },
+                ]),
+                submitIfValid: true,
+            },
+        },
+    ]);
+
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect(result.workflowDefinition?.steps[1]?.name).toBe("End");
+});
+
+describe("required output schema", () => {
+    const routed = (outputSchema?: object) => ({
+        ...workflow(
+            step("start", { type: "start", nextStepId: "done" }),
+            step("done", {
+                type: "end",
+                params: {
+                    output: { type: "literal", value: { route: "review" } },
+                },
+            }),
+        ),
+        ...(outputSchema ? { outputSchema } : {}),
+    });
+    const workflowOutputSchema = type({ route: "'review' | 'on-call'" });
+
+    test("is used when the workflow declares no output schema", async () => {
+        const { model, result } = await generateScripted(
+            [
+                {
+                    toolName: "write-workflow",
+                    input: { definition: routed(), submitIfValid: true },
+                },
+            ],
+            { workflowOutputSchema },
+        );
+
+        expect(model.doGenerateCalls).toHaveLength(1);
+        expect(result.workflowDefinition?.outputSchema).toMatchObject({
+            type: "object",
+            required: ["route"],
+        });
+    });
+
+    test("rejects a declared output schema that is broader", async () => {
+        const { toolOutput } = await generateScripted(
+            [
+                {
+                    toolName: "write-workflow",
+                    input: {
+                        definition: routed({
+                            type: "object",
+                            properties: { route: { type: "string" } },
+                            required: ["route"],
+                        }),
+                        submitIfValid: true,
+                    },
+                },
+                { toolName: "give-up", input: { reason: "Test complete." } },
+            ],
+            { workflowOutputSchema },
+        );
+
+        expect(toolOutput("call-1")).toMatchObject({
+            output: {
+                value: {
+                    diagnostics: [
+                        {
+                            severity: "error",
+                            message: expect.stringContaining(
+                                "must be a subset of the required output schema",
+                            ),
+                        },
+                    ],
+                    submitted: false,
+                },
+            },
+        });
+    });
 });

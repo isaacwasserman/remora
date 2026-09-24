@@ -421,4 +421,69 @@ describe("schemaSubsetDiagnostics", () => {
             schemaSubsetDiagnostics(closed({ x: { type: "number" } }), sup),
         ).toEqual([]);
     });
+
+    test("a union is a subset when every member is", () => {
+        const sup: JSONSchema7Definition = {
+            type: "array",
+            items: closed({ id: { type: "string" } }),
+        };
+        expect(
+            schemaSubsetDiagnostics(
+                {
+                    anyOf: [
+                        { type: "array", items: false },
+                        {
+                            type: "array",
+                            items: closed({ id: { type: "string" } }),
+                        },
+                    ],
+                },
+                sup,
+            ),
+        ).toEqual([]);
+        expect(
+            levelsByPath(
+                {
+                    anyOf: [
+                        { type: "array", items: false },
+                        { type: "array", items: { type: "number" } },
+                    ],
+                },
+                sup,
+            ),
+        ).toEqual([{ level: "warning", path: [] }]);
+        expect(
+            levelsByPath(
+                { anyOf: [{ type: "number" }, { type: "boolean" }] },
+                { type: "string" },
+            ),
+        ).toEqual([
+            { level: "error", path: [] },
+            { level: "error", path: [] },
+        ]);
+    });
+
+    test("checks each tuple item against a list item schema", () => {
+        expect(
+            levelsByPath(
+                {
+                    type: "array",
+                    items: [{ type: "string" }, { type: "number" }],
+                },
+                { type: "array", items: { type: "string" } },
+            ),
+        ).toEqual([{ level: "error", path: ["items", 1] }]);
+    });
+
+    test("different JSON Schema types are disjoint, except integer and number", () => {
+        expect(
+            levelsByPath(closed({ id: { type: "string" } }), {
+                type: "array",
+                items: { type: "object" },
+            }),
+        ).toEqual([{ level: "error", path: [] }]);
+        expect(
+            schemaSubsetDiagnostics({ type: "integer" }, { type: "number" }),
+        ).toEqual([]);
+    });
 });

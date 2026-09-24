@@ -1467,3 +1467,178 @@ describe("the poll interval floor at author time", () => {
         expect(errorsIn(diagnostics)).toEqual([]);
     });
 });
+
+describe("expression function names", () => {
+    const outputting = (output: Expression) =>
+        workflow(
+            step("start", { type: "start", nextStepId: "done" }),
+            step("done", { type: "end", params: { output } }),
+        );
+
+    test("rejects a function that JMESPath does not define", () => {
+        const { isValid, diagnostics } = validateWorkflowDefinition(
+            outputting({
+                type: "jmespath",
+                expression: "sort(`[1]` | append(`2`))",
+            }),
+            ctx(),
+        );
+        expect(isValid).toBe(false);
+        expect(errorsIn(diagnostics)).toEqual([
+            {
+                severity: "error",
+                path: ["steps", 1, "params", "output", "expression"],
+                message: expect.stringContaining(
+                    'Unknown JMESPath function "append()"',
+                ),
+            },
+        ]);
+    });
+
+    test("rejects an unknown function in a template insert", () => {
+        const { diagnostics } = validateWorkflowDefinition(
+            outputting({ type: "template", template: "${upper(`a`)}" }),
+            ctx(),
+        );
+        expect(errorsIn(diagnostics)).toMatchObject([
+            {
+                path: ["steps", 1, "params", "output", "template"],
+                message: expect.stringContaining('"upper()"'),
+            },
+        ]);
+    });
+
+    test("accepts built-in functions, including inside slices", () => {
+        const { diagnostics } = validateWorkflowDefinition(
+            outputting({
+                type: "jmespath",
+                expression: 'length(sort_by(`[{"a": 1}]`, &a)[0:1])',
+            }),
+            ctx(),
+        );
+        expect(errorsIn(diagnostics)).toEqual([]);
+    });
+});
+
+describe("loop accumulator type", () => {
+    const jobTools: StubbedToolSet = {
+        "run-job": tool({
+            inputSchema: type({ jobId: "string" }),
+            outputSchema: type({ jobId: "string" }),
+            execute: async ({ jobId }) => ({ jobId }),
+        }),
+    };
+    const loopParams = {
+        "for-each": {
+            target: { type: "literal", value: [{ jobId: "a" }] },
+            itemName: "job",
+        },
+        while: { conditionStepId: "check" },
+    } as const;
+
+    for (const loopType of ["for-each", "while"] as const) {
+        describe(loopType, () => {
+            const accumulating = (
+                collect: string,
+                initialValue: unknown = [],
+            ): WorkflowDefinition => ({
+                ...workflow(
+                    step("start", { type: "start", nextStepId: "loop" }),
+                    step("loop", {
+                        type: loopType,
+                        nextStepId: "done",
+                        params: {
+                            ...loopParams[loopType],
+                            loopBodyStepId: "run",
+                            accumulatorName: "results",
+                            accumulatorInitialValue: {
+                                type: "literal",
+                                value: initialValue,
+                            },
+                        },
+                    } as never),
+                    step("run", {
+                        type: "tool-call",
+                        nextStepId: "collect",
+                        params: {
+                            toolName: "run-job",
+                            toolInput: {
+                                jobId: { type: "literal", value: "a" },
+                            },
+                        },
+                    }),
+                    step("collect", {
+                        type: "end",
+                        params: {
+                            output: { type: "jmespath", expression: collect },
+                        },
+                    }),
+                    step("done", {
+                        type: "end",
+                        params: {
+                            output: { type: "jmespath", expression: "loop" },
+                        },
+                    }),
+                    ...(loopType === "while"
+                        ? [
+                              step("check", {
+                                  type: "end",
+                                  params: {
+                                      output: { type: "literal", value: false },
+                                  },
+                              }),
+                          ]
+                        : []),
+                ),
+                outputSchema: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: { jobId: { type: "string" } },
+                        required: ["jobId"],
+                    },
+                },
+            });
+            const diagnosticsFor = (collect: string, initialValue?: unknown) =>
+                validateWorkflowDefinition(
+                    accumulating(collect, initialValue),
+                    ctx(jobTools),
+                ).diagnostics;
+            const doneOutput = ["steps", 4, "params", "output"];
+            const initialValuePath = [
+                "steps",
+                1,
+                "params",
+                "accumulatorInitialValue",
+            ];
+
+            test("reports a body output that does not match as an error", () => {
+                // Without appending, the loop outputs only the last result.
+                expect(diagnosticsFor("run")).toMatchObject([
+                    { severity: "warning", path: initialValuePath },
+                    { severity: "error", path: doneOutput },
+                ]);
+            });
+
+            test("reports a body output that nests the previous results", () => {
+                expect(diagnosticsFor("[results[], run]")).toMatchObject([
+                    { severity: "error", path: [...doneOutput, "items", 0] },
+                ]);
+            });
+
+            test("accepts an accumulator that appends to an empty array", () => {
+                expect(diagnosticsFor("[results, [run]][]")).toEqual([]);
+            });
+
+            test("warns when the initial value does not match the body's output", () => {
+                expect(diagnosticsFor("[run]", null)).toEqual([
+                    {
+                        severity: "warning",
+                        path: initialValuePath,
+                        message: expect.stringContaining("never runs"),
+                    },
+                ]);
+            });
+        });
+    }
+});

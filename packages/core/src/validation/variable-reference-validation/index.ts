@@ -10,6 +10,7 @@ import {
     extractTemplateInserts,
     inferJsonSchema,
     inferQueryOutputSchema,
+    schemaSubsetDiagnostics,
     unionSchemas,
 } from "../../schemistry";
 import {
@@ -294,6 +295,11 @@ export type ScopeSnapshots = {
      * runs, the scope that expression sees.
      */
     nestedChainScopeByStepId: Map<string, TypeScope>;
+    /** For a loop with an accumulator, its initial type and its body's output type. */
+    accumulatorTypesByStepId: Map<
+        string,
+        { initialType: RemoraflowType; bodyOutputType: RemoraflowType }
+    >;
 };
 
 type BlockScopeProcessor<T extends WorkflowStep["type"]> = (args: {
@@ -314,6 +320,28 @@ type ChainAnalysis = {
     outputType: RemoraflowType;
 };
 
+function bindLoopOutput(
+    node: StepGraphNode,
+    scope: TypeScope,
+    snapshots: ScopeSnapshots,
+    accumulatorInitialType: RemoraflowType | undefined,
+    bodyOutputType: RemoraflowType,
+): ChainAnalysis {
+    // This type assumes that the body runs at least once. A different check
+    // compares the initial value with the body output and gives a warning.
+    const outputType: RemoraflowType = accumulatorInitialType
+        ? bodyOutputType
+        : { type: "array", items: bodyOutputType };
+    if (accumulatorInitialType) {
+        snapshots.accumulatorTypesByStepId.set(node.stepId, {
+            initialType: accumulatorInitialType,
+            bodyOutputType,
+        });
+    }
+    scope.bindings.set(node.stepId, outputType);
+    return { scope, outputType };
+}
+
 /**
  * How each block step type scopes its nested chains and which bindings escape
  * into the continuation. Any type with a processor here must declare its chains
@@ -322,7 +350,7 @@ type ChainAnalysis = {
 const blockScopeProcessors: {
     [T in WorkflowStep["type"]]: BlockScopeProcessor<T> | null;
 } = {
-    "for-each": ({ node, step, scope, walkChain }) => {
+    "for-each": ({ node, step, scope, snapshots, walkChain }) => {
         const targetType = getExpressionType(
             step.params.target,
             scope,
@@ -359,17 +387,13 @@ const blockScopeProcessors: {
         }
         const bodyAnalysis = walkChain(bodyNode, loopScope);
 
-        let outputType: RemoraflowType;
-        if (hasAccumulator && accInitType) {
-            outputType = accInitType;
-        } else {
-            outputType = {
-                type: "array",
-                items: bodyAnalysis.outputType,
-            };
-        }
-        scope.bindings.set(node.stepId, outputType);
-        return { scope, outputType };
+        return bindLoopOutput(
+            node,
+            scope,
+            snapshots,
+            accInitType,
+            bodyAnalysis.outputType,
+        );
     },
     "switch-case": ({ node, scope, walkChain }) => {
         const branchAnalyses = blockEntranceNodes(node).map((branchNode) =>
@@ -413,7 +437,7 @@ const blockScopeProcessors: {
             outputType: scope.bindings.get(node.stepId) ?? true,
         };
     },
-    while: ({ node, step, scope, walkChain }) => {
+    while: ({ node, step, scope, snapshots, walkChain }) => {
         const [conditionNode, bodyNode] = blockEntranceNodes(node);
 
         const hasAccumulator = step.params.accumulatorName !== undefined;
@@ -446,17 +470,13 @@ const blockScopeProcessors: {
             hasAccumulator ? accScope() : scope,
         );
 
-        let outputType: RemoraflowType;
-        if (hasAccumulator && accInitType) {
-            outputType = accInitType;
-        } else {
-            outputType = {
-                type: "array",
-                items: bodyAnalysis.outputType,
-            };
-        }
-        scope.bindings.set(node.stepId, outputType);
-        return { scope, outputType };
+        return bindLoopOutput(
+            node,
+            scope,
+            snapshots,
+            accInitType,
+            bodyAnalysis.outputType,
+        );
     },
     "agent-loop": null,
     "request-intervention": null,
@@ -542,6 +562,7 @@ export function buildScopeSnapshotsById(
     const snapshots: ScopeSnapshots = {
         byStepId: new Map(),
         nestedChainScopeByStepId: new Map(),
+        accumulatorTypesByStepId: new Map(),
     };
     const initialBindings = new Map<string, RemoraflowType>();
     if (workflowDefinition.inputSchema) {
@@ -656,6 +677,23 @@ export function validateVariableReferences(
             } else {
                 validateExpressionReferences(ref.expression, refPath);
             }
+        }
+        const accumulatorTypes = scopeSnapshots.accumulatorTypesByStepId.get(
+            step.id,
+        );
+        if (
+            accumulatorTypes &&
+            schemaSubsetDiagnostics(
+                accumulatorTypes.initialType,
+                accumulatorTypes.bodyOutputType,
+            ).length > 0
+        ) {
+            diagnostics.push({
+                severity: "warning",
+                path: ["steps", stepIndex, "params", "accumulatorInitialValue"],
+                message:
+                    "If the loop body never runs, the loop outputs this initial value, but its type does not match the type of the loop body's output.",
+            });
         }
     }
     return diagnostics;

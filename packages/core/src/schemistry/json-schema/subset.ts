@@ -64,6 +64,24 @@ function getDiagnostics(
             },
         ];
     }
+    // A union is a subset when every member is. A member that can never
+    // satisfy the target makes the union possibly invalid, not definitely so.
+    if (
+        typeof sub === "object" &&
+        Array.isArray(sub.anyOf) &&
+        !hasUnhandledKeyword(sub, UNION_KEYWORDS)
+    ) {
+        const memberDiagnostics = sub.anyOf.map((member) =>
+            getDiagnostics(member, sup, path),
+        );
+        const everyMemberFails = memberDiagnostics.every((diagnostics) =>
+            diagnostics.some((diagnostic) => diagnostic.level === "error"),
+        );
+        if (everyMemberFails) return memberDiagnostics.flat();
+        return memberDiagnostics.some((diagnostics) => diagnostics.length > 0)
+            ? [leaf(sub, sup, path, "overlap")]
+            : [];
+    }
     // A literal value is validated exactly against the whole target — no
     // structural recursion, and never "overlap" (a single value matches or not).
     if (typeof sub === "object" && "const" in sub) {
@@ -75,6 +93,16 @@ function getDiagnostics(
         }
         if (isArraySchema(sub) && isArraySchema(sup)) {
             return arrayDiagnostics(sub, sup, path);
+        }
+        // Different JSON Schema types are disjoint, but an integer is also a
+        // number. arktype treats arrays as objects, so it cannot find this.
+        if (
+            typeof sub.type === "string" &&
+            typeof sup.type === "string" &&
+            sub.type !== sup.type &&
+            !(sub.type === "integer" && sup.type === "number")
+        ) {
+            return [leaf(sub, sup, path, "disjoint")];
         }
     }
     const relationship = classify(sub, sup);
@@ -189,6 +217,17 @@ function arrayDiagnostics(
             }
             diagnostics.push(
                 ...getDiagnostics(subItem, supItem, [...path, "items", i]),
+            );
+        }
+    } else if (
+        Array.isArray(subItems) &&
+        supItems &&
+        !Array.isArray(supItems) &&
+        typeof supItems === "object"
+    ) {
+        for (const [i, subItem] of subItems.entries()) {
+            diagnostics.push(
+                ...getDiagnostics(subItem, supItems, [...path, "items", i]),
             );
         }
     } else if (
@@ -384,6 +423,7 @@ const HANDLED_OBJECT_KEYWORDS = new Set([
 
 /** Array keywords fully handled by the structural walk in `arrayDiagnostics`. */
 const HANDLED_ARRAY_KEYWORDS = new Set(["type", "items"]);
+const UNION_KEYWORDS = new Set(["anyOf"]);
 
 /** Keys that carry no validation meaning; a schema with only these is unknown. */
 const ANNOTATION_KEYS = new Set([

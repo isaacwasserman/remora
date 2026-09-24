@@ -4,7 +4,10 @@ import {
     type FlexibleSchema,
     generateText,
     hasToolCall,
+    NoSuchToolError,
     stepCountIs,
+    type ToolCallRepairFunction,
+    type ToolSet,
     tool,
     wrapLanguageModel,
 } from "ai";
@@ -24,10 +27,6 @@ import {
 } from "../types";
 import { validateWorkflowDefinition } from "../validation";
 import { requestedOutputSchemaDiagnostics } from "./output-schema";
-import {
-    findLastSuccessfulToolCall,
-    hasSuccessfulToolCall,
-} from "./stop-condition";
 import { WorkflowEditor } from "./workflow-editor";
 
 export type GenerationOptions = RemoraflowSettings & {};
@@ -97,11 +96,19 @@ export type WorkflowGenerationDiagnosticEvent =
           rawFinishReason?: string;
           reasoningText?: string;
           performance: unknown;
-          toolCalls: Array<{
-              toolCallId: string;
-              toolName: string;
-              status: "succeeded" | "failed" | "invalid";
-          }>;
+          toolCalls: Array<
+              {
+                  toolCallId: string;
+                  toolName: string;
+                  input: unknown;
+              } & (
+                  | { status: "succeeded" | "invalid" }
+                  | {
+                        status: "failed";
+                        error: WorkflowGenerationDiagnosticError;
+                    }
+              )
+          >;
           invalidToolCalls: Array<{
               toolCallId: string;
               toolName: string;
@@ -247,6 +254,50 @@ function serializeInvalidToolCallError(
     };
 }
 
+/**
+ * Repairs a tool call whose top-level arguments were sent as JSON strings where
+ * the tool's input schema expects an object or an array.
+ */
+const parseStringifiedArguments: ToolCallRepairFunction<ToolSet> = async ({
+    toolCall,
+    inputSchema,
+    error,
+}) => {
+    if (NoSuchToolError.isInstance(error)) return null;
+    let input: unknown;
+    try {
+        input = JSON.parse(toolCall.input);
+    } catch {
+        return null;
+    }
+    if (typeof input !== "object" || input === null) return null;
+
+    const { properties = {} } = await inputSchema({
+        toolName: toolCall.toolName,
+    });
+    const repairedInput: Record<string, unknown> = { ...input };
+    let repaired = false;
+    for (const [key, value] of Object.entries(input)) {
+        const property = properties[key];
+        const expectsContainer =
+            typeof property === "object" &&
+            [property.type]
+                .flat()
+                .some((type) => type === "object" || type === "array");
+        if (typeof value !== "string" || !expectsContainer) continue;
+        try {
+            const parsed: unknown = JSON.parse(value);
+            if (typeof parsed === "object" && parsed !== null) {
+                repairedInput[key] = parsed;
+                repaired = true;
+            }
+        } catch {}
+    }
+    return repaired
+        ? { ...toolCall, input: JSON.stringify(repairedInput) }
+        : null;
+};
+
 export function preparePrompt({
     taskDescription,
     workflowOutputSchema,
@@ -260,6 +311,9 @@ export function preparePrompt({
 }) {
     const { workflowDefinitionArktypeSchema } =
         createWorkflowDefinitionSchema(options);
+    const requiredOutputSchema = workflowOutputSchema?.[
+        "~standard"
+    ].jsonSchema.input({ target: "draft-07" });
 
     const instructions = dedent`
         You are a workflow generation subagent. You generate workflows from a task description and a set of predefined tools. Workflows are written using a proprietary "Remoraflow" JSON definition.
@@ -267,7 +321,8 @@ export function preparePrompt({
         Notes:
         - Write the workflow with write-workflow. It returns the validation diagnostics of the workflow.
         - To fix diagnostics, change the workflow with edit-workflow (a JSON Patch). Do not write the full workflow again. Use read-workflow to look at parts of the workflow.
-        - When the diagnostics are clean, call submit-workflow for the final validation. If your workflow fails this validation, fix it and submit again.
+        - Set submitIfValid on write-workflow or edit-workflow when you expect the workflow to be complete. The workflow is then submitted if it has no errors or warnings.
+        - To submit a workflow that has only warnings, call submit-workflow with ignoreWarnings.
     `;
 
     const prompt = dedent`
@@ -301,11 +356,11 @@ export function preparePrompt({
         </TaskDescription>
 
         ${
-            workflowOutputSchema
+            requiredOutputSchema
                 ? dedent`
                     The generated workflow must declare and produce output matching this JSON Schema:
                     <RequiredWorkflowOutputSchema>
-                        ${JSON.stringify(workflowOutputSchema["~standard"].jsonSchema.input({ target: "draft-07" }))}
+                        ${JSON.stringify(requiredOutputSchema)}
                     </RequiredWorkflowOutputSchema>
                 `
                 : ""
@@ -316,6 +371,7 @@ export function preparePrompt({
         instructions,
         prompt,
         workflowDefinitionArktypeSchema,
+        requiredOutputSchema,
     };
 }
 
@@ -342,26 +398,32 @@ export async function* generateWorkflowStream({
     onDiagnosticEvent?: (event: WorkflowGenerationDiagnosticEvent) => void;
     strictToolCalls?: boolean;
 }): AsyncGenerator<DeepPartial<WorkflowDefinition>, GenerationOutput> {
-    const { instructions, prompt, workflowDefinitionArktypeSchema } =
-        preparePrompt({
-            taskDescription,
-            workflowOutputSchema,
-            tools,
-            options,
-        });
+    const {
+        instructions,
+        prompt,
+        workflowDefinitionArktypeSchema,
+        requiredOutputSchema,
+    } = preparePrompt({
+        taskDescription,
+        workflowOutputSchema,
+        tools,
+        options,
+    });
     const resolvedOptions = remoraflowSettingsSchema.assert(options);
-    const requestedOutputSchema = workflowOutputSchema?.[
-        "~standard"
-    ].jsonSchema.input({ target: "draft-07" });
     const validateDraft = (draft: unknown) => {
         const validation = validateWorkflowDefinition(
-            draft as WorkflowDefinition,
+            (requiredOutputSchema &&
+            typeof draft === "object" &&
+            draft !== null &&
+            !("outputSchema" in draft)
+                ? { ...draft, outputSchema: requiredOutputSchema }
+                : draft) as WorkflowDefinition,
             { tools, options: resolvedOptions },
         );
-        if (!validation.isValid || !requestedOutputSchema) return validation;
+        if (!validation.isValid || !requiredOutputSchema) return validation;
         const outputSchemaDiagnostics = requestedOutputSchemaDiagnostics(
             validation.correctedDefinition.outputSchema,
-            requestedOutputSchema,
+            requiredOutputSchema,
         ).map(({ path, message }) => ({
             severity: "error" as const,
             path,
@@ -376,9 +438,23 @@ export async function* generateWorkflowStream({
             ],
         };
     };
+    let acceptedDefinition: WorkflowDefinition | undefined;
+    const submitDraft = (draft: unknown, ignoreWarnings = false) => {
+        const { isValid, diagnostics, correctedDefinition } =
+            validateDraft(draft);
+        const accepted =
+            isValid &&
+            (ignoreWarnings ||
+                !diagnostics.some(
+                    (diagnostic) => diagnostic.severity === "warning",
+                ));
+        if (accepted) acceptedDefinition = correctedDefinition;
+        return { accepted, diagnostics };
+    };
     const editor = new WorkflowEditor(
         workflowDefinitionArktypeSchema,
         (draft) => validateDraft(draft).diagnostics,
+        (draft) => submitDraft(draft).accepted,
     );
     let lastYieldedDraft: unknown;
 
@@ -395,7 +471,6 @@ export async function* generateWorkflowStream({
     const generationAbortSignal = abortSignal
         ? AbortSignal.any([abortSignal, generationAbortController.signal])
         : generationAbortController.signal;
-    const acceptedWorkflowDefinitions = new Map<string, WorkflowDefinition>();
     const generationStartedAt = Date.now();
     const providerAttemptsByStep = new Map<number, number>();
     let currentStepNumber = 0;
@@ -468,7 +543,14 @@ export async function* generateWorkflowStream({
     generateText({
         model: diagnosticModel,
         abortSignal: generationAbortSignal,
-        instructions,
+        instructions: {
+            role: "system",
+            content: instructions,
+            // Other providers ignore options in the `anthropic` namespace.
+            providerOptions: {
+                anthropic: { cacheControl: { type: "ephemeral" } },
+            },
+        },
         prompt,
         tools: {
             ...editor.getTools({ strict: strictToolCalls }),
@@ -484,31 +566,16 @@ export async function* generateWorkflowStream({
                         "Some workflow definitions will produce warnings during validation. These warnings will cause the workflow to be rejected. You should generally attempt to resolve these warnings, but if they are minor or difficult to fix, you can set this to `true` and the warnings will be ignored while errors will continue to be caught.",
                     ],
                 }),
-                execute: ({ ignoreWarnings }, { toolCallId }) => {
-                    const draft = editor.getDraft();
-                    if (draft === undefined) {
-                        throw new Error(
-                            "No workflow exists yet. Use write-workflow to write one.",
-                        );
-                    }
-                    const { isValid, diagnostics, correctedDefinition } =
-                        validateDraft(draft);
-                    if (
-                        !isValid ||
-                        (!ignoreWarnings &&
-                            diagnostics.some(
-                                (diagnostic) =>
-                                    diagnostic.severity === "warning",
-                            ))
-                    ) {
+                execute: ({ ignoreWarnings }) => {
+                    const { accepted, diagnostics } = submitDraft(
+                        editor.requireDraft(),
+                        ignoreWarnings,
+                    );
+                    if (!accepted) {
                         throw new Error(
                             `Workflow rejected with the following diagnostics: ${JSON.stringify(diagnostics)}`,
                         );
                     }
-                    acceptedWorkflowDefinitions.set(
-                        toolCallId,
-                        correctedDefinition,
-                    );
                     return "Workflow validated successfully.";
                 },
             }),
@@ -523,6 +590,7 @@ export async function* generateWorkflowStream({
                 },
             }),
         },
+        repairToolCall: parseStringifiedArguments,
         timeout: {
             totalMs: timeoutMs,
         },
@@ -565,18 +633,33 @@ export async function* generateWorkflowStream({
                     ? { reasoningText: step.reasoningText }
                     : {}),
                 performance: step.performance,
-                toolCalls: step.toolCalls.map((toolCall) => ({
-                    toolCallId: toolCall.toolCallId,
-                    toolName: toolCall.toolName,
-                    status: toolCall.invalid
-                        ? "invalid"
-                        : step.toolResults.some(
-                                (result) =>
-                                    result.toolCallId === toolCall.toolCallId,
-                            )
-                          ? "succeeded"
-                          : "failed",
-                })),
+                toolCalls: step.toolCalls.map((toolCall) => {
+                    const call = {
+                        toolCallId: toolCall.toolCallId,
+                        toolName: toolCall.toolName,
+                        input: toolCall.input,
+                    };
+                    if (toolCall.invalid) {
+                        return { ...call, status: "invalid" };
+                    }
+                    const toolError = step.content.find(
+                        (
+                            part,
+                        ): part is Extract<
+                            typeof part,
+                            { type: "tool-error" }
+                        > =>
+                            part.type === "tool-error" &&
+                            part.toolCallId === call.toolCallId,
+                    );
+                    return toolError
+                        ? {
+                              ...call,
+                              status: "failed",
+                              error: serializeDiagnosticError(toolError.error),
+                          }
+                        : { ...call, status: "succeeded" };
+                }),
                 invalidToolCalls: step.toolCalls
                     .filter((toolCall) => toolCall.invalid)
                     .map((toolCall) => ({
@@ -589,24 +672,12 @@ export async function* generateWorkflowStream({
         },
         stopWhen: [
             stepCountIs(maxGenerationSteps),
-            hasSuccessfulToolCall("submit-workflow"),
+            () => acceptedDefinition !== undefined,
             hasToolCall("give-up"),
         ],
     })
         .then((res) => {
-            const successfulSubmission = findLastSuccessfulToolCall(
-                "submit-workflow",
-                res.steps,
-            );
-            if (successfulSubmission) {
-                const acceptedDefinition = acceptedWorkflowDefinitions.get(
-                    successfulSubmission.toolCallId,
-                );
-                if (!acceptedDefinition) {
-                    throw new Error(
-                        "A successful workflow submission had no accepted definition.",
-                    );
-                }
+            if (acceptedDefinition) {
                 yieldQueue.push({
                     type: "final-output",
                     payload: acceptedDefinition,

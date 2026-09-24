@@ -1,3 +1,5 @@
+import { JMESPATH_FUNCTION_NAMES } from "@remoraflow/core";
+
 export type HighlightMode = {
     className?: string;
     begin?: RegExp;
@@ -23,8 +25,7 @@ export type HighlightLanguage = HighlightMode & {
 
 const JMESPATH_KEYWORDS = {
     $pattern: /[A-Za-z_][A-Za-z0-9_]*/,
-    built_in:
-        "abs avg ceil contains ends_with floor join keys length map max max_by merge min min_by not_null reverse sort sort_by starts_with sum to_array to_number to_string type values",
+    built_in: JMESPATH_FUNCTION_NAMES.join(" "),
     literal: "false null true",
 };
 

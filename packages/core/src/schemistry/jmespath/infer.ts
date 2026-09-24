@@ -28,7 +28,8 @@ export type BadAccess = "true" | "maybe" | "false";
  */
 export interface AnnotatedSchema extends JSONSchema7 {
     badAccess?: BadAccess;
-    items?: AnnotatedSchema | AnnotatedSchema[];
+    /** `false` for an array that has no elements. */
+    items?: AnnotatedSchema | AnnotatedSchema[] | false;
     properties?: { [key: string]: AnnotatedSchema };
     additionalProperties?: AnnotatedSchema | boolean;
     anyOf?: AnnotatedSchema[];
@@ -177,7 +178,13 @@ export function inferQueryOutputSchema(
                 if (isArraySchema(base)) {
                     return {
                         type: "array",
-                        items: inferNode(node.children[1], arrayElement(base)),
+                        items:
+                            base.items === false
+                                ? false
+                                : inferNode(
+                                      node.children[1],
+                                      arrayElement(base),
+                                  ),
                         badAccess: "false",
                     };
                 }
@@ -223,11 +230,18 @@ export function inferQueryOutputSchema(
                 if (!isArraySchema(base)) {
                     return badNull();
                 }
-                const element = arrayElement(base);
-                const items = isArraySchema(element)
-                    ? arrayElement(element)
-                    : element;
-                return { type: "array", items, badAccess: "false" };
+                const flattened = arrayElementMembers(base).flatMap(
+                    (element) =>
+                        isArraySchema(element)
+                            ? arrayElementMembers(element)
+                            : [element],
+                );
+                return {
+                    type: "array",
+                    items:
+                        flattened.length > 0 ? unionSchemas(flattened) : false,
+                    badAccess: "false",
+                };
             }
             case "MultiSelectList":
                 return {
@@ -751,6 +765,16 @@ function arrayElement(schema: AnnotatedSchema): AnnotatedSchema {
         return asSchemaObject(items);
     }
     return {};
+}
+
+/** The alternatives an element of `schema` can take; none for an empty array. */
+function arrayElementMembers(schema: AnnotatedSchema): AnnotatedSchema[] {
+    const { items } = schema;
+    if (items === false) return [];
+    const elements = Array.isArray(items)
+        ? items.map(asSchemaObject)
+        : [items === undefined ? {} : asSchemaObject(items)];
+    return elements.flatMap((element) => unionMembers(element) ?? [element]);
 }
 
 function objectValueUnion(schema: AnnotatedSchema): AnnotatedSchema {

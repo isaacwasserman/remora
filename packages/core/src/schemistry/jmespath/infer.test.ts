@@ -239,6 +239,29 @@ describe("inferQueryOutputSchema", () => {
             });
         });
 
+        test("flatten concatenates a list of arrays", () => {
+            const schema: JSONSchema7Definition = {
+                type: "object",
+                properties: {
+                    empty: { type: "array", items: false },
+                    item: { type: "string" },
+                },
+                required: ["empty", "item"],
+            };
+            expect(
+                inferQueryOutputSchema(schema, "[empty, [item]][]").schema,
+            ).toEqual({
+                type: "array",
+                items: { type: "string", badAccess: "false" },
+                badAccess: "false",
+            });
+            expect(inferQueryOutputSchema(schema, "empty[]").schema).toEqual({
+                type: "array",
+                items: false,
+                badAccess: "false",
+            });
+        });
+
         test("pipe composes sequential access", () => {
             expect(inferQueryOutputSchema(arrayOfB, "a | [0]").schema).toEqual({
                 type: "object",

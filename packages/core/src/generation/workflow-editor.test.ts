@@ -15,18 +15,23 @@ describe("WorkflowEditor", () => {
     } as never;
 
     function createEditor(initialDraft?: WorkflowDefinition) {
+        const submitted: unknown[] = [];
         const editor = new WorkflowEditor(
             createWorkflowDefinitionSchema().workflowDefinitionArktypeSchema,
             (draft) =>
                 validateWorkflowDefinition(draft as WorkflowDefinition, {
                     tools: {},
                 }).diagnostics,
+            (draft) => {
+                submitted.push(draft);
+                return true;
+            },
             initialDraft,
         );
         const tools = editor.getTools();
         const run = (name: string, input: unknown) =>
             tools[name]?.execute?.(input as never, executionOptions);
-        return { editor, tools, run };
+        return { editor, tools, run, submitted };
     }
 
     const invalidWorkflow: WorkflowDefinition = workflow(
@@ -46,12 +51,14 @@ describe("WorkflowEditor", () => {
         const result = await run("write-workflow", {
             definition: invalidWorkflow,
         });
-        expect(result.diagnostics.length).toBeGreaterThan(0);
+        expect(result.diagnostics).toMatchObject([
+            { severity: "error", path: ["steps", 0, "nextStepId"] },
+        ]);
         expect(editor.getDraft()).toEqual(invalidWorkflow);
     });
 
     test("edit applies a patch and returns new diagnostics", async () => {
-        const { editor, run } = createEditor(invalidWorkflow);
+        const { editor, run, submitted } = createEditor(invalidWorkflow);
         const result = await run("edit-workflow", {
             operations: [
                 {
@@ -62,13 +69,39 @@ describe("WorkflowEditor", () => {
                 { op: "replace", path: "/steps/0/nextStepId", value: "done" },
             ],
         });
-        expect(result).toEqual({ diagnostics: [] });
-        expect(editor.getDraft()).toEqual(
-            workflow(
-                step("start", { type: "start", nextStepId: "done" }),
-                step("done", { type: "end" }),
-            ),
+        const fixed = workflow(
+            step("start", { type: "start", nextStepId: "done" }),
+            step("done", { type: "end" }),
         );
+        expect(result).toEqual({
+            definition: fixed,
+            diagnostics: [],
+            submitted: false,
+        });
+        expect(editor.getDraft()).toEqual(fixed);
+        expect(submitted).toEqual([]);
+    });
+
+    test("submitIfValid submits a write or an edit", async () => {
+        const { run, submitted } = createEditor();
+        expect(
+            await run("write-workflow", {
+                definition: invalidWorkflow,
+                submitIfValid: true,
+            }),
+        ).toMatchObject({ submitted: true });
+        expect(
+            await run("edit-workflow", {
+                operations: [
+                    { op: "replace", path: "/steps/0/name", value: "Begin" },
+                ],
+                submitIfValid: true,
+            }),
+        ).toMatchObject({ submitted: true });
+        expect(submitted).toMatchObject([
+            invalidWorkflow,
+            { steps: [{ name: "Begin" }] },
+        ]);
     });
 
     test("edit that makes the structure invalid returns diagnostics", async () => {
@@ -78,7 +111,12 @@ describe("WorkflowEditor", () => {
                 { op: "replace", path: "/steps/0/type", value: "unknown" },
             ],
         });
-        expect(result.diagnostics.length).toBeGreaterThan(0);
+        expect(result.diagnostics).toMatchObject([
+            {
+                severity: "error",
+                message: expect.stringContaining("steps[0].type must be"),
+            },
+        ]);
         expect(editor.getDraft()).toMatchObject({
             steps: [{ type: "unknown" }],
         });
@@ -95,6 +133,35 @@ describe("WorkflowEditor", () => {
             }),
         ).toThrow(
             'Patch operation 1 ({"op":"test","path":"/initialStepId","value":"other"}) failed with TEST_OPERATION_FAILED.',
+        );
+        expect(editor.getDraft()).toEqual(invalidWorkflow);
+    });
+
+    test("replace adds a field that does not exist yet", async () => {
+        const { editor, run } = createEditor(
+            workflow(step("start", { type: "start" })),
+        );
+        await run("edit-workflow", {
+            operations: [
+                { op: "replace", path: "/steps/0/nextStepId", value: "done" },
+            ],
+        });
+        expect(editor.getDraft()).toMatchObject({
+            steps: [{ nextStepId: "done" }],
+        });
+    });
+
+    test("replace under a missing parent reports the original error", async () => {
+        const { editor, run } = createEditor(invalidWorkflow);
+        expect(() =>
+            run("edit-workflow", {
+                operations: [
+                    { op: "replace", path: "/steps/0/name", value: "Begin" },
+                    { op: "replace", path: "/steps/5/name", value: "x" },
+                ],
+            }),
+        ).toThrow(
+            'Patch operation 1 ({"op":"replace","path":"/steps/5/name","value":"x"}) failed with OPERATION_PATH_UNRESOLVABLE.',
         );
         expect(editor.getDraft()).toEqual(invalidWorkflow);
     });
@@ -141,16 +208,12 @@ describe("WorkflowEditor", () => {
             }),
         ).toThrow("write-workflow");
     });
-});
 
-test("tool input schemas convert to JSON Schema", async () => {
-    const tools = new WorkflowEditor(
-        createWorkflowDefinitionSchema().workflowDefinitionArktypeSchema,
-        () => [],
-    ).getTools();
-    for (const tool of Object.values(tools)) {
-        expect(
-            await asSchema(tool.inputSchema as FlexibleSchema).jsonSchema,
-        ).toMatchObject({ type: "object", additionalProperties: false });
-    }
+    test("tool input schemas convert to JSON Schema", async () => {
+        for (const tool of Object.values(createEditor().tools)) {
+            expect(
+                await asSchema(tool.inputSchema as FlexibleSchema).jsonSchema,
+            ).toMatchObject({ type: "object", additionalProperties: false });
+        }
+    });
 });
