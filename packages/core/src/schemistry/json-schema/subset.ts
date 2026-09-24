@@ -94,13 +94,13 @@ function getDiagnostics(
         if (isArraySchema(sub) && isArraySchema(sup)) {
             return arrayDiagnostics(sub, sup, path);
         }
-        // Different JSON Schema types are disjoint, but an integer is also a
-        // number. arktype treats arrays as objects, so it cannot find this.
+        // Different JSON Schema types are disjoint, but integer and number
+        // overlap. arktype treats arrays as objects, so it cannot find this.
         if (
             typeof sub.type === "string" &&
             typeof sup.type === "string" &&
             sub.type !== sup.type &&
-            !(sub.type === "integer" && sup.type === "number")
+            !(NUMERIC_TYPES.has(sub.type) && NUMERIC_TYPES.has(sup.type))
         ) {
             return [leaf(sub, sup, path, "disjoint")];
         }
@@ -424,6 +424,7 @@ const HANDLED_OBJECT_KEYWORDS = new Set([
 /** Array keywords fully handled by the structural walk in `arrayDiagnostics`. */
 const HANDLED_ARRAY_KEYWORDS = new Set(["type", "items"]);
 const UNION_KEYWORDS = new Set(["anyOf"]);
+const NUMERIC_TYPES = new Set(["integer", "number"]);
 
 /** Keys that carry no validation meaning; a schema with only these is unknown. */
 const ANNOTATION_KEYS = new Set([

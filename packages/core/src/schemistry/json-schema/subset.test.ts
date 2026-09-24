@@ -485,5 +485,8 @@ describe("schemaSubsetDiagnostics", () => {
         expect(
             schemaSubsetDiagnostics({ type: "integer" }, { type: "number" }),
         ).toEqual([]);
+        expect(levelsByPath({ type: "number" }, { type: "integer" })).toEqual([
+            { level: "warning", path: [] },
+        ]);
     });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { jsonSchemaToType } from "@ark/json-schema";
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { DeepPartial } from "ai";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
@@ -15,10 +17,15 @@ import {
 } from "./index";
 import { requestedOutputSchemaDiagnostics } from "./output-schema";
 
+const provider = process.env.E2E_PROVIDER ?? "openrouter";
 const apiKey = process.env.OPENROUTER_API_KEY;
-const modelId = process.env.OPENROUTER_MODEL_ID;
+const modelId =
+    provider === "bedrock"
+        ? process.env.BEDROCK_MODEL_ID
+        : process.env.OPENROUTER_MODEL_ID;
 const reasoning = process.env.OPENROUTER_REASONING;
-const describeLive = apiKey && modelId ? describe : describe.skip;
+const describeLive =
+    modelId && (provider === "bedrock" || apiKey) ? describe : describe.skip;
 
 const openrouter = createOpenAICompatible({
     name: "openrouter",
@@ -38,7 +45,14 @@ const openrouter = createOpenAICompatible({
           }
         : {}),
 });
-const model = openrouter.chatModel(modelId ?? "missing-openrouter-model-id");
+const bedrock = createAmazonBedrock({
+    region: process.env.AWS_REGION,
+    credentialProvider: fromNodeProviderChain(),
+});
+const model =
+    provider === "bedrock"
+        ? bedrock(modelId ?? "missing-bedrock-model-id")
+        : openrouter.chatModel(modelId ?? "missing-openrouter-model-id");
 
 const GENERATION_TIMEOUT_MS = 180_000;
 const GENERATION_OUTER_TIMEOUT_MS = 210_000;
