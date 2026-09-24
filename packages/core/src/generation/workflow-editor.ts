@@ -1,10 +1,8 @@
 import { jsonSchema, type ToolSet, tool } from "ai";
 import { type Type, type } from "arktype";
-import {
-    applyOperation,
-    JsonPatchError,
-    type Operation,
-} from "fast-json-patch";
+// Node cannot find the named exports of this CommonJS package, so use its
+// default export.
+import jsonPatch, { type Operation } from "fast-json-patch";
 import { search } from "jmespath";
 import type { JSONSchema7 } from "json-schema";
 import type { WorkflowDefinition } from "../schema";
@@ -141,7 +139,7 @@ export class WorkflowEditor {
                     let document = structuredClone(this.requireDraft());
                     const tryApply = (operation: Operation) => {
                         try {
-                            document = applyOperation(
+                            document = jsonPatch.applyOperation(
                                 document,
                                 operation,
                                 true,
@@ -149,7 +147,8 @@ export class WorkflowEditor {
                             ).newDocument;
                             return undefined;
                         } catch (error) {
-                            if (error instanceof JsonPatchError) return error;
+                            if (error instanceof jsonPatch.JsonPatchError)
+                                return error;
                             throw error;
                         }
                     };
