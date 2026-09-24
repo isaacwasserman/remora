@@ -1,51 +1,88 @@
 import type { Expression } from "../../schema";
-import { compileExpression } from "../../schemistry/jmespath/types";
+import {
+    compileExpression,
+    type ExpressionNode,
+    JMESPATH_FUNCTION_NAMES,
+} from "../../schemistry/jmespath/types";
 import { extractTemplateInserts } from "../../schemistry/template";
 import { expressionReferences } from "../../step-registry";
 import type { ValidationModule, ValidatorDiagnostic } from "../types";
+
+const knownFunctionNames = new Set<string>(JMESPATH_FUNCTION_NAMES);
 
 function describeParseError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.split("\n")[0] ?? message;
 }
 
+function unknownFunctionNames(node: ExpressionNode): string[] {
+    const own =
+        node.type === "Function" && !knownFunctionNames.has(node.name)
+            ? [node.name]
+            : [];
+    // Slice nodes hold numbers and nulls as children.
+    const children = (node.children ?? []).filter(
+        (child): child is ExpressionNode =>
+            typeof child === "object" && child !== null,
+    );
+    return [...own, ...children.flatMap(unknownFunctionNames)];
+}
+
+function validateJmespath(
+    source: string,
+    path: PropertyKey[],
+    context: string,
+    diagnostics: ValidatorDiagnostic[],
+) {
+    try {
+        for (const name of unknownFunctionNames(compileExpression(source))) {
+            diagnostics.push({
+                severity: "error",
+                path,
+                message: `Unknown JMESPath function "${name}()"${context}. The available functions are: ${JMESPATH_FUNCTION_NAMES.join(", ")}.`,
+            });
+        }
+    } catch (error) {
+        diagnostics.push({
+            severity: "error",
+            path,
+            message: `Invalid JMESPath expression${context}: ${describeParseError(error)}`,
+        });
+    }
+}
+
 function validateExpression(
     expression: Expression,
-    path: ValidatorDiagnostic["path"],
+    path: PropertyKey[],
     diagnostics: ValidatorDiagnostic[],
 ) {
     switch (expression.type) {
         case "jmespath": {
-            try {
-                compileExpression(expression.expression);
-            } catch (error) {
-                diagnostics.push({
-                    severity: "error",
-                    path: [...(path ?? []), "expression"],
-                    message: `Invalid JMESPath expression: ${describeParseError(error)}`,
-                });
-            }
+            validateJmespath(
+                expression.expression,
+                [...path, "expression"],
+                "",
+                diagnostics,
+            );
             break;
         }
         case "template": {
+            const templatePath = [...path, "template"];
             try {
                 for (const insert of extractTemplateInserts(
                     expression.template,
                 )) {
-                    try {
-                        compileExpression(insert.expression);
-                    } catch (error) {
-                        diagnostics.push({
-                            severity: "error",
-                            path: [...(path ?? []), "template"],
-                            message: `Invalid JMESPath expression in template: ${describeParseError(error)}`,
-                        });
-                    }
+                    validateJmespath(
+                        insert.expression,
+                        templatePath,
+                        " in template",
+                        diagnostics,
+                    );
                 }
             } catch (error) {
                 diagnostics.push({
                     severity: "error",
-                    path: [...(path ?? []), "template"],
+                    path: templatePath,
                     message: `Invalid template string: ${describeParseError(error)}`,
                 });
             }

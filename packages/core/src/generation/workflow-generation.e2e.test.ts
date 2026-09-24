@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { jsonSchemaToType } from "@ark/json-schema";
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { DeepPartial } from "ai";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
@@ -15,15 +17,42 @@ import {
 } from "./index";
 import { requestedOutputSchemaDiagnostics } from "./output-schema";
 
+const provider = process.env.E2E_PROVIDER ?? "openrouter";
 const apiKey = process.env.OPENROUTER_API_KEY;
-const modelId = process.env.OPENROUTER_MODEL_ID;
-const describeLive = apiKey && modelId ? describe : describe.skip;
+const modelId =
+    provider === "bedrock"
+        ? process.env.BEDROCK_MODEL_ID
+        : process.env.OPENROUTER_MODEL_ID;
+const reasoning = process.env.OPENROUTER_REASONING;
+const describeLive =
+    modelId && (provider === "bedrock" || apiKey) ? describe : describe.skip;
 
-const openrouter = createOpenAI({
+const openrouter = createOpenAICompatible({
+    name: "openrouter",
     apiKey: apiKey ?? "missing-openrouter-api-key",
     baseURL: "https://openrouter.ai/api/v1",
+    supportsStructuredOutputs: true,
+    // "off" disables reasoning; "low", "medium", or "high" sets its effort.
+    ...(reasoning
+        ? {
+              transformRequestBody: (body: Record<string, unknown>) => ({
+                  ...body,
+                  reasoning:
+                      reasoning === "off"
+                          ? { enabled: false }
+                          : { effort: reasoning },
+              }),
+          }
+        : {}),
 });
-const model = openrouter.chat(modelId ?? "missing-openrouter-model-id");
+const bedrock = createAmazonBedrock({
+    region: process.env.AWS_REGION,
+    credentialProvider: fromNodeProviderChain(),
+});
+const model =
+    provider === "bedrock"
+        ? bedrock(modelId ?? "missing-bedrock-model-id")
+        : openrouter.chatModel(modelId ?? "missing-openrouter-model-id");
 
 const GENERATION_TIMEOUT_MS = 180_000;
 const GENERATION_OUTER_TIMEOUT_MS = 210_000;
@@ -121,6 +150,7 @@ async function collectGenerationOutput(
                 continue;
             }
 
+            logToolCalls(scenarioName, generationDiagnostics);
             if (next.value.gaveUp) {
                 logWorkflowAttempts(
                     scenarioName,
@@ -132,6 +162,7 @@ async function collectGenerationOutput(
             return next.value;
         }
     } catch (error) {
+        logToolCalls(scenarioName, generationDiagnostics);
         logWorkflowAttempts(
             scenarioName,
             attempts,
@@ -140,8 +171,42 @@ async function collectGenerationOutput(
         );
         throw error;
     } finally {
+        logUsage(
+            scenarioName,
+            generationDiagnostics,
+            Date.now() - generationStartedAt,
+        );
         await stream.return(undefined as never);
     }
+}
+
+type ProviderUsage = {
+    inputTokens?: { total?: number; cacheRead?: number };
+    outputTokens?: { total?: number; reasoning?: number };
+};
+
+function logUsage(
+    scenarioName: string,
+    generationDiagnostics: WorkflowGenerationDiagnosticEvent[],
+    elapsedMs: number,
+) {
+    const usages = generationDiagnostics.flatMap((event) =>
+        event.type === "provider-attempt-end"
+            ? [event.usage as ProviderUsage]
+            : [],
+    );
+    const sum = (tokens: (usage: ProviderUsage) => number | undefined) =>
+        usages.reduce((total, usage) => total + (tokens(usage) ?? 0), 0);
+    console.log(
+        `[workflow generation usage] ${scenarioName}: ${JSON.stringify({
+            elapsedMs,
+            providerCalls: usages.length,
+            inputTokens: sum((usage) => usage.inputTokens?.total),
+            cachedInputTokens: sum((usage) => usage.inputTokens?.cacheRead),
+            outputTokens: sum((usage) => usage.outputTokens?.total),
+            reasoningTokens: sum((usage) => usage.outputTokens?.reasoning),
+        })}`,
+    );
 }
 
 function logWorkflowAttempts(
@@ -156,6 +221,47 @@ function logWorkflowAttempts(
             null,
             2,
         )}`,
+    );
+}
+
+function formatToolCall(
+    toolCall: Extract<
+        WorkflowGenerationDiagnosticEvent,
+        { type: "step-end" }
+    >["toolCalls"][number],
+): string {
+    // A full definition is too long for this summary.
+    const { definition, operations, ...options } =
+        typeof toolCall.input === "object" && toolCall.input !== null
+            ? (toolCall.input as Record<string, unknown>)
+            : {};
+    const args = [
+        ...(Array.isArray(operations)
+            ? operations.map(
+                  ({ op, path }: { op: string; path: string }) =>
+                      `${op} ${path}`,
+              )
+            : []),
+        ...Object.entries(options).map(
+            ([name, value]) => `${name}: ${JSON.stringify(value)}`,
+        ),
+    ];
+    const call = `${toolCall.toolName}(${args.join(", ")})`;
+    if (toolCall.status === "failed") {
+        return `${call} [failed: ${toolCall.error.message}]`;
+    }
+    return toolCall.status === "invalid" ? `${call} [invalid]` : call;
+}
+
+function logToolCalls(
+    scenarioName: string,
+    generationDiagnostics: WorkflowGenerationDiagnosticEvent[],
+) {
+    const toolCalls = generationDiagnostics.flatMap((event) =>
+        event.type === "step-end" ? event.toolCalls.map(formatToolCall) : [],
+    );
+    console.log(
+        `[workflow generation tool calls] ${scenarioName}: ${toolCalls.join(" → ") || "none"}`,
     );
 }
 

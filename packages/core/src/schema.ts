@@ -144,9 +144,12 @@ const switchCaseParamsSchema = type({
         }
         \`\`\`
 
-        After this step completes, execution continues from its \`nextStepId\` when present.
+        The value returned by the selected branch becomes this step's output. After this step completes, execution continues from its \`nextStepId\` when present.
     `,
 );
+
+const ACCUMULATOR_GUIDANCE =
+    "To collect each iteration's output into an array, omit the accumulator. In fold mode, the body's output replaces the accumulator, so to append an item to an array accumulator named `acc`, return `[acc, [item]][]`. The expression `[acc[], item]` does not append: it puts the previous accumulator inside the new array.";
 
 const forEachParamsSchema = type({
     ...baseStepProperties,
@@ -216,6 +219,8 @@ const forEachParamsSchema = type({
             }
             \`\`\`
 
+            ${ACCUMULATOR_GUIDANCE}
+
             After this step completes, execution continues from its \`nextStepId\` when present.
         `,
     );
@@ -284,6 +289,8 @@ const whileParamsSchema = type({
               return outputs;
             }
             \`\`\`
+
+            ${ACCUMULATOR_GUIDANCE}
 
             After this step completes, execution continues from its \`nextStepId\` when present.
         `,
@@ -552,29 +559,24 @@ export function createWorkflowDefinitionSchema(
             "a step that pauses execution to ask the supervising user how to proceed",
         );
 
-    let workflowStepArktypeSchema = toolCallParamsSchema
-        .or(llmPromptSchema)
-        .or(extractDataParamsSchema)
-        .or(switchCaseParamsSchema)
-        .or(forEachParamsSchema)
-        .or(whileParamsSchema)
-        .or(sleepParamsSchema)
-        .or(waitForConditionParamsSchema)
-        .or(agentLoopParamsSchema)
-        .or(requestInterventionParamsSchema)
-        .or(startParamsSchema)
-        .or(endParamsSchema);
-
-    if (!options.features.allowAgentLoops) {
-        workflowStepArktypeSchema = workflowStepArktypeSchema.exclude(
-            agentLoopParamsSchema,
-        );
-    }
-    if (!options.features.allowUserIntervention) {
-        workflowStepArktypeSchema = workflowStepArktypeSchema.exclude(
-            requestInterventionParamsSchema,
-        );
-    }
+    // One n-ary union is much faster to build than a chain of `.or()` calls
+    // followed by `.exclude()`, because arktype reduces each intermediate union.
+    const workflowStepArktypeSchema = type.or(
+        toolCallParamsSchema,
+        llmPromptSchema,
+        extractDataParamsSchema,
+        switchCaseParamsSchema,
+        forEachParamsSchema,
+        whileParamsSchema,
+        sleepParamsSchema,
+        waitForConditionParamsSchema,
+        ...(options.features.allowAgentLoops ? [agentLoopParamsSchema] : []),
+        ...(options.features.allowUserIntervention
+            ? [requestInterventionParamsSchema]
+            : []),
+        startParamsSchema,
+        endParamsSchema,
+    );
 
     /** Schema for validating workflow definitions. */
     const workflowDefinitionArktypeSchema = type({

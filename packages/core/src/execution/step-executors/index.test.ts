@@ -218,6 +218,15 @@ describe("step executors", () => {
             expect(result.scope?.fallback).toBe("D");
         });
 
+        test("outputs the selected branch's return value", async () => {
+            const result = await runStep(
+                switchStep,
+                { x: "a" },
+                { workflowDefinition: workflow(switchStep, matched, fallback) },
+            );
+            expect(result.scope?.sc).toBe("A");
+        });
+
         test("errors with UNRECOGNIZED_CASE when nothing matches", async () => {
             const noDefault = step("sc", {
                 type: "switch-case",

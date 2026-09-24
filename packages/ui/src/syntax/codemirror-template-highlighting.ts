@@ -5,38 +5,12 @@ import {
     ViewPlugin,
     type ViewUpdate,
 } from "@codemirror/view";
+import { JMESPATH_FUNCTION_NAMES } from "@remoraflow/core";
 
 type Range = { from: number; to: number };
 export type TemplateSyntaxToken = Range & { className: string };
 
-const JMESPATH_BUILT_INS = new Set([
-    "abs",
-    "avg",
-    "ceil",
-    "contains",
-    "ends_with",
-    "floor",
-    "join",
-    "keys",
-    "length",
-    "map",
-    "max",
-    "max_by",
-    "merge",
-    "min",
-    "min_by",
-    "not_null",
-    "reverse",
-    "sort",
-    "sort_by",
-    "starts_with",
-    "sum",
-    "to_array",
-    "to_number",
-    "to_string",
-    "type",
-    "values",
-]);
+const JMESPATH_BUILT_INS = new Set<string>(JMESPATH_FUNCTION_NAMES);
 
 /**
  * Finds Remora template interpolations using the same brace and quote rules as

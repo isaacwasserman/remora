@@ -180,6 +180,22 @@ describe("inferQueryOutputSchema", () => {
                 badAccess: "maybe",
             });
         });
+
+        test("access into a union whose members all have the field resolves cleanly", () => {
+            const schema: JSONSchema7Definition = {
+                anyOf: [
+                    stringA,
+                    { ...stringA, properties: { a: { const: "x" } } },
+                ],
+            };
+            expect(inferQueryOutputSchema(schema, "a").schema).toEqual({
+                anyOf: [
+                    { type: "string", badAccess: "false" },
+                    { const: "x", badAccess: "false" },
+                ],
+                badAccess: "false",
+            });
+        });
     });
 
     describe("projections and flatten", () => {
@@ -219,6 +235,29 @@ describe("inferQueryOutputSchema", () => {
             expect(inferQueryOutputSchema(nestedArrays, "a[]").schema).toEqual({
                 type: "array",
                 items: { type: "number", badAccess: "false" },
+                badAccess: "false",
+            });
+        });
+
+        test("flatten concatenates a list of arrays", () => {
+            const schema: JSONSchema7Definition = {
+                type: "object",
+                properties: {
+                    empty: { type: "array", items: false },
+                    item: { type: "string" },
+                },
+                required: ["empty", "item"],
+            };
+            expect(
+                inferQueryOutputSchema(schema, "[empty, [item]][]").schema,
+            ).toEqual({
+                type: "array",
+                items: { type: "string", badAccess: "false" },
+                badAccess: "false",
+            });
+            expect(inferQueryOutputSchema(schema, "empty[]").schema).toEqual({
+                type: "array",
+                items: false,
                 badAccess: "false",
             });
         });
