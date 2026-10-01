@@ -77,6 +77,43 @@ describe("feature-flag guard in _executeWorkflow (defense-in-depth)", () => {
         expect(error?.message).toContain("request-intervention");
     });
 
+    const llmSteps: Parameters<typeof step>[1][] = [
+        {
+            type: "agent-loop",
+            params: {
+                instructions: "do it",
+                tools: [],
+                outputFormat: { type: "object" },
+            },
+        },
+        {
+            type: "llm-prompt",
+            params: { prompt: "hi", outputFormat: { type: "object" } },
+        },
+        {
+            type: "extract-data",
+            params: {
+                sourceData: { type: "literal", value: "text" },
+                outputFormat: { type: "object" },
+            },
+        },
+    ];
+
+    for (const body of llmSteps) {
+        test(`rejects a ${body.type} step when allowLlmUse is false, even if allowAgentLoops is true`, async () => {
+            const settings = remoraflowSettingsSchema.assert({
+                features: { allowLlmUse: false, allowAgentLoops: true },
+            });
+            const wf = workflow(
+                step("begin", { type: "start", nextStepId: "llm" }),
+                step("llm", body),
+            );
+            const error = await collectErrors(wf, settings);
+            expect(error?.code).toBe("INVALID_WORKFLOW");
+            expect(error?.message).toContain(body.type);
+        });
+    }
+
     test("allows an agent-loop step when allowAgentLoops is true", async () => {
         const settings = remoraflowSettingsSchema.assert({
             features: { allowAgentLoops: true },

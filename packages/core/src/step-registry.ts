@@ -351,12 +351,12 @@ export function constrainedParameters(
 type FeatureKey = keyof ResolvedRemoraflowSettings["features"];
 
 const REQUIRED_FEATURES: Record<StepType, readonly FeatureKey[]> = {
-    "agent-loop": ["allowAgentLoops"],
+    "agent-loop": ["allowLlmUse", "allowAgentLoops"],
     "request-intervention": ["allowUserIntervention"],
     end: [],
-    "extract-data": [],
+    "extract-data": ["allowLlmUse"],
     "for-each": [],
-    "llm-prompt": [],
+    "llm-prompt": ["allowLlmUse"],
     sleep: [],
     start: [],
     "switch-case": [],

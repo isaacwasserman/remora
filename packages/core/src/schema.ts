@@ -563,14 +563,17 @@ export function createWorkflowDefinitionSchema(
     // followed by `.exclude()`, because arktype reduces each intermediate union.
     const workflowStepArktypeSchema = type.or(
         toolCallParamsSchema,
-        llmPromptSchema,
-        extractDataParamsSchema,
+        ...(options.features.allowLlmUse
+            ? [llmPromptSchema, extractDataParamsSchema]
+            : []),
         switchCaseParamsSchema,
         forEachParamsSchema,
         whileParamsSchema,
         sleepParamsSchema,
         waitForConditionParamsSchema,
-        ...(options.features.allowAgentLoops ? [agentLoopParamsSchema] : []),
+        ...(options.features.allowLlmUse && options.features.allowAgentLoops
+            ? [agentLoopParamsSchema]
+            : []),
         ...(options.features.allowUserIntervention
             ? [requestInterventionParamsSchema]
             : []),
