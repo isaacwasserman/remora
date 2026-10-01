@@ -2,9 +2,16 @@ import { jsonSchemaToType } from "@ark/json-schema";
 import { type Type, type } from "arktype";
 import dedent from "dedent";
 import type { JSONSchema7 } from "json-schema";
-import { resolveDurationLimits } from "./execution/execution-engine/duration-policy";
+import {
+    type DurationLimits,
+    resolveDurationLimits,
+} from "./execution/execution-engine/duration-policy";
 import type { StandardSchemaTypeInfer } from "./schemistry";
-import { type RemoraflowSettings, remoraflowSettingsSchema } from "./types";
+import {
+    type RemoraflowSettings,
+    type ResolvedRemoraflowSettings,
+    remoraflowSettingsSchema,
+} from "./types";
 
 const jsonSchemaArktypeSchema = type("object")
     .narrow((schema, ctx) => {
@@ -356,11 +363,10 @@ const endParamsSchema = type({
     "Ends the current execution chain and returns its evaluated output to the enclosing block or workflow. Use this like a return statement within loop bodies (to contribute to map or write to accumulator) and switch case bodies.",
 );
 
-export function createWorkflowDefinitionSchema(
-    remoraflowSettings: RemoraflowSettings = {},
+function _createWorkflowDefinitionSchema(
+    options: ResolvedRemoraflowSettings,
+    limits: DurationLimits,
 ) {
-    const options = remoraflowSettingsSchema.assert(remoraflowSettings);
-    const limits = resolveDurationLimits(options.duration);
     const maxSleepDurationMs = 1000 * limits.maxSleepSeconds;
     const sleepParamsSchema = type({
         ...baseStepProperties,
@@ -607,6 +613,26 @@ export function createWorkflowDefinitionSchema(
     });
 
     return { workflowStepArktypeSchema, workflowDefinitionArktypeSchema };
+}
+
+type WorkflowDefinitionSchemas = ReturnType<
+    typeof _createWorkflowDefinitionSchema
+>;
+
+const workflowSchemaCache = new Map<string, WorkflowDefinitionSchemas>();
+
+export function createWorkflowDefinitionSchema(
+    remoraflowSettings: RemoraflowSettings = {},
+): WorkflowDefinitionSchemas {
+    const options = remoraflowSettingsSchema.assert(remoraflowSettings);
+    const settingsKey = JSON.stringify(remoraflowSettings);
+    const cached = workflowSchemaCache.get(settingsKey);
+    if (cached) return cached;
+
+    const limits = resolveDurationLimits(options.duration);
+    const schemas = _createWorkflowDefinitionSchema(options, limits);
+    workflowSchemaCache.set(settingsKey, schemas);
+    return schemas;
 }
 
 type WorkflowStepArktypeSchema = ReturnType<
