@@ -1,6 +1,7 @@
 export * from "./audit";
 export * from "./execution";
 export * from "./generation";
+export * from "./rendering";
 export * from "./schema";
 export * from "./schemistry";
 export * from "./step-registry";
