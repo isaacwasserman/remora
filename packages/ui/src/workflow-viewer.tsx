@@ -141,8 +141,8 @@ interface WorkflowViewerBaseProps {
     /**
      * A subset of remoraflow settings. The `features` flags gate which step
      * types are available in the editor palette and are honored by local
-     * validation. Omit to use schema defaults (`allowAgentLoops: true`,
-     * `allowUserIntervention: false`).
+     * validation. Omit to use the schema defaults.
+     * @see {@link remoraflowSettingsSchema}
      */
     settings?: RemoraflowSettings;
     onDiagnosticsChange?: (diagnostics: ValidatorDiagnostic[]) => void;

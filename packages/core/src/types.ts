@@ -138,6 +138,15 @@ const featuresSchema = type({
         "=",
         true,
     ],
+    allowLlmUse: [
+        [
+            "boolean",
+            "@",
+            'whether to allow steps that call an LLM ("agent-loop", "llm-prompt", "extract-data"); when false, this overrides allowAgentLoops',
+        ],
+        "=",
+        true,
+    ],
 });
 
 const durationSchema = type({

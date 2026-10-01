@@ -38,6 +38,16 @@ const FEATURES: Record<FeatureKey, SettingsFieldDeclaration> = {
             { module: "run-workflow", role: "defense-in-depth guard" },
         ],
     },
+    allowLlmUse: {
+        path: ["features", "allowLlmUse"],
+        consumers: [
+            {
+                module: "schema",
+                role: "exclude agent-loop, llm-prompt, and extract-data step types",
+            },
+            { module: "run-workflow", role: "defense-in-depth guard" },
+        ],
+    },
 };
 
 const DURATION: Record<DurationKey, SettingsFieldDeclaration> = {

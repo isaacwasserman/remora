@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { type } from "arktype";
 import type { ExecutionError } from "./execution/types";
+import { createWorkflowDefinitionSchema } from "./schema";
 import {
     isStepTypeAllowed,
     type StepExecutorMap,
@@ -7,6 +9,7 @@ import {
 } from "./step-registry";
 import { STEP_TYPES, type StepType } from "./step-types";
 import { remoraflowSettingsSchema } from "./types";
+import { step } from "./workflow-fixtures";
 
 const ERROR_CODES: ReadonlySet<string> = new Set<ExecutionError["code"]>([
     "INVALID_WORKFLOW",
@@ -76,39 +79,89 @@ describe("step registry structural guard", () => {
         }
     });
 
-    test("feature flags: only agent-loop and request-intervention are feature-gated", () => {
-        const defaults = remoraflowSettingsSchema.assert({});
+    test("feature flags gate step types", () => {
+        const defaults = remoraflowSettingsSchema.assert({}).features;
+        const llmStepTypes = new Set([
+            "agent-loop",
+            "llm-prompt",
+            "extract-data",
+        ]);
         for (const stepType of STEP_TYPES) {
-            if (stepType === "agent-loop") {
-                expect(
-                    isStepTypeAllowed(stepType, defaults.features),
-                    `"agent-loop" should be allowed by default`,
-                ).toBe(true);
-                expect(
-                    isStepTypeAllowed(stepType, {
-                        ...defaults.features,
-                        allowAgentLoops: false,
-                    }),
-                    `"agent-loop" should be disallowed when allowAgentLoops=false`,
-                ).toBe(false);
-            } else if (stepType === "request-intervention") {
-                expect(
-                    isStepTypeAllowed(stepType, defaults.features),
-                    `"request-intervention" should be disallowed by default`,
-                ).toBe(false);
-                expect(
-                    isStepTypeAllowed(stepType, {
-                        ...defaults.features,
-                        allowUserIntervention: true,
-                    }),
-                    `"request-intervention" should be allowed when allowUserIntervention=true`,
-                ).toBe(true);
-            } else {
-                expect(
-                    isStepTypeAllowed(stepType, defaults.features),
-                    `"${stepType}" should always be allowed`,
-                ).toBe(true);
-            }
+            expect(
+                isStepTypeAllowed(stepType, defaults),
+                `"${stepType}" default`,
+            ).toBe(stepType !== "request-intervention");
+            expect(
+                isStepTypeAllowed(stepType, {
+                    ...defaults,
+                    allowLlmUse: false,
+                }),
+                `"${stepType}" when allowLlmUse=false`,
+            ).toBe(
+                !llmStepTypes.has(stepType) &&
+                    stepType !== "request-intervention",
+            );
+            expect(
+                isStepTypeAllowed(stepType, {
+                    ...defaults,
+                    allowAgentLoops: false,
+                }),
+                `"${stepType}" when allowAgentLoops=false`,
+            ).toBe(
+                stepType !== "agent-loop" &&
+                    stepType !== "request-intervention",
+            );
+            expect(
+                isStepTypeAllowed(stepType, {
+                    ...defaults,
+                    allowUserIntervention: true,
+                }),
+                `"${stepType}" when allowUserIntervention=true`,
+            ).toBe(true);
         }
+    });
+
+    test("schema excludes LLM step types when allowLlmUse=false", () => {
+        const llmSteps = [
+            step("agent", {
+                type: "agent-loop",
+                params: {
+                    instructions: "do it",
+                    tools: [],
+                    outputFormat: { type: "object" },
+                },
+            }),
+            step("prompt", {
+                type: "llm-prompt",
+                params: { prompt: "hi", outputFormat: { type: "object" } },
+            }),
+            step("extract", {
+                type: "extract-data",
+                params: {
+                    sourceData: { type: "literal", value: "text" },
+                    outputFormat: { type: "object" },
+                },
+            }),
+        ];
+        const enabled =
+            createWorkflowDefinitionSchema().workflowStepArktypeSchema;
+        const disabled = createWorkflowDefinitionSchema({
+            features: { allowLlmUse: false, allowAgentLoops: true },
+        }).workflowStepArktypeSchema;
+        for (const s of llmSteps) {
+            expect(enabled(s) instanceof type.errors, s.type).toBe(false);
+            expect(disabled(s) instanceof type.errors, s.type).toBe(true);
+        }
+    });
+
+    test("allowLlmUse=false overrides allowAgentLoops=true", () => {
+        const defaults = remoraflowSettingsSchema.assert({}).features;
+        expect(
+            isStepTypeAllowed("agent-loop", {
+                ...defaults,
+                allowLlmUse: false,
+                allowAgentLoops: true,
+            }),
+        ).toBe(false);
     });
 });
