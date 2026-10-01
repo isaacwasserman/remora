@@ -287,6 +287,27 @@ describe("renderWorkflowAsText", () => {
         );
     });
 
+    test("scans an unterminated quoted literal in linear time", () => {
+        const definition = workflow(
+            described("a", "", {
+                type: "tool-call",
+                params: { toolName: "one" },
+                nextStepId: "b",
+            }),
+            described("b", "", {
+                type: "end",
+                params: {
+                    output: {
+                        type: "jmespath",
+                        expression: `a.x == '${"\\'".repeat(100_000)}`,
+                    },
+                },
+            }),
+        );
+
+        expect(renderWorkflowAsText(definition)).toEndWith("(using step 1).");
+    });
+
     test("refers back to a step that execution reaches a second time", () => {
         const definition = workflow(
             described("route", "", {

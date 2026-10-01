@@ -6,7 +6,6 @@ import { buildStepIndex } from "../utils";
 
 const INDENT = "    ";
 const SIMPLE_PATH = /^([A-Za-z_]\w*)((?:\.[A-Za-z_]\w*|\[\d+\])*)$/;
-const QUOTED_LITERAL = /'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
 const ROOT_IDENTIFIER = /(?<![.\w@"])([A-Za-z_]\w*)(?!\s*\()/g;
 
 /** How a chain of steps is described when it reaches its last step. */
@@ -202,6 +201,24 @@ function toMarkdown(blocks: Block[]): string {
     return blocks.map(blockToMarkdown).join("\n\n");
 }
 
+/** Removes JMESPath raw string ('...') and JSON (`...`) literals. */
+function stripQuotedLiterals(query: string): string {
+    let result = "";
+    let quote: string | undefined;
+    for (let index = 0; index < query.length; index++) {
+        const char = query[index] as string;
+        if (quote === undefined) {
+            if (char === "'" || char === "`") quote = char;
+            else result += char;
+        } else if (char === "\\") {
+            index++;
+        } else if (char === quote) {
+            quote = undefined;
+        }
+    }
+    return result;
+}
+
 function joinWords(words: string[], conjunction = "and"): string {
     if (words.length <= 1) return words.join("");
     if (words.length === 2) return `${words[0]} ${conjunction} ${words[1]}`;
@@ -341,9 +358,9 @@ function explainWorkflow(
 
         let usesInput = false;
         const sourceNumbers = new Set<number>();
-        for (const [, identifier = ""] of trimmed
-            .replace(QUOTED_LITERAL, "")
-            .matchAll(ROOT_IDENTIFIER)) {
+        for (const [, identifier = ""] of stripQuotedLiterals(trimmed).matchAll(
+            ROOT_IDENTIFIER,
+        )) {
             if (identifier === "input") usesInput = true;
             const number = numbers.get(identifier);
             if (number !== undefined) sourceNumbers.add(number);
