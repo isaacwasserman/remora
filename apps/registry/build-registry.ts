@@ -38,10 +38,16 @@ const VIEWER_FILES: FileEntry[] = [
     { relPath: "utils/expression-display.ts", type: "registry:component" },
     { relPath: "utils/diagnostic-matching.ts", type: "registry:component" },
     { relPath: "utils/rendered-params.ts", type: "registry:component" },
+    { relPath: "utils/data-dependencies.ts", type: "registry:component" },
     // edges
     { relPath: "edges/workflow-edge.tsx", type: "registry:component" },
+    { relPath: "edges/dependency-edge.tsx", type: "registry:component" },
     // nodes
     { relPath: "nodes/node-shell.tsx", type: "registry:component" },
+    {
+        relPath: "nodes/data-dependency-handles.tsx",
+        type: "registry:component",
+    },
     { relPath: "nodes/step-node.tsx", type: "registry:component" },
     { relPath: "nodes/start-node.tsx", type: "registry:component" },
     { relPath: "nodes/group-header-node.tsx", type: "registry:component" },

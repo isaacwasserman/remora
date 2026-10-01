@@ -4,6 +4,7 @@ import { useEditContext } from "../edit-context";
 import type { StepNodeData } from "../graph-layout";
 import { STEP_UI } from "../step-ui/registry";
 import { toneColor } from "../step-ui/tone-styles";
+import { DataDependencyHandles } from "./data-dependency-handles";
 import { HANDLE_CLASS_EDITING } from "./node-shell";
 
 export function GroupContainerNode({ data }: NodeProps) {
@@ -114,6 +115,7 @@ export function GroupContainerNode({ data }: NodeProps) {
                     }
                 />
             )}
+            <DataDependencyHandles layoutDirection={layoutDirection} />
         </div>
     );
 }

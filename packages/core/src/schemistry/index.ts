@@ -6,6 +6,7 @@ export {
     inferQueryOutputSchema,
     unionSchemas,
 } from "./jmespath/infer";
+export { queryRootNames } from "./jmespath/root-names";
 export { JMESPATH_FUNCTION_NAMES } from "./jmespath/types";
 export { inferJsonSchema, type JsonSchema } from "./json-schema/from-value";
 export {
