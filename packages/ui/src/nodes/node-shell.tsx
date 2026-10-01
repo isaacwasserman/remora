@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEditContext } from "../edit-context";
 import type { StepExecutionSummary } from "../execution-state";
 import type { LayoutDirection } from "../graph-layout";
+import { DataDependencyHandles } from "./data-dependency-handles";
 
 export interface NodeShellProps {
     id: string;
@@ -254,6 +255,7 @@ export function NodeShell({
                     className={handleClass}
                 />
             )}
+            <DataDependencyHandles layoutDirection={layoutDirection} />
         </div>
     );
 }

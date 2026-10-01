@@ -18,6 +18,7 @@ import {
     Controls,
     type EdgeTypes,
     MiniMap,
+    type NodeMouseHandler,
     type NodeTypes,
     type OnEdgesChange,
     type OnNodesChange,
@@ -35,6 +36,7 @@ import { CanvasContextMenu } from "./components/canvas-context-menu";
 import { StepPalette } from "./components/step-palette";
 import { WorkflowDiagnostics } from "./components/workflow-diagnostics";
 import { WorkflowJsonDialog } from "./components/workflow-json-dialog";
+import { DependencyEdge } from "./edges/dependency-edge";
 import { WorkflowEdge } from "./edges/workflow-edge";
 import { EditContext } from "./edit-context";
 import {
@@ -42,6 +44,7 @@ import {
     deriveStepSummaries,
 } from "./execution-state";
 import {
+    buildDataDependencyEdges,
     buildEditableLayout,
     buildLayout,
     GROUP_HEADER,
@@ -71,6 +74,7 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
     workflow: WorkflowEdge,
+    dependency: DependencyEdge,
 };
 
 import { EMPTY_DIAGNOSTICS } from "./hooks/use-selection-state";
@@ -128,6 +132,8 @@ interface WorkflowViewerBaseProps {
     minimapWidth?: number;
     /** Height of the minimap in pixels. @default 150 */
     minimapHeight?: number;
+    /** Whether hovering a step draws animated edges to the steps it reads from and the steps that read its output. */
+    showDataDependencies?: boolean;
     /** Whether the workflow execution is currently paused. */
     paused?: boolean;
     /** Enable editing mode. When true, nodes are draggable and editable. */
@@ -181,6 +187,7 @@ export function WorkflowViewer({
     showMinimap = true,
     minimapWidth = 200,
     minimapHeight = 150,
+    showDataDependencies = true,
     isEditing = false,
     onWorkflowChange,
     tools,
@@ -358,6 +365,31 @@ export function WorkflowViewer({
 
     const [nodes, setNodes, onNodesChangeBase] = useNodesState(layout.nodes);
     const [edges, setEdges, onEdgesChangeBase] = useEdgesState(layout.edges);
+
+    const [hoveredStepId, setHoveredStepId] = useState<string | null>(null);
+    const onNodeMouseEnter: NodeMouseHandler = useCallback((_event, node) => {
+        const stepId = node.type === "groupHeader" ? node.parentId : node.id;
+        setHoveredStepId(stepId ?? null);
+    }, []);
+    const onNodeMouseLeave: NodeMouseHandler = useCallback((_event, node) => {
+        const stepId = node.type === "groupHeader" ? node.parentId : node.id;
+        setHoveredStepId((current) => (current === stepId ? null : current));
+    }, []);
+
+    const dataDependencyEdges = useMemo(
+        () =>
+            showDataDependencies
+                ? buildDataDependencyEdges(activeWorkflow)
+                : [],
+        [showDataDependencies, activeWorkflow],
+    );
+    const renderedEdges = useMemo(() => {
+        const hoveredEdges = dataDependencyEdges.filter(
+            (edge) =>
+                edge.source === hoveredStepId || edge.target === hoveredStepId,
+        );
+        return hoveredEdges.length > 0 ? [...edges, ...hoveredEdges] : edges;
+    }, [edges, dataDependencyEdges, hoveredStepId]);
 
     const onEdgesChange: OnEdgesChange = useCallback(
         (changes) => {
@@ -963,10 +995,12 @@ export function WorkflowViewer({
                         <ReactFlow
                             colorMode={isDark ? "dark" : "light"}
                             nodes={nodes}
-                            edges={edges}
+                            edges={renderedEdges}
                             onNodesChange={onNodesChange}
                             onEdgesChange={onEdgesChange}
                             onNodeClick={onNodeClick}
+                            onNodeMouseEnter={onNodeMouseEnter}
+                            onNodeMouseLeave={onNodeMouseLeave}
                             onPaneClick={onPaneClick}
                             onConnect={isEditing ? onConnect : undefined}
                             onNodeDrag={isEditing ? onNodeDrag : undefined}

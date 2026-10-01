@@ -5,7 +5,8 @@ import type {
     WorkflowDefinition,
     WorkflowStep,
 } from "@remoraflow/core";
-import type { Edge, Node } from "@xyflow/react";
+import { type Edge, MarkerType, type Node } from "@xyflow/react";
+import { DEPENDENCY_EDGE_COLOR } from "./edges/dependency-edge";
 import { deriveStepSummaries } from "./execution-state";
 import {
     EMPTY_GROUP_HEIGHT,
@@ -22,6 +23,11 @@ import {
     type StepNodeData,
 } from "./layout";
 import { getNodeDimensions } from "./layout/measure";
+import {
+    DATA_SOURCE_HANDLE_ID,
+    DATA_TARGET_HANDLE_ID,
+} from "./nodes/data-dependency-handles";
+import { deriveDataDependencies } from "./utils/data-dependencies";
 import { formatExpression } from "./utils/expression-display";
 import { getChildStepIds, isBlockStep } from "./utils/nested-chain-refs";
 
@@ -692,6 +698,36 @@ export function buildLayout(
     }
 
     return { nodes, edges };
+}
+
+/**
+ * Display-only edges from each step to the steps whose expressions read its
+ * output. They are not part of the dagre layout.
+ */
+export function buildDataDependencyEdges(
+    workflow: WorkflowDefinition | null,
+): Edge[] {
+    if (!workflow) return [];
+    return deriveDataDependencies(workflow).map(
+        ({ sourceStepId, targetStepId }) => ({
+            id: `data:${sourceStepId}->${targetStepId}`,
+            source: sourceStepId,
+            target: targetStepId,
+            sourceHandle: DATA_SOURCE_HANDLE_ID,
+            targetHandle: DATA_TARGET_HANDLE_ID,
+            type: "dependency",
+            animated: true,
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: DEPENDENCY_EDGE_COLOR,
+                width: 14,
+                height: 14,
+            },
+        }),
+    );
 }
 
 function buildGroupHeaderData(
