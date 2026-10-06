@@ -56,6 +56,67 @@ class LogRingBuffer {
         };
     }
 }
+
+interface RunCapture {
+    buffer: LogRingBuffer;
+    silence: boolean;
+}
+
+type CaptureStore = import("node:async_hooks").AsyncLocalStorage<RunCapture>;
+
+let captureStore: Promise<CaptureStore> | undefined;
+
+const decoder = new TextDecoder();
+
+function chunkText(chunk: unknown): string {
+    if (typeof chunk === "string") return chunk;
+    if (chunk instanceof Uint8Array) return decoder.decode(chunk);
+    return String(chunk);
+}
+
+/**
+ * Routes every write on `stream` to the log buffer of the run that made it.
+ * Writes made outside a run pass through untouched.
+ */
+function routeWritesToRuns(stream: NodeJS.WriteStream, store: CaptureStore) {
+    const write = stream.write;
+    stream.write = function (
+        this: NodeJS.WriteStream,
+        chunk: unknown,
+        ...rest: unknown[]
+    ): boolean {
+        const run = store.getStore();
+        if (run) {
+            run.buffer.addLogLine(chunkText(chunk));
+            if (run.silence) {
+                const callback = rest.find(
+                    (arg): arg is () => void => typeof arg === "function",
+                );
+                if (callback) queueMicrotask(callback);
+                return true;
+            }
+        }
+        return Reflect.apply(write, this, [chunk, ...rest]);
+    } as NodeJS.WriteStream["write"];
+}
+
+/**
+ * Hooks stdout and stderr once per process. Each run is told apart by its
+ * async context rather than by hooking and unhooking the streams, so runs that
+ * overlap never see each other's output.
+ */
+function getCaptureStore(): Promise<CaptureStore> {
+    captureStore ??= import("node:async_hooks").then(
+        ({ AsyncLocalStorage }) => {
+            const store = new AsyncLocalStorage<RunCapture>();
+            routeWritesToRuns(process.stdout, store);
+            routeWritesToRuns(process.stderr, store);
+            return store;
+        },
+    );
+    return captureStore;
+}
+
 export async function* withLogCapture<TObjective>(
     objectiveFn: () => AsyncGenerator<TObjective>,
     {
@@ -64,21 +125,20 @@ export async function* withLogCapture<TObjective>(
         maxLogLineLength,
     }: { silence?: boolean; maxLogLines: number; maxLogLineLength: number },
 ) {
-    const logBuffer = new LogRingBuffer({ maxLogLineLength, maxLogLines });
-    const capcon = await import("capture-console");
-    capcon.startCapture(process.stdout, { quiet: silence }, (line) => {
-        logBuffer.addLogLine(line);
-    });
-    capcon.startCapture(process.stderr, { quiet: silence }, (line) => {
-        logBuffer.addLogLine(line);
-    });
+    const run: RunCapture = {
+        buffer: new LogRingBuffer({ maxLogLineLength, maxLogLines }),
+        silence: silence ?? false,
+    };
+    const store = await getCaptureStore();
+    const objectives = objectiveFn();
 
     try {
-        for await (const objective of objectiveFn()) {
-            yield { objective, logs: logBuffer.getLogs() };
+        while (true) {
+            const step = await store.run(run, () => objectives.next());
+            if (step.done) return;
+            yield { objective: step.value, logs: run.buffer.getLogs() };
         }
     } finally {
-        capcon.stopCapture(process.stdout);
-        capcon.stopCapture(process.stderr);
+        await store.run(run, () => objectives.return(undefined));
     }
 }
