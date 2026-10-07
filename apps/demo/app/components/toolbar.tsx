@@ -6,7 +6,9 @@ import {
     Check,
     ChevronDown,
     Download,
+    List,
     Moon,
+    Network,
     Play,
     Plus,
     RotateCcw,
@@ -46,6 +48,8 @@ interface ToolbarProps {
     hasLLMConfig: boolean;
     layout: LayoutDirection;
     onLayoutChange: (direction: LayoutDirection) => void;
+    isCompact: boolean;
+    onCompactChange: (compact: boolean) => void;
     isDark: boolean;
     onDarkModeToggle: () => void;
 }
@@ -66,6 +70,8 @@ export function Toolbar({
     hasLLMConfig,
     layout,
     onLayoutChange,
+    isCompact,
+    onCompactChange,
     isDark,
     onDarkModeToggle,
 }: ToolbarProps) {
@@ -285,6 +291,23 @@ export function Toolbar({
                 Settings
                 {hasLLMConfig && (
                     <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-green-500" />
+                )}
+            </Button>
+
+            <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => onCompactChange(!isCompact)}
+                title={
+                    isCompact
+                        ? "Switch to graph view"
+                        : "Switch to compact view"
+                }
+            >
+                {isCompact ? (
+                    <Network className="size-3.5" />
+                ) : (
+                    <List className="size-3.5" />
                 )}
             </Button>
 

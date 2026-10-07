@@ -1,5 +1,7 @@
 /** @module viewer */
 
+export type { CompactWorkflowViewerProps } from "./compact-workflow-viewer";
+export { CompactWorkflowViewer } from "./compact-workflow-viewer";
 export type { ReplaySliderProps } from "./components/replay-slider";
 export { ReplaySlider } from "./components/replay-slider";
 export type { StepPaletteProps } from "./components/step-palette";

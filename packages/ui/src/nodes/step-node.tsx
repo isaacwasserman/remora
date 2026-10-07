@@ -7,7 +7,7 @@ import type { FieldKind } from "../step-ui/types";
 import { formatExpression } from "../utils/expression-display";
 import { NodeShell } from "./node-shell";
 
-function NodeRow({ label, value }: { label: string; value: string }) {
+export function NodeRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex gap-1.5 text-[11px]">
             <span className="text-muted-foreground shrink-0">{label}:</span>
@@ -18,7 +18,7 @@ function NodeRow({ label, value }: { label: string; value: string }) {
     );
 }
 
-function renderFieldSummary(kind: FieldKind, value: unknown): string {
+export function renderFieldSummary(kind: FieldKind, value: unknown): string {
     if (value === undefined || value === null) return "—";
     switch (kind) {
         case "expression":
