@@ -1,17 +1,19 @@
-import type {
-    StubbedToolSet,
-    ToolDefinitionMap,
-    WorkflowDefinition,
+import {
+    type StubbedToolSet,
+    type ToolDefinitionMap,
+    validateWorkflowDefinition,
+    type WorkflowDefinition,
 } from "@remoraflow/core";
 import {
     buildStubTools,
+    CompactWorkflowViewer,
     type LayoutDirection,
     useDarkMode,
     useWorkflowExecution,
     WorkflowViewer,
 } from "@remoraflow/ui";
 import { ReactFlowProvider } from "@xyflow/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuditDialog } from "./components/audit-dialog.tsx";
 import { InputDialog } from "./components/input-dialog.tsx";
 import { InterventionDialog } from "./components/intervention-dialog.tsx";
@@ -31,11 +33,25 @@ import {
 } from "./lib/storage.ts";
 import defaultWorkflow from "./workflows/pokemon-lookup.json";
 
+const VIEWER_SETTINGS = { features: { allowUserIntervention: true } };
+
 export function App() {
     const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [tools, setTools] = useState<StubbedToolSet>({});
     const [layout, setLayout] = useState<LayoutDirection>("vertical");
+    const [isCompact, setIsCompact] = useState(false);
+    const compactDiagnostics = useMemo(
+        () =>
+            isCompact && workflow
+                ? validateWorkflowDefinition(
+                      workflow,
+                      { tools, options: VIEWER_SETTINGS },
+                      { assertToolsHaveOutputSchemas: false },
+                  ).diagnostics
+                : [],
+        [isCompact, workflow, tools],
+    );
     const [hasLLMConfig, setHasLLMConfig] = useState(false);
     const [isOAuthCallback, setIsOAuthCallback] = useState(() =>
         isOpenRouterOAuthCallback(),
@@ -194,20 +210,30 @@ export function App() {
                     hasLLMConfig={hasLLMConfig}
                     layout={layout}
                     onLayoutChange={setLayout}
+                    isCompact={isCompact}
+                    onCompactChange={setIsCompact}
                     isDark={isDark}
                     onDarkModeToggle={handleDarkModeToggle}
                 />
                 <main className="flex-1 min-h-0">
-                    <WorkflowViewer
-                        workflow={workflow}
-                        isEditing={isEditing}
-                        onWorkflowChange={handleWorkflowChange}
-                        executionState={executionState ?? undefined}
-                        tools={tools}
-                        paused={false}
-                        layout={layout}
-                        settings={{ features: { allowUserIntervention: true } }}
-                    />
+                    {isCompact ? (
+                        <CompactWorkflowViewer
+                            workflow={workflow}
+                            diagnostics={compactDiagnostics}
+                            executionState={executionState ?? undefined}
+                        />
+                    ) : (
+                        <WorkflowViewer
+                            workflow={workflow}
+                            isEditing={isEditing}
+                            onWorkflowChange={handleWorkflowChange}
+                            executionState={executionState ?? undefined}
+                            tools={tools}
+                            paused={false}
+                            layout={layout}
+                            settings={VIEWER_SETTINGS}
+                        />
+                    )}
                 </main>
                 <OutputPanel
                     executionState={executionState}

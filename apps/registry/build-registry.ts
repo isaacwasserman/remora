@@ -15,6 +15,11 @@ interface FileEntry {
 const VIEWER_FILES: FileEntry[] = [
     { relPath: "components/ui/combobox.tsx", type: "registry:ui" },
     { relPath: "workflow-viewer.tsx", type: "registry:component" },
+    { relPath: "compact-workflow-viewer.tsx", type: "registry:component" },
+    {
+        relPath: "compact-viewer/build-step-list.ts",
+        type: "registry:component",
+    },
     { relPath: "graph-layout.ts", type: "registry:component" },
     { relPath: "theme.tsx", type: "registry:component" },
     { relPath: "edit-context.tsx", type: "registry:component" },
@@ -177,6 +182,7 @@ const VIEWER_FILES: FileEntry[] = [
     },
     { relPath: "panels/shared.tsx", type: "registry:component" },
     { relPath: "panels/step-detail-panel.tsx", type: "registry:component" },
+    { relPath: "compact-viewer/step-details.tsx", type: "registry:component" },
     { relPath: "panels/step-editor-panel.tsx", type: "registry:component" },
 ];
 

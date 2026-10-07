@@ -27,7 +27,13 @@ export interface NodeShellProps {
     isInitial?: boolean;
 }
 
-function StatusIcon({ status, paused }: { status: string; paused?: boolean }) {
+export function StatusIcon({
+    status,
+    paused,
+}: {
+    status: string;
+    paused?: boolean;
+}) {
     switch (status) {
         case "running":
             if (paused) {
