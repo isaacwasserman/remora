@@ -34,6 +34,8 @@ export type CompactWorkflowViewerProps = {
     workflow: WorkflowDefinition | null;
     /** Compiler diagnostics to display on affected steps. */
     diagnostics?: ValidatorDiagnostic[];
+    /** Hide warning-severity diagnostics, showing only errors. */
+    hideWarnings?: boolean;
     /** Called when a step is clicked (with the step and its diagnostics) or when the selection is cleared (with `null`). */
     onStepSelect?: (
         step: WorkflowStep | null,
@@ -217,11 +219,19 @@ function StepEntry({
 export function CompactWorkflowViewer({
     workflow,
     diagnostics = EMPTY_DIAGNOSTICS,
+    hideWarnings = false,
     onStepSelect,
     executionState,
     paused = false,
     className = "",
 }: CompactWorkflowViewerProps) {
+    const visibleDiagnostics = useMemo(
+        () =>
+            hideWarnings
+                ? diagnostics.filter((d) => d.severity !== "warning")
+                : diagnostics,
+        [diagnostics, hideWarnings],
+    );
     const stepList = useMemo(
         () => (workflow ? buildStepList(workflow) : undefined),
         [workflow],
@@ -236,7 +246,7 @@ export function CompactWorkflowViewer({
 
     const context: ListContext = {
         workflow,
-        diagnostics,
+        diagnostics: visibleDiagnostics,
         summaries,
         paused,
         selectedStepId,

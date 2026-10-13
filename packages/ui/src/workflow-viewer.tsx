@@ -140,6 +140,8 @@ interface WorkflowViewerBaseProps {
     isEditing?: boolean;
     /** Called when the workflow is modified in edit mode. */
     onWorkflowChange?: (workflow: WorkflowDefinition) => void;
+    /** Hide warning-severity diagnostics, showing only errors. `onDiagnosticsChange` still receives every diagnostic. */
+    hideWarnings?: boolean;
     /** Hide the built-in detail/editor panel. Use this when rendering `StepDetailPanel` or `StepEditorPanel` externally. */
     hideDetailPanel?: boolean;
     /** Controls whether the DAG flows top-to-bottom (`"vertical"`) or left-to-right (`"horizontal"`). @see {@link LayoutDirection} */
@@ -192,6 +194,7 @@ export function WorkflowViewer({
     onWorkflowChange,
     tools,
     hideDetailPanel = false,
+    hideWarnings = false,
     layout: direction = "vertical",
     settings,
     validation = "internal",
@@ -280,8 +283,15 @@ export function WorkflowViewer({
         onDiagnosticsChange,
     ]);
 
-    const activeDiagnostics =
+    const allDiagnostics =
         validation === "external" ? diagnostics : localDiagnostics;
+    const activeDiagnostics = useMemo(
+        () =>
+            hideWarnings
+                ? allDiagnostics.filter((d) => d.severity !== "warning")
+                : allDiagnostics,
+        [allDiagnostics, hideWarnings],
+    );
 
     const [highlightedExecutionId, setHighlightedExecutionId] = useState<
         string | undefined

@@ -97,4 +97,32 @@ describe("CompactWorkflowViewer", () => {
             within(loop as HTMLElement).getByTitle("Completed"),
         ).toBeTruthy();
     });
+
+    test("hides warnings when hideWarnings is set", () => {
+        const warning: ValidatorDiagnostic = {
+            severity: "warning",
+            message: "Unused output.",
+            path: ["steps", 1],
+        };
+        const onStepSelect = mock();
+        const { container } = render(
+            <CompactWorkflowViewer
+                workflow={WORKFLOW}
+                diagnostics={[DIAGNOSTIC, warning]}
+                hideWarnings
+                onStepSelect={onStepSelect}
+            />,
+        );
+        const lookup = container.querySelector(
+            '[data-step-id="lookup"]',
+        ) as HTMLElement;
+        fireEvent.click(
+            within(lookup).getByRole("button", { expanded: false }),
+        );
+
+        expect(onStepSelect).toHaveBeenCalledWith(WORKFLOW.steps[1], [
+            DIAGNOSTIC,
+        ]);
+        expect(within(lookup).queryByText("Unused output.")).toBeNull();
+    });
 });
