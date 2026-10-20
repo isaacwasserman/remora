@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { tool } from "ai";
+import { jsonSchema, tool } from "ai";
 import { type } from "arktype";
 import type { JSONSchema7 } from "json-schema";
 import type { Expression, WorkflowDefinition, WorkflowStep } from "../schema";
@@ -494,6 +494,42 @@ describe("variableReferenceValidator", () => {
                 severity: "error",
                 path: ["steps", 2, "params", "output", "expression"],
                 message: "Invalid access: always resolves to null.",
+            },
+        ]);
+    });
+
+    test.each([
+        "step.results[0].X",
+        "step.results[0].X.Y",
+        "to_array(step.results)[0].X.Y",
+    ])("allows unknown tool result access with a warning: %s", (expression) => {
+        const tools = {
+            search: tool({
+                inputSchema: type({}),
+                outputSchema: jsonSchema({ type: "object" }),
+                execute: async () => ({ results: [{ X: { Y: "hello" } }] }),
+            }),
+        };
+        const definition = workflow(
+            step("start", { type: "start", nextStepId: "step" }),
+            step("step", {
+                type: "tool-call",
+                params: { toolName: "search", toolInput: {} },
+                nextStepId: "finish",
+            }),
+            step("finish", {
+                type: "end",
+                params: { output: { type: "jmespath", expression } },
+            }),
+        );
+
+        const result = validateWorkflowDefinition(definition, { tools });
+        expect(result.isValid).toBe(true);
+        expect(result.diagnostics).toEqual([
+            {
+                severity: "warning",
+                path: ["steps", 2, "params", "output", "expression"],
+                message: "Possibly-invalid access: may resolve to null.",
             },
         ]);
     });

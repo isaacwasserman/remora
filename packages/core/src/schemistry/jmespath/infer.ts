@@ -598,11 +598,15 @@ function accessWithNormalization(
 ): AnnotatedSchema {
     const s = asSchemaObject(schema);
     if (isUnknown(s)) {
-        return { type: "null", badAccess: "maybe" };
+        // Keep the result unknown: a null placeholder would make the next
+        // field or index access appear definitely invalid.
+        return { badAccess: "maybe" };
     }
     const members = unionMembers(s);
     if (members) {
-        const accessed = members.map(single);
+        const accessed = members.map((member) =>
+            accessWithNormalization(member, single),
+        );
         // Member markers are cleared and the verdict reported once here, so a
         // single failing alternative (e.g. the `null` arm of a nullable union)
         // reads as possibly-invalid rather than definitely so.

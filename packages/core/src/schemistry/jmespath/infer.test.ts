@@ -153,9 +153,71 @@ describe("inferQueryOutputSchema", () => {
     describe("unknown and union schemas", () => {
         test("access into an unknown schema is maybe", () => {
             expect(inferQueryOutputSchema(true, "a").schema).toEqual({
-                type: "null",
                 badAccess: "maybe",
             });
+        });
+
+        test.each([
+            true,
+            {},
+            { type: "object" },
+        ] as JSONSchema7Definition[])("chained access through an unknown value stays possibly invalid (%j)", (schema) => {
+            for (const query of [
+                "results[0].X",
+                "results[0].X.Y",
+                "results[0][1].X",
+                "results | [0].X.Y",
+                "to_array(results)[0].X.Y",
+            ]) {
+                expect(inferQueryOutputSchema(schema, query)).toEqual({
+                    schema: { badAccess: "maybe" },
+                    diagnostics: [
+                        {
+                            badAccess: "maybe",
+                            path: [],
+                            message:
+                                "Possibly-invalid access: may resolve to null.",
+                        },
+                    ],
+                });
+            }
+        });
+
+        test.each([
+            { anyOf: [{}, { type: "null" }] },
+            {
+                oneOf: [
+                    { anyOf: [true, { type: "null" }] },
+                    { type: "string" },
+                ],
+            },
+        ] as JSONSchema7Definition[])("unknown alternatives in unions stay possibly invalid (%j)", (schema) => {
+            expect(
+                inferQueryOutputSchema(schema, "results[0].X.Y").diagnostics,
+            ).toEqual([
+                {
+                    badAccess: "maybe",
+                    path: [],
+                    message: "Possibly-invalid access: may resolve to null.",
+                },
+            ]);
+        });
+
+        test.each([
+            { type: "null" },
+            { type: "string" },
+            { type: "object", properties: {}, additionalProperties: false },
+            { anyOf: [{ type: "null" }, { type: "string" }] },
+        ] as JSONSchema7Definition[])("chained access that cannot resolve stays invalid (%j)", (schema) => {
+            expect(
+                inferQueryOutputSchema(schema, "results[0].X.Y").diagnostics,
+            ).toEqual([
+                {
+                    badAccess: "true",
+                    path: [],
+                    message: "Invalid access: always resolves to null.",
+                },
+            ]);
         });
 
         test("access into a union assumes each branch", () => {
