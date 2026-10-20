@@ -1533,13 +1533,13 @@ describe("expression function names", () => {
 
     test("rejects an unknown function in a template insert", () => {
         const { diagnostics } = validateWorkflowDefinition(
-            outputting({ type: "template", template: "${upper(`a`)}" }),
+            outputting({ type: "template", template: "${unknown(`a`)}" }),
             ctx(),
         );
         expect(errorsIn(diagnostics)).toMatchObject([
             {
                 path: ["steps", 1, "params", "output", "template"],
-                message: expect.stringContaining('"upper()"'),
+                message: expect.stringContaining('"unknown()"'),
             },
         ]);
     });
@@ -1553,6 +1553,45 @@ describe("expression function names", () => {
             ctx(),
         );
         expect(errorsIn(diagnostics)).toEqual([]);
+    });
+
+    test.each([
+        "{result: unknown('a')}",
+        "{outer: {result: unknown('a')}}",
+        "map(&{result: unknown(@)}, `[]`)",
+        "`[]`[?unknown(@)]",
+        "let $x = unknown('a') in $x",
+        "let $x = 'a' in unknown($x)",
+        "`true` ? 'a' : unknown('a')",
+        "`1` + unknown('a')",
+        "-unknown('a')",
+    ])("rejects unknown functions throughout the AST: %s", (expression) => {
+        for (const output of [
+            { type: "jmespath", expression },
+            { type: "template", template: `\${${expression}}` },
+        ] satisfies Expression[]) {
+            const { isValid, diagnostics } = validateWorkflowDefinition(
+                outputting(output),
+                ctx(),
+            );
+            expect(isValid).toBe(false);
+            expect(errorsIn(diagnostics)).toMatchObject([
+                { message: expect.stringContaining('"unknown()"') },
+            ]);
+        }
+    });
+
+    test("does not treat JSON literal data as expression nodes", () => {
+        const { isValid, diagnostics } = validateWorkflowDefinition(
+            outputting({
+                type: "jmespath",
+                expression:
+                    '`{"type":"Function","name":"unknown","children":[]}`',
+            }),
+            ctx({}),
+        );
+        expect(isValid).toBe(true);
+        expect(diagnostics).toEqual([]);
     });
 });
 

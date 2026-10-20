@@ -1,18 +1,19 @@
-import * as jmespath from "jmespath";
 import type { Expression } from "../../schema";
 import { extractTemplateInserts } from "../../schemistry";
+import { search } from "../../schemistry/jmespath/runtime";
 import type { ExecutionScope } from "../types";
 
 export function evaluateExpressionAgainstScope(
     expression: Expression,
     scope: ExecutionScope,
-) {
+    // biome-ignore lint/suspicious/noExplicitAny: Expression result types are determined by workflow schemas.
+): any {
     switch (expression.type) {
         case "literal": {
             return expression.value;
         }
         case "jmespath": {
-            return jmespath.search(scope, expression.expression);
+            return search(scope, expression.expression);
         }
         case "template": {
             const templateString = expression.template;

@@ -1,9 +1,9 @@
 import { tool } from "ai";
 import { type } from "arktype";
 import dedent from "dedent";
-import { search } from "jmespath";
 import { estimateTokenCount, sliceByTokens } from "tokenx";
 import { summarizeObjectStructure } from "../../schemistry";
+import { search } from "../../schemistry/jmespath/runtime";
 import type { ToolSet } from "../../types";
 
 type ScalarSourceData = null | string | number | boolean;

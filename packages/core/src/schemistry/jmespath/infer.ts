@@ -9,7 +9,7 @@ import {
     compileExpression,
     type ExpressionNode,
     type FunctionNode,
-} from "./types";
+} from "./runtime";
 
 /**
  * Annotation describing whether an access operation (field/index) is sound.
@@ -168,23 +168,18 @@ export function inferQueryOutputSchema(
             case "IndexExpression":
             case "Pipe":
                 return inferNode(
-                    node.children[1],
-                    asSchemaObject(inferNode(node.children[0], schema)),
+                    node.right,
+                    asSchemaObject(inferNode(node.left, schema)),
                 );
             case "Projection": {
-                const base = asSchemaObject(
-                    inferNode(node.children[0], schema),
-                );
+                const base = asSchemaObject(inferNode(node.left, schema));
                 if (isArraySchema(base)) {
                     return {
                         type: "array",
                         items:
                             base.items === false
                                 ? false
-                                : inferNode(
-                                      node.children[1],
-                                      arrayElement(base),
-                                  ),
+                                : inferNode(node.right, arrayElement(base)),
                         badAccess: "false",
                     };
                 }
@@ -195,38 +190,29 @@ export function inferQueryOutputSchema(
                 return badNull();
             }
             case "ValueProjection": {
-                const base = asSchemaObject(
-                    inferNode(node.children[0], schema),
-                );
+                const base = asSchemaObject(inferNode(node.left, schema));
                 if (isObjectSchema(base)) {
                     return {
                         type: "array",
-                        items: inferNode(
-                            node.children[1],
-                            objectValueUnion(base),
-                        ),
+                        items: inferNode(node.right, objectValueUnion(base)),
                         badAccess: "false",
                     };
                 }
                 return badNull();
             }
             case "FilterProjection": {
-                const base = asSchemaObject(
-                    inferNode(node.children[0], schema),
-                );
+                const base = asSchemaObject(inferNode(node.left, schema));
                 if (!isArraySchema(base)) {
                     return badNull();
                 }
                 return {
                     type: "array",
-                    items: inferNode(node.children[1], arrayElement(base)),
+                    items: inferNode(node.right, arrayElement(base)),
                     badAccess: "false",
                 };
             }
             case "Flatten": {
-                const base = asSchemaObject(
-                    inferNode(node.children[0], schema),
-                );
+                const base = asSchemaObject(inferNode(node.child, schema));
                 if (!isArraySchema(base)) {
                     return badNull();
                 }
@@ -255,10 +241,7 @@ export function inferQueryOutputSchema(
                 const properties: { [key: string]: AnnotatedSchema } = {};
                 const required: string[] = [];
                 for (const pair of node.children) {
-                    properties[pair.name] = inferNode(
-                        pair.value as ExpressionNode,
-                        schema,
-                    );
+                    properties[pair.name] = inferNode(pair.value, schema);
                     required.push(pair.name);
                 }
                 return {
@@ -271,6 +254,8 @@ export function inferQueryOutputSchema(
             case "Identity":
             case "Current":
                 return ensureBadAccess(asSchemaObject(schema), "false");
+            case "Root":
+                return ensureBadAccess(root, "false");
             case "Literal":
                 return {
                     ...asSchemaObject(inferJsonSchema(node.value)),
@@ -283,16 +268,13 @@ export function inferQueryOutputSchema(
             case "OrExpression":
                 return ensureBadAccess(
                     unionSchemas([
-                        inferNode(node.children[0], schema),
-                        inferNode(node.children[1], schema),
+                        inferNode(node.left, schema),
+                        inferNode(node.right, schema),
                     ]),
                     "false",
                 );
             case "Function":
-                return ensureBadAccess(
-                    inferFunction(node as FunctionNode, schema),
-                    "false",
-                );
+                return ensureBadAccess(inferFunction(node, schema), "false");
             default:
                 // ExpressionReference and anything unhandled resolve to an
                 // unknown type.
@@ -442,7 +424,7 @@ export function inferQueryOutputSchema(
                 }
                 const child =
                     exprNode.type === "ExpressionReference"
-                        ? exprNode.children[0]
+                        ? exprNode.child
                         : exprNode;
                 return {
                     type: "array",

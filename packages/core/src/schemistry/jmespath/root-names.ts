@@ -1,4 +1,8 @@
-import { compileExpression, type ExpressionNode } from "./types";
+import {
+    compileExpression,
+    type ExpressionNode,
+    expressionChildren,
+} from "./runtime";
 
 /**
  * Returns the identifiers that a JMESPath query reads from its root input,
@@ -24,25 +28,31 @@ export function queryRootNames(query: string): string[] {
             case "Subexpression":
             case "IndexExpression":
             case "Pipe":
+                visit(node.left, atRoot);
+                visit(
+                    node.right,
+                    node.left.type === "Root" ||
+                        (atRoot &&
+                            (node.left.type === "Current" ||
+                                node.left.type === "Identity")),
+                );
+                return;
             case "Projection":
             case "ValueProjection":
-                visit(node.children[0], atRoot);
-                visit(node.children[1], false);
+                visit(node.left, atRoot);
+                visit(node.right, false);
                 return;
             case "FilterProjection":
-                visit(node.children[0], atRoot);
-                visit(node.children[1], false);
-                visit(node.children[2], false);
-                return;
-            case "MultiSelectHash":
-                for (const pair of node.children) {
-                    visit(pair.value as ExpressionNode, atRoot);
-                }
+                visit(node.left, atRoot);
+                visit(node.right, false);
+                visit(node.condition, false);
                 return;
             case "ExpressionReference":
+                visit(node.child, false);
                 return;
             default:
-                for (const child of node.children ?? []) visit(child, atRoot);
+                for (const child of expressionChildren(node))
+                    visit(child, atRoot);
         }
     };
 

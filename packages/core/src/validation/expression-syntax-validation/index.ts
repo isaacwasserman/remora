@@ -2,8 +2,9 @@ import type { Expression } from "../../schema";
 import {
     compileExpression,
     type ExpressionNode,
+    expressionChildren,
     JMESPATH_FUNCTION_NAMES,
-} from "../../schemistry/jmespath/types";
+} from "../../schemistry/jmespath/runtime";
 import { extractTemplateInserts } from "../../schemistry/template";
 import { expressionReferences } from "../../step-registry";
 import type { ValidationModule, ValidatorDiagnostic } from "../types";
@@ -20,11 +21,7 @@ function unknownFunctionNames(node: ExpressionNode): string[] {
         node.type === "Function" && !knownFunctionNames.has(node.name)
             ? [node.name]
             : [];
-    // Slice nodes hold numbers and nulls as children.
-    const children = (node.children ?? []).filter(
-        (child): child is ExpressionNode =>
-            typeof child === "object" && child !== null,
-    );
+    const children = expressionChildren(node);
     return [...own, ...children.flatMap(unknownFunctionNames)];
 }
 

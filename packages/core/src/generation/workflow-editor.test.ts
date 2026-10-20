@@ -197,6 +197,9 @@ describe("WorkflowEditor", () => {
         expect(
             await run("read-workflow", { jmespathQuery: "steps[*].id" }),
         ).toEqual(["start"]);
+        expect(
+            await run("read-workflow", { jmespathQuery: "upper(steps[0].id)" }),
+        ).toBe("START");
     });
 
     test("read and edit fail before a write", () => {

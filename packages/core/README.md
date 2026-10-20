@@ -52,6 +52,8 @@ A runtime engine that walks the compiled execution graph step by step. It handle
 
 Each step's output is stored in a scope that subsequent steps can reference via JMESPath expressions, providing structured data flow without arbitrary code.
 
+Expressions and template inserts use [JMESPath Community](https://jmespath.site/), including `split`, `lower`, `upper`, `trim`, `trim_left`, `trim_right`, `replace`, `pad_left`, `pad_right`, `find_first`, `find_last`, `group_by`, `items`, `from_items`, and `zip`. Validation and editor highlighting use the runtime's function list, exported as `JMESPATH_FUNCTION_NAMES`.
+
 The executor is compatible with the [Vercel AI SDK](https://ai-sdk.dev/) and will eventually support any agent implementing the AI SDK's agent interface.
 
 ### Viewer
