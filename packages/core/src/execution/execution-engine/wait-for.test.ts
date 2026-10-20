@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
 import { testPolicies } from "../test-support";
 import { createCheckpointingExecutionEngine } from "./checkpointing";
 import { testingOnly_createInMemoryCheckpointStore } from "./checkpointing/in-memory-store";
@@ -33,6 +33,10 @@ function countingRun(store: CheckpointStore) {
         sleeps,
     };
 }
+
+afterEach(() => {
+    setSystemTime();
+});
 
 describe("waitFor", () => {
     test("polls until truthy, sleeping between attempts", async () => {
@@ -154,6 +158,7 @@ describe("waitFor", () => {
     });
 
     test("a delay interrupted mid-flight waits out only its remainder", async () => {
+        setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
         // The deadline is recorded before sleeping, so an interrupted delay is
         // resumed rather than restarted from zero.
         const store = testingOnly_createInMemoryCheckpointStore();
@@ -170,9 +175,10 @@ describe("waitFor", () => {
                 ),
             ),
         ).rejects.toThrow("died mid-delay");
+        expect(first.sleeps).toEqual([10]);
 
-        // Real time passes while the host is down, eating into the deadline.
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Advance the clock while the host is down, eating into the deadline.
+        setSystemTime(new Date("2026-01-01T00:00:00.100Z"));
 
         const resumed = countingRun(store);
         await settle(
@@ -186,8 +192,6 @@ describe("waitFor", () => {
         // interval, because the deadline was set on the first run.
         // The 100ms downtime must be deducted; a recomputed deadline would sleep
         // the full interval (or a hair under it), so leave no room for that.
-        expect(resumed.sleeps).toHaveLength(1);
-        expect(resumed.sleeps[0]).toBeGreaterThan(0);
-        expect(resumed.sleeps[0]).toBeLessThanOrEqual(9.9);
+        expect(resumed.sleeps).toEqual([9.9]);
     });
 });
