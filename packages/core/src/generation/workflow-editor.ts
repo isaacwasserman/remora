@@ -3,9 +3,9 @@ import { type Type, type } from "arktype";
 // Node cannot find the named exports of this CommonJS package, so use its
 // default export.
 import jsonPatch, { type Operation } from "fast-json-patch";
-import { search } from "jmespath";
 import type { JSONSchema7 } from "json-schema";
 import type { WorkflowDefinition } from "../schema";
+import { search } from "../schemistry/jmespath/runtime";
 import type { ValidatorDiagnostic } from "../validation";
 
 export class WorkflowEditor {

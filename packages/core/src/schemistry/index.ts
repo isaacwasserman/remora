@@ -7,7 +7,7 @@ export {
     unionSchemas,
 } from "./jmespath/infer";
 export { queryRootNames } from "./jmespath/root-names";
-export { JMESPATH_FUNCTION_NAMES } from "./jmespath/types";
+export { JMESPATH_FUNCTION_NAMES } from "./jmespath/runtime";
 export { inferJsonSchema, type JsonSchema } from "./json-schema/from-value";
 export {
     type SubsetDiagnostic,
