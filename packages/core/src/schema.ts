@@ -315,7 +315,7 @@ const llmPromptSchema = type({
         outputFormat: jsonSchemaArktypeSchema
             .as<JSONSchema7>()
             .describe(
-                "JSON schema specifying the output format expected from the LLM",
+                'JSON schema specifying the output format expected from the LLM; must have top-level "type": "object" and use only type, properties, items, and required as schema keywords at every level',
             ),
         "+": "reject",
     },
@@ -334,7 +334,7 @@ const extractDataParamsSchema = type({
             "the data to extract information from",
         ],
         outputFormat: jsonSchemaArktypeSchema.describe(
-            "JSON schema specifying the output format expected from the data extraction",
+            'JSON schema specifying the output format expected from the data extraction; must have top-level "type": "object" and use only type, properties, items, and required as schema keywords at every level',
         ),
         "+": "reject",
     },
@@ -501,7 +501,7 @@ function _createWorkflowDefinitionSchema(
                 "mapping from tool name to JSON schema where the schema validates only a subset of inputs to the tool. Use this to contrain exactly what the agent can do with these tools at run time for security and predictability purposes.",
             ],
             outputFormat: jsonSchemaArktypeSchema.describe(
-                "JSON schema specifying the structured output format expected from the agent",
+                'JSON schema specifying the structured output format expected from the agent; must have top-level "type": "object" and use only type, properties, items, and required as schema keywords at every level',
             ),
             "maxSteps?": [
                 expressionSchema.narrow((expression) =>
