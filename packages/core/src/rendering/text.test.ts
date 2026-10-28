@@ -420,37 +420,39 @@ describe("renderWorkflowAsMarkdown", () => {
         },
     };
 
-    test("uses code spans, fenced prompts, and bullets that keep each step's number", () => {
+    test("uses code spans, fenced prompts, and ordered lists that keep each step's number", () => {
         expect(renderWorkflowAsMarkdown(definition)).toBe(
             dedent`
-                * **1.** The workflow starts with an input that has these fields:
+                1. The workflow starts with an input that has these fields:
 
-                  - \`kind\` (\`string\`, optional)
+                   - \`kind\` (\`string\`, optional)
 
-                * **2.** Pick a handler. It checks \`kind\` from the input:
+                2. Pick a handler. It checks \`kind\` from the input:
 
-                  - a. If it is \`"bug"\`, go to step 3.
-                  - b. Otherwise, go to step 4.
+                   - If it is \`"bug"\`, go to step 3.
+                   - Otherwise, go to step 4.
 
-                  * **3.** Triage the bug. It asks the LLM:
+                   3. Triage the bug. It asks the LLM:
 
-                    ${"````"}text
-                    Triage \${input.title}.
+                      ${"````"}text
+                      Triage \${input.title}.
 
-                    Reply in \`\`\`json\`\`\`.
-                    ${"````"}
+                      Reply in \`\`\`json\`\`\`.
+                      ${"````"}
 
-                    The answer has these fields:
+                      The answer has these fields:
 
-                    - \`severity\` (\`string\`)
+                      - \`severity\` (\`string\`)
 
-                    Then it continues at step 5.
+                      Then it continues at step 5.
 
-                  * **4.** The branch finishes with no result.
+                   4. The branch finishes with no result.
 
-                    Then it continues at step 5.
+                      Then it continues at step 5.
 
-                * **5.** The workflow finishes with no result.
+                <!-- -->
+
+                5. The workflow finishes with no result.
             `,
         );
     });

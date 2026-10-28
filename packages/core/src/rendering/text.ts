@@ -174,12 +174,7 @@ function toPlainText(blocks: Block[], depth = 0): string {
 function blockToMarkdown(block: Block): string {
     if (block.kind === "paragraph") return block.text;
     if (block.kind === "list") {
-        return block.items
-            .map(
-                (item, index) =>
-                    `- ${block.lettered ? `${caseLetter(index)}. ` : ""}${item}`,
-            )
-            .join("\n");
+        return block.items.map((item) => `- ${item}`).join("\n");
     }
     if (block.kind === "verbatim") {
         const longestBacktickRun = Math.max(
@@ -189,16 +184,26 @@ function blockToMarkdown(block: Block): string {
         const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
         return `${fence}text\n${block.text.trim()}\n${fence}`;
     }
-    // A bullet keeps each step's own number; an ordered list would renumber
-    // steps that are not consecutive.
-    const header = `* **${block.number}.** ${block.text}`;
+    const marker = `${block.number}. `;
     return block.children.length > 0
-        ? `${header}\n\n${indentLines(toMarkdown(block.children), "  ")}`
-        : header;
+        ? `${marker}${block.text}\n\n${indentLines(toMarkdown(block.children), " ".repeat(marker.length))}`
+        : `${marker}${block.text}`;
 }
 
 function toMarkdown(blocks: Block[]): string {
-    return blocks.map(blockToMarkdown).join("\n\n");
+    return blocks
+        .map((block, index) => {
+            const previous = blocks[index - 1];
+            // Renderers renumber an ordered list's items sequentially, so a
+            // step that does not follow its sibling's number starts a new list.
+            const startsNewList =
+                block.kind === "step" &&
+                previous?.kind === "step" &&
+                block.number !== previous.number + 1;
+            const markdown = blockToMarkdown(block);
+            return startsNewList ? `<!-- -->\n\n${markdown}` : markdown;
+        })
+        .join("\n\n");
 }
 
 /** Removes JMESPath raw string ('...') and JSON (`...`) literals. */
@@ -785,7 +790,7 @@ export function renderWorkflowAsText(
 
 /**
  * Explains a workflow in plain language as Markdown, with code spans, fenced
- * prompts, and nested bullet lists of numbered steps.
+ * prompts, and nested ordered lists of steps.
  */
 export function renderWorkflowAsMarkdown(
     workflowDefinition: WorkflowDefinition,
