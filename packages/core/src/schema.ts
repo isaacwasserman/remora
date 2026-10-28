@@ -71,7 +71,11 @@ export type Expression = typeof expressionSchema.inferOut;
 const baseStepProperties = {
     id: [/^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/, "@", "unique step id"],
     name: "string",
-    description: "string",
+    description: [
+        "string",
+        "@",
+        "a sentence describing what the step does, beginning with a third-person singular present-tense verb",
+    ],
     "nextStepId?": "string",
     "+": "reject",
 } as const;
@@ -79,7 +83,11 @@ const baseStepProperties = {
 const baseStepSchema = type({
     id: [/^(?!__)[a-zA-Z_][a-zA-Z0-9_]+$/, "@", "unique step id"],
     name: "string",
-    description: "string",
+    description: [
+        "string",
+        "@",
+        "a sentence describing what the step does, beginning with a third-person singular present-tense verb",
+    ],
     "nextStepId?": "string",
     "+": "reject",
 });
