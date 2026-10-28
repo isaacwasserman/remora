@@ -7,6 +7,8 @@ import { buildStepIndex } from "../utils";
 const INDENT = "    ";
 const SIMPLE_PATH = /^([A-Za-z_]\w*)((?:\.[A-Za-z_]\w*|\[\d+\])*)$/;
 const ROOT_IDENTIFIER = /(?<![.\w@"])([A-Za-z_]\w*)(?!\s*\()/g;
+const DETACHED_VALUE = /\uE000(\d+)\uE001/g;
+const TRAILING_DETACHED_VALUE = /\uE000(\d+)\uE001[.:]?$/;
 
 /** How a chain of steps is described when it reaches its last step. */
 type ChainContext = {
@@ -22,15 +24,18 @@ type StepBlock = {
     children: Block[];
 };
 
+type ListItem = { text: string; details: string[] };
+
 type Block =
     | { kind: "paragraph"; text: string }
     | {
           kind: "list";
-          items: string[];
+          items: ListItem[];
           lettered: boolean;
           nested: boolean;
       }
     | { kind: "verbatim"; text: string }
+    | { kind: "bullet"; text: string; children: Block[] }
     | StepBlock;
 
 type StepWriter = {
@@ -132,8 +137,19 @@ function formatDuration(ms: number): string {
     return `${ms} milliseconds`;
 }
 
+function longestBacktickRun(text: string): number {
+    return Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+}
+
 function markdownCode(text: string): string {
-    return text.includes("`") ? `\`\` ${text} \`\`` : `\`${text}\``;
+    const longestRun = longestBacktickRun(text);
+    if (longestRun === 0) return `\`${text}\``;
+    const fence = "`".repeat(longestRun + 1);
+    return `${fence} ${text} ${fence}`;
+}
+
+function trimBlankLines(text: string): string {
+    return text.replace(/^(?:[ \t]*\r?\n)+/, "").trimEnd();
 }
 
 function caseLetter(index: number): string {
@@ -151,15 +167,26 @@ function blockToPlainText(block: Block, depth: number): string {
     const indent = (extra = 0) => INDENT.repeat(depth + extra);
     if (block.kind === "paragraph") return `${indent()}${block.text}`;
     if (block.kind === "list") {
+        const itemDepth = depth + (block.nested ? 1 : 0);
         return block.items
-            .map(
-                (item, index) =>
-                    `${indent(block.nested ? 1 : 0)}${block.lettered ? `${caseLetter(index)}.` : "-"} ${item}`,
+            .map((item, index) =>
+                [
+                    `${INDENT.repeat(itemDepth)}${block.lettered ? `${caseLetter(index)}.` : "-"} ${item.text}`,
+                    ...item.details.map((text) =>
+                        blockToPlainText({ kind: "verbatim", text }, itemDepth),
+                    ),
+                ].join("\n"),
             )
             .join("\n");
     }
     if (block.kind === "verbatim") {
-        return indentLines(block.text.trim(), indent(1));
+        return indentLines(trimBlankLines(block.text), indent(1));
+    }
+    if (block.kind === "bullet") {
+        const bullet = `${indent()}- ${block.text}`;
+        return block.children.length > 0
+            ? `${bullet}\n${toPlainText(block.children, depth + 1)}`
+            : bullet;
     }
     const header = `${indent()}${block.number}. ${block.text}`;
     return block.children.length > 0
@@ -174,15 +201,31 @@ function toPlainText(blocks: Block[], depth = 0): string {
 function blockToMarkdown(block: Block): string {
     if (block.kind === "paragraph") return block.text;
     if (block.kind === "list") {
-        return block.items.map((item) => `- ${item}`).join("\n");
+        const hasDetails = block.items.some((item) => item.details.length > 0);
+        return block.items
+            .map((item) =>
+                [
+                    `- ${item.text}`,
+                    ...item.details.map((text) =>
+                        indentLines(
+                            blockToMarkdown({ kind: "verbatim", text }),
+                            "  ",
+                        ),
+                    ),
+                ].join("\n\n"),
+            )
+            .join(hasDetails ? "\n\n" : "\n");
     }
     if (block.kind === "verbatim") {
-        const longestBacktickRun = Math.max(
-            0,
-            ...(block.text.match(/`+/g) ?? []).map((run) => run.length),
+        const fence = "`".repeat(
+            Math.max(3, longestBacktickRun(block.text) + 1),
         );
-        const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
-        return `${fence}text\n${block.text.trim()}\n${fence}`;
+        return `${fence}text\n${trimBlankLines(block.text)}\n${fence}`;
+    }
+    if (block.kind === "bullet") {
+        return block.children.length > 0
+            ? `- ${block.text}\n\n${indentLines(toMarkdown(block.children), "  ")}`
+            : `- ${block.text}`;
     }
     const marker = `${block.number}. `;
     return block.children.length > 0
@@ -324,6 +367,40 @@ function explainWorkflow(
         stepsById,
     );
     const rendered = new Set<string>();
+    const detachedValues: { value: string; phrase: string }[] = [];
+
+    /**
+     * Stands in for a multi-line value, which is shown in full in a block
+     * after the text that refers to it. A value that ends the text is
+     * introduced with a colon; elsewhere, the phrase refers to it.
+     */
+    const detach = (value: string, phrase: string): string =>
+        `\uE000${detachedValues.push({ value, phrase }) - 1}\uE001`;
+
+    const resolveDetached = (text: string): ListItem => {
+        const details: string[] = [];
+        const trailing = TRAILING_DETACHED_VALUE.exec(text);
+        const body = trailing ? text.slice(0, trailing.index) : text;
+        const resolved = body.replace(DETACHED_VALUE, (_, index: string) => {
+            const detached = detachedValues[Number(index)];
+            details.push(detached?.value ?? "");
+            return detached?.phrase ?? "";
+        });
+        if (!trailing) return { text: resolved, details };
+        details.push(detachedValues[Number(trailing[1])]?.value ?? "");
+        const lead = resolved.trimEnd();
+        return { text: lead.endsWith(":") ? lead : `${lead}:`, details };
+    };
+
+    const pushParagraph = (blocks: Block[], text: string) => {
+        const { text: resolved, details } = resolveDetached(text);
+        blocks.push(
+            { kind: "paragraph", text: resolved },
+            ...details.map(
+                (detail): Block => ({ kind: "verbatim", text: detail }),
+            ),
+        );
+    };
 
     const describeType = (schema: JSONSchema7Definition): string =>
         code(describeJsonSchemaType(schema));
@@ -345,6 +422,7 @@ function explainWorkflow(
 
     const describeQuery = (query: string): string => {
         const trimmed = query.trim();
+        const multiLine = trimmed.includes("\n");
         const match = SIMPLE_PATH.exec(trimmed);
         if (match) {
             const [, root = "", rest = ""] = match;
@@ -380,17 +458,27 @@ function explainWorkflow(
                 ? [`steps ${joinWords(sortedNumbers)}`]
                 : []),
         ];
-        return sources.length > 0
-            ? `${code(trimmed)} (using ${joinWords(sources)})`
+        const shown = multiLine
+            ? detach(trimmed, "the result of the expression below")
             : code(trimmed);
+        return sources.length > 0
+            ? `${shown} (using ${joinWords(sources)})`
+            : shown;
     };
+
+    const describeText = (text: string): string =>
+        text.includes("\n")
+            ? detach(text, "the text below")
+            : code(JSON.stringify(text));
 
     const describeValue = (expression: Expression): string => {
         switch (expression.type) {
             case "literal":
-                return code(formatLiteral(expression.value));
+                return typeof expression.value === "string"
+                    ? describeText(expression.value)
+                    : code(formatLiteral(expression.value));
             case "template":
-                return code(JSON.stringify(expression.template));
+                return describeText(expression.template);
             case "jmespath":
                 return describeQuery(expression.expression);
         }
@@ -406,12 +494,20 @@ function explainWorkflow(
             ? formatNumber(expression.value)
             : describeValue(expression);
 
-    const createWriter = (children: Block[]): StepWriter => ({
+    const createWriter = (
+        children: Block[],
+        chains: Block[] = children,
+    ): StepWriter => ({
         paragraph: (text) => {
-            children.push({ kind: "paragraph", text });
+            pushParagraph(children, text);
         },
         list: (items, { lettered = false } = {}) => {
-            children.push({ kind: "list", items, lettered, nested: false });
+            children.push({
+                kind: "list",
+                items: items.map(resolveDetached),
+                lettered,
+                nested: false,
+            });
         },
         verbatim: (text) => {
             children.push({ kind: "verbatim", text });
@@ -426,14 +522,16 @@ function explainWorkflow(
                         typeof value === "object" && value.description
                             ? `: ${value.description}`
                             : "";
-                    return `${code(key)} (${describeType(value)}${optional})${description}`;
+                    return resolveDetached(
+                        `${code(key)} (${describeType(value)}${optional})${description}`,
+                    );
                 },
             );
             children.push({ kind: "list", items, lettered: false, nested });
         },
         chain: (entryStepId, context) => {
             if (!rendered.has(entryStepId)) {
-                children.push(...renderChain(entryStepId, context));
+                chains.push(...renderChain(entryStepId, context));
             }
         },
     });
@@ -684,20 +782,33 @@ function explainWorkflow(
         step: WorkflowStep,
         context: ChainContext,
     ): StepBlock => {
-        const children: Block[] = [];
+        const written: Block[] = [];
+        const chains: Block[] = [];
         const render = renderers[step.type] as (
             step: WorkflowStep,
             writer: StepWriter,
             context: ChainContext,
         ) => string;
-        const summary = render(step, createWriter(children), context);
+        const summary = render(step, createWriter(written, chains), context);
         const description =
             step.type === "start" ? "" : asSentence(step.description);
+        const { text, details } = resolveDetached(summary);
+        const summaryChildren: Block[] = [
+            ...details.map(
+                (detail): Block => ({ kind: "verbatim", text: detail }),
+            ),
+            ...written,
+        ];
         return {
             kind: "step",
             number: numbers.get(step.id) ?? 0,
-            text: description ? `${description} ${summary}` : summary,
-            children,
+            text: description || text,
+            children: description
+                ? [
+                      { kind: "bullet", text, children: summaryChildren },
+                      ...chains,
+                  ]
+                : [...summaryChildren, ...chains],
         };
     };
 
@@ -712,10 +823,10 @@ function explainWorkflow(
         while (stepId !== undefined) {
             const step = stepsById.get(stepId);
             if (!step || rendered.has(stepId)) {
-                (last?.children ?? blocks).push({
-                    kind: "paragraph",
-                    text: `Then it goes to ${stepRef(stepId)}.`,
-                });
+                pushParagraph(
+                    last?.children ?? blocks,
+                    `Then it goes to ${stepRef(stepId)}.`,
+                );
                 return blocks;
             }
             rendered.add(step.id);
@@ -730,10 +841,7 @@ function explainWorkflow(
         const workflowAlreadyEnded =
             lastStep?.type === "end" && context.isWorkflow;
         if (!branchesCarryExit && !workflowAlreadyEnded) {
-            (last?.children ?? blocks).push({
-                kind: "paragraph",
-                text: context.exit,
-            });
+            pushParagraph(last?.children ?? blocks, context.exit);
         }
         return blocks;
     };
