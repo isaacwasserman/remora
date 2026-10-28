@@ -81,17 +81,20 @@ describe("renderWorkflowAsText", () => {
             1. The workflow starts with an input that has these fields:
                 - city (string): City to look up
                 - units ("metric" | "imperial", optional)
-            2. Get the current weather. It calls the get-weather tool with:
-                - city: city from the input
-                - days: 1
+            2. Get the current weather.
+                - It calls the get-weather tool with:
+                    - city: city from the input
+                    - days: 1
             3. It waits 1.5 minutes.
-            4. Summarize the weather. It asks the LLM:
-                    Summarize \${fetch_weather}.
-                    Keep it short.
-                The answer is of type string.
-            5. Return the temperature. The workflow finishes and returns temp from step 2.
-                The result has these fields:
-                    - temperature (number)
+            4. Summarize the weather.
+                - It asks the LLM:
+                        Summarize \${fetch_weather}.
+                        Keep it short.
+                    The answer is of type string.
+            5. Return the temperature.
+                - The workflow finishes and returns temp from step 2.
+                    The result has these fields:
+                        - temperature (number)
         `);
     });
 
@@ -146,10 +149,12 @@ describe("renderWorkflowAsText", () => {
         );
 
         expect(renderWorkflowAsText(definition)).toBe(dedent`
-            1. Pick a handler. It checks kind from the input:
-                a. If it is "bug", go to step 2.
-                b. Otherwise, go to step 4.
-                2. File a bug report. It calls the file-bug tool with title set to "Bug: \${input.title}".
+            1. Pick a handler.
+                - It checks kind from the input:
+                    a. If it is "bug", go to step 2.
+                    b. Otherwise, go to step 4.
+                2. File a bug report.
+                    - It calls the file-bug tool with title set to "Bug: \${input.title}".
                 3. The branch finishes with id from step 2.
                     Then it continues at step 5.
                 4. The branch finishes with no result.
@@ -247,16 +252,19 @@ describe("renderWorkflowAsText", () => {
         );
 
         expect(renderWorkflowAsText(definition)).toBe(dedent`
-            1. Greet every user. It goes through each item in users from the input, naming the current item user. For each item, it runs step 2 and collects the results into a list.
+            1. Greet every user.
+                - It goes through each item in users from the input, naming the current item user. For each item, it runs step 2 and collects the results into a list.
                 2. This pass finishes with "Hi \${user}".
                     Then it moves on to the next item (back to step 1).
-            3. Grow the draft. It repeats step 5 for as long as the check in step 4 gives a true result, and keeps a running value named draft_text. It starts as "", and each pass replaces it with that pass's result.
+            3. Grow the draft.
+                - It repeats step 5 for as long as the check in step 4 gives a true result, and keeps a running value named draft_text. It starts as "", and each pass replaces it with that pass's result.
                 4. The check finishes with length(draft_text) < \`10\`.
                     If the result is true, it runs the loop at step 5. If not, the loop is over.
                 5. This pass finishes with "draft".
                     Then it goes back to step 4 to check again.
-            6. Wait for the job. It waits until ready from step 7 is true. On each try, it runs step 7 and then checks.
-                It tries at most 5 times, waits 2 seconds between tries (each wait is 2 times longer than the one before), and gives up after the number of milliseconds in timeout from the input.
+            6. Wait for the job.
+                - It waits until ready from step 7 is true. On each try, it runs step 7 and then checks.
+                    It tries at most 5 times, waits 2 seconds between tries (each wait is 2 times longer than the one before), and gives up after the number of milliseconds in timeout from the input.
                 7. It calls the check-status tool.
                     If ready from step 7 is true, the wait is over. If not, it waits and tries again from step 7.
                 The workflow is done.
@@ -372,7 +380,8 @@ describe("renderWorkflowAsText", () => {
             1. The workflow finishes with no result.
 
             Nothing leads to these steps, so they never run:
-            2. Take a break. It waits for the number of milliseconds in ms from the input.
+            2. Take a break.
+                - It waits for the number of milliseconds in ms from the input.
             3. This part finishes with no result.
                 This part ends.
         `);
@@ -427,22 +436,26 @@ describe("renderWorkflowAsMarkdown", () => {
 
                    - \`kind\` (\`string\`, optional)
 
-                2. Pick a handler. It checks \`kind\` from the input:
+                2. Pick a handler.
 
-                   - If it is \`"bug"\`, go to step 3.
-                   - Otherwise, go to step 4.
+                   - It checks \`kind\` from the input:
 
-                   3. Triage the bug. It asks the LLM:
+                     - If it is \`"bug"\`, go to step 3.
+                     - Otherwise, go to step 4.
 
-                      ${"````"}text
-                      Triage \${input.title}.
+                   3. Triage the bug.
 
-                      Reply in \`\`\`json\`\`\`.
-                      ${"````"}
+                      - It asks the LLM:
 
-                      The answer has these fields:
+                        ${"````"}text
+                        Triage \${input.title}.
 
-                      - \`severity\` (\`string\`)
+                        Reply in \`\`\`json\`\`\`.
+                        ${"````"}
+
+                        The answer has these fields:
+
+                        - \`severity\` (\`string\`)
 
                       Then it continues at step 5.
 
@@ -454,6 +467,120 @@ describe("renderWorkflowAsMarkdown", () => {
 
                 5. The workflow finishes with no result.
             `,
+        );
+    });
+});
+
+describe("multi-line and backtick values", () => {
+    const definition: WorkflowDefinition = workflow(
+        described("start", "", { type: "start", nextStepId: "hunt" }),
+        described("hunt", "", {
+            type: "tool-call",
+            params: {
+                toolName: "run-query",
+                toolInput: {
+                    query: {
+                        type: "literal",
+                        value: 'DeviceInfo\n| where Name == "a"',
+                    },
+                    days: { type: "literal", value: 7 },
+                },
+            },
+            nextStepId: "done",
+        }),
+        described("done", "", {
+            type: "end",
+            params: {
+                output: {
+                    type: "jmespath",
+                    expression:
+                        "join('', ['## Total\n\n', to_string(hunt.n), ' in ``` `x` '])",
+                },
+            },
+        }),
+    );
+
+    test("shows multi-line values in fenced blocks in Markdown", () => {
+        expect(renderWorkflowAsMarkdown(definition)).toBe(
+            dedent`
+                1. The workflow starts. It takes no input.
+
+                2. It calls the \`run-query\` tool with:
+
+                   - \`query\`:
+
+                     \`\`\`text
+                     DeviceInfo
+                     | where Name == "a"
+                     \`\`\`
+
+                   - \`days\`: \`7\`
+
+                3. The workflow finishes and returns the result of the expression below (using step 2).
+
+                   ${"````"}text
+                   join('', ['## Total
+
+                   ', to_string(hunt.n), ' in \`\`\` \`x\` '])
+                   ${"````"}
+            `,
+        );
+    });
+
+    test("shows multi-line values as indented blocks in plain text", () => {
+        expect(renderWorkflowAsText(definition)).toBe(
+            dedent`
+                1. The workflow starts. It takes no input.
+                2. It calls the run-query tool with:
+                    - query:
+                        DeviceInfo
+                        | where Name == "a"
+                    - days: 7
+                3. The workflow finishes and returns the result of the expression below (using step 2).
+                        join('', ['## Total
+
+                        ', to_string(hunt.n), ' in \`\`\` \`x\` '])
+            `,
+        );
+    });
+
+    test("introduces a multi-line value that ends a sentence with a colon", () => {
+        const markdown = renderWorkflowAsMarkdown(
+            workflow(
+                described("start", "", { type: "start", nextStepId: "hunt" }),
+                described("hunt", "", {
+                    type: "tool-call",
+                    params: {
+                        toolName: "run-query",
+                        toolInput: {
+                            query: { type: "template", template: "a\nb" },
+                        },
+                    },
+                }),
+            ),
+        );
+        expect(markdown).toContain(
+            "2. It calls the `run-query` tool with `query` set to:\n\n   ```text\n   a\n   b\n   ```",
+        );
+    });
+
+    test("fences code spans with more backticks than the value contains", () => {
+        const markdown = renderWorkflowAsMarkdown(
+            workflow(
+                described("start", "", { type: "start", nextStepId: "done" }),
+                described("done", "", {
+                    type: "end",
+                    params: {
+                        output: {
+                            type: "jmespath",
+                            expression: "join('', ['``', input.x])",
+                        },
+                    },
+                }),
+            ),
+        );
+        expect(markdown).toContain(
+            "returns ``` join('', ['``', input.x]) ``` (using the input).",
         );
     });
 });
